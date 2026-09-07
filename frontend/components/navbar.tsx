@@ -2,24 +2,23 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/lib/auth-context'
+
+const easeOut = [0.16, 1, 0.3, 1] as const
 
 export function Navbar() {
   const { user, loading, logout } = useAuth()
   const pathname = usePathname()
   const router = useRouter()
-
-  const links = [
-    { href: '/', label: '首页' },
-    ...(user?.role === 'admin' ? [{ href: '/admin', label: '管理后台' }] : []),
-  ]
+  const [menuOpen, setMenuOpen] = useState(false)
 
   return (
     <motion.header
       initial={{ y: -60, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      transition={{ duration: 0.5, ease: easeOut }}
       className="sticky top-0 z-50 border-b border-border bg-background/70 backdrop-blur-xl"
     >
       <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
@@ -35,27 +34,23 @@ export function Navbar() {
             <span className="transition-colors group-hover:text-accent">Blog平台</span>
           </Link>
           <nav className="flex items-center gap-1">
-            {links.map((link) => {
-              const active = link.href === '/' ? pathname === '/' : pathname.startsWith(link.href)
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`relative rounded-md px-3 py-1.5 text-sm transition-colors ${
-                    active ? 'text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {link.label}
-                  {active && (
-                    <motion.span
-                      layoutId="nav-underline"
-                      className="absolute inset-x-3 -bottom-[13px] h-0.5 rounded-full bg-accent"
-                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                    />
-                  )}
-                </Link>
-              )
-            })}
+            <Link
+              href="/"
+              className={`relative rounded-md px-3 py-1.5 text-sm transition-colors ${
+                pathname === '/'
+                  ? 'text-foreground font-medium'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              首页
+              {pathname === '/' && (
+                <motion.span
+                  layoutId="nav-underline"
+                  className="absolute inset-x-3 -bottom-[13px] h-0.5 rounded-full bg-accent"
+                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                />
+              )}
+            </Link>
           </nav>
         </div>
 
@@ -63,30 +58,64 @@ export function Navbar() {
           {loading ? (
             <div className="h-8 w-20 animate-pulse rounded-md bg-muted" />
           ) : user ? (
-            <AnimatePresence mode="popLayout">
-              <motion.div
-                key="user"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="flex items-center gap-3"
+            <div
+              className="relative"
+              onMouseEnter={() => setMenuOpen(true)}
+              onMouseLeave={() => setMenuOpen(false)}
+            >
+              <button
+                onClick={() => setMenuOpen((o) => !o)}
+                className="flex items-center gap-2 rounded-full border border-border bg-card py-1 pl-1 pr-3 transition-colors hover:border-accent/40"
               >
-                <div className="flex items-center gap-2 rounded-full border border-border bg-card py-1 pl-1 pr-3">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">
-                    {user.username.charAt(0).toUpperCase()}
-                  </span>
-                  <span className="text-sm font-medium">{user.username}</span>
-                </div>
-                <button
-                  onClick={() => {
-                    logout()
-                    router.push('/')
-                  }}
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/10 text-xs font-bold text-accent">
+                  {user.username.charAt(0).toUpperCase()}
+                </span>
+                <span className="text-sm font-medium">{user.username}</span>
+                <motion.span
+                  animate={{ rotate: menuOpen ? 180 : 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="text-[10px] text-muted-foreground"
                 >
-                  退出
-                </button>
-              </motion.div>
-            </AnimatePresence>
+                  ▼
+                </motion.span>
+              </button>
+
+              <AnimatePresence>
+                {menuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                    transition={{ duration: 0.18, ease: easeOut }}
+                    className="absolute right-0 top-full z-50 mt-2 w-48 overflow-hidden rounded-xl border border-border bg-card p-1.5 shadow-xl shadow-black/10"
+                  >
+                    <div className="mb-1 border-b border-border px-3 pb-2 pt-1.5">
+                      <p className="text-sm font-medium">{user.username}</p>
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">{user.email}</p>
+                    </div>
+                    {user.role === 'admin' && (
+                      <Link
+                        href="/admin"
+                        onClick={() => setMenuOpen(false)}
+                        className="block rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      >
+                        后台管理
+                      </Link>
+                    )}
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false)
+                        logout()
+                        router.push('/')
+                      }}
+                      className="block w-full rounded-lg px-3 py-2 text-left text-sm text-red-500 transition-colors hover:bg-red-500/10"
+                    >
+                      退出登录
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           ) : (
             <div className="flex items-center gap-3">
               <Link
