@@ -49,10 +49,79 @@ func (h *AdminHandler) ListUsers(c *gin.Context) {
 			"email":      u.Email,
 			"username":   u.Username,
 			"role":       u.Role,
+			"status":     u.Status,
 			"created_at": u.CreatedAt,
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"users": items, "total": total, "page": page, "page_size": pageSize})
+}
+
+type createUserRequest struct {
+	Email    string `json:"email" binding:"required"`
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
+	Role     string `json:"role"`
+}
+
+// CreateUser handles POST /admin/users.
+func (h *AdminHandler) CreateUser(c *gin.Context) {
+	var req createUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请填写完整的用户信息"})
+		return
+	}
+
+	user, err := h.admin.CreateUser(service.CreateUserInput{
+		Email:    req.Email,
+		Username: req.Username,
+		Password: req.Password,
+		Role:     req.Role,
+	})
+	if err != nil {
+		errorResponse(c, err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"user": gin.H{
+			"id":       user.ID,
+			"email":    user.Email,
+			"username": user.Username,
+			"role":     user.Role,
+			"status":   user.Status,
+		},
+	})
+}
+
+type updateStatusRequest struct {
+	Status string `json:"status" binding:"required"`
+}
+
+// UpdateUserStatus handles PUT /admin/users/:id/status (ban/unban).
+func (h *AdminHandler) UpdateUserStatus(c *gin.Context) {
+	current, _ := middleware.GetCurrentUser(c)
+
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户 ID"})
+		return
+	}
+
+	var req updateStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少 status 字段"})
+		return
+	}
+	if current.ID == uint(id) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "不能封禁自己的账号"})
+		return
+	}
+
+	if err := h.admin.SetUserStatus(uint(id), req.Status); err != nil {
+		errorResponse(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "状态已更新"})
 }
 
 type updateRoleRequest struct {

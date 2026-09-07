@@ -12,6 +12,7 @@ import (
 
 var (
 	ErrInvalidCredentials = errors.New("invalid email or password")
+	ErrUserBanned         = errors.New("该账号已被封禁，请联系管理员")
 	ErrValidation         = errors.New("validation failed")
 )
 
@@ -62,6 +63,7 @@ func (s *AuthService) Register(input RegisterInput) (*model.User, *TokenPair, er
 		Username:     username,
 		PasswordHash: string(hash),
 		Role:         role,
+		Status:       model.StatusActive,
 	}
 	if err := s.users.Create(user); err != nil {
 		switch {
@@ -88,6 +90,9 @@ func (s *AuthService) Login(email, password string) (*model.User, *TokenPair, er
 		}
 		return nil, nil, err
 	}
+	if user.IsBanned() {
+		return nil, nil, ErrUserBanned
+	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 		return nil, nil, ErrInvalidCredentials
 	}
@@ -106,6 +111,9 @@ func (s *AuthService) Refresh(refreshToken string) (*model.User, *TokenPair, err
 	user, err := s.users.FindByID(claims.UserID)
 	if err != nil {
 		return nil, nil, errors.New("user no longer exists")
+	}
+	if user.IsBanned() {
+		return nil, nil, ErrUserBanned
 	}
 	pair, err := s.tokens.GeneratePair(user.ID, user.Role)
 	if err != nil {

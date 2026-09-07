@@ -38,6 +38,11 @@ func main() {
 	router.Use(gin.Logger(), gin.Recovery())
 	router.Use(middleware.CORS([]string{cfg.FrontendURL}))
 
+	userStatusOK := func(id uint) bool {
+		u, err := userRepo.FindByID(id)
+		return err == nil && !u.IsBanned()
+	}
+
 	router.GET("/healthz", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
@@ -49,7 +54,7 @@ func main() {
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/refresh", authHandler.Refresh)
-			auth.GET("/me", middleware.Auth(tokens), authHandler.Me)
+			auth.GET("/me", middleware.Auth(tokens, userStatusOK), authHandler.Me)
 		}
 
 		articles := api.Group("/articles", middleware.OptionalAuth(tokens))
@@ -57,7 +62,7 @@ func main() {
 			articles.GET("", articleHandler.List)
 			articles.GET("/:id", articleHandler.Get)
 			articles.GET("/slug/:slug", articleHandler.GetBySlug)
-			authed := articles.Group("", middleware.Auth(tokens))
+			authed := articles.Group("", middleware.Auth(tokens, userStatusOK))
 			{
 				authed.POST("", articleHandler.Create)
 				authed.PUT("/:id", articleHandler.Update)
@@ -65,11 +70,13 @@ func main() {
 			}
 		}
 
-		admin := api.Group("/admin", middleware.Auth(tokens), middleware.RequireRole(model.RoleAdmin))
+		admin := api.Group("/admin", middleware.Auth(tokens, userStatusOK), middleware.RequireRole(model.RoleAdmin))
 		{
 			admin.GET("/stats", adminHandler.Stats)
 			admin.GET("/users", adminHandler.ListUsers)
+			admin.POST("/users", adminHandler.CreateUser)
 			admin.PUT("/users/:id/role", adminHandler.UpdateUserRole)
+			admin.PUT("/users/:id/status", adminHandler.UpdateUserStatus)
 			admin.DELETE("/users/:id", adminHandler.DeleteUser)
 			admin.GET("/articles", adminHandler.ListArticles)
 			admin.PUT("/articles/:id/status", adminHandler.SetArticleStatus)

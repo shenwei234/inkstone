@@ -203,6 +203,23 @@ export function updateAdminUserRole(id: number, role: 'admin' | 'user') {
   })
 }
 
+export function createAdminUser(input: {
+  email: string
+  username: string
+  password: string
+  role: 'admin' | 'user'
+}) {
+  return api<{ user: User }>('/admin/users', { method: 'POST', body: input, auth: true })
+}
+
+export function setUserStatus(id: number, status: 'active' | 'banned') {
+  return api<{ message: string }>(`/admin/users/${id}/status`, {
+    method: 'PUT',
+    body: { status },
+    auth: true,
+  })
+}
+
 export function deleteAdminUser(id: number) {
   return api<void>(`/admin/users/${id}`, { method: 'DELETE', auth: true })
 }

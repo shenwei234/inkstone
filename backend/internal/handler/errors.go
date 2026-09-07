@@ -17,6 +17,8 @@ func errorResponse(c *gin.Context, err error) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Message})
 	case errors.Is(err, service.ErrInvalidCredentials):
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+	case errors.Is(err, service.ErrUserBanned):
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 	case errors.Is(err, service.ErrForbidden):
 		c.JSON(http.StatusForbidden, gin.H{"error": "没有权限执行此操作"})
 	case errors.Is(err, repository.ErrNotFound):

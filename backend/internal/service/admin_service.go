@@ -1,11 +1,17 @@
 package service
 
 import (
+	"errors"
+	"strings"
 	"time"
 
 	"github.com/blog-platform/backend/internal/model"
 	"github.com/blog-platform/backend/internal/repository"
+	"golang.org/x/crypto/bcrypt"
 )
+
+var ErrEmailTaken = errors.New("该邮箱已被注册")
+var ErrUsernameTaken = errors.New("该用户名已被占用")
 
 type AdminService struct {
 	users    *repository.UserRepository
@@ -62,4 +68,60 @@ func (s *AdminService) SetArticleStatus(id uint, status string) (*model.Article,
 
 func (s *AdminService) ListUsers(page, pageSize int, query string) ([]model.User, int64, error) {
 	return s.users.List(page, pageSize, query)
+}
+
+type CreateUserInput struct {
+	Email    string
+	Username string
+	Password string
+	Role     string
+}
+
+func (s *AdminService) CreateUser(input CreateUserInput) (*model.User, error) {
+	email := strings.ToLower(strings.TrimSpace(input.Email))
+	username := strings.TrimSpace(input.Username)
+
+	if !emailRegex.MatchString(email) {
+		return nil, NewValidationError("邮箱格式不正确")
+	}
+	if l := len([]rune(username)); l < 2 || l > 32 {
+		return nil, NewValidationError("用户名长度需在 2-32 个字符之间")
+	}
+	if l := len(input.Password); l < 8 || l > 72 {
+		return nil, NewValidationError("密码长度需在 8-72 个字符之间")
+	}
+	role := input.Role
+	if role != model.RoleAdmin && role != model.RoleUser {
+		role = model.RoleUser
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
+	user := &model.User{
+		Email:        email,
+		Username:     username,
+		PasswordHash: string(hash),
+		Role:         role,
+		Status:       model.StatusActive,
+	}
+	if err := s.users.Create(user); err != nil {
+		switch {
+		case errors.Is(err, repository.ErrEmailTaken):
+			return nil, NewValidationError("该邮箱已被注册")
+		case errors.Is(err, repository.ErrUsernameTaken):
+			return nil, NewValidationError("该用户名已被占用")
+		}
+		return nil, err
+	}
+	return user, nil
+}
+
+func (s *AdminService) SetUserStatus(id uint, status string) error {
+	if status != model.StatusActive && status != model.StatusBanned {
+		return NewValidationError("无效的状态值")
+	}
+	return s.users.UpdateStatus(id, status)
 }

@@ -58,6 +58,7 @@ export interface AdminUser {
   email: string
   username: string
   role: 'admin' | 'user'
+  status: 'active' | 'banned'
   created_at: string
 }
 

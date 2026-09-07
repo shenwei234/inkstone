@@ -114,6 +114,17 @@ func (r *UserRepository) UpdateRole(id uint, role string) error {
 	return nil
 }
 
+func (r *UserRepository) UpdateStatus(id uint, status string) error {
+	res := r.db.Model(&model.User{}).Where("id = ?", id).Update("status", status)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (r *UserRepository) Delete(id uint) error {
 	res := r.db.Delete(&model.User{}, id)
 	if res.Error != nil {

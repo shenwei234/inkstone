@@ -17,7 +17,10 @@ type CurrentUser struct {
 	Role string
 }
 
-func Auth(tokens *service.TokenManager) gin.HandlerFunc {
+// Auth requires a valid access token. When checkUser is provided, the user is
+// also verified against the database so banned/deleted accounts are rejected
+// even while their access token is still unexpired.
+func Auth(tokens *service.TokenManager, checkUser func(id uint) bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
 		if header == "" {
@@ -33,6 +36,11 @@ func Auth(tokens *service.TokenManager) gin.HandlerFunc {
 		claims, err := tokens.Parse(parts[1], service.TokenTypeAccess)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
+			return
+		}
+
+		if checkUser != nil && !checkUser(claims.UserID) {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "该账号已被封禁，请联系管理员"})
 			return
 		}
 
