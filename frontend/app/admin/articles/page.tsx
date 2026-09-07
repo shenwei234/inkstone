@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   deleteAdminArticle,
@@ -10,6 +10,7 @@ import {
   setAdminArticleStatus,
   ApiError,
 } from '@/lib/api'
+import { useNotify } from '@/components/toast'
 import type { Article } from '@/lib/types'
 
 const tabs = [
@@ -32,7 +33,7 @@ function statusBadge(status: Article['status']) {
 
 export default function AdminArticlesPage() {
   const [status, setStatus] = useState<'' | 'published' | 'draft'>('')
-  const [error, setError] = useState<string | null>(null)
+  const notify = useNotify()
   const queryClient = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -44,14 +45,20 @@ export default function AdminArticlesPage() {
 
   const statusMutation = useMutation({
     mutationFn: ({ id, s }: { id: number; s: 'draft' | 'published' }) => setAdminArticleStatus(id, s),
-    onSuccess: invalidate,
-    onError: (e) => setError(e instanceof ApiError ? e.message : '操作失败'),
+    onSuccess: (_res, vars) => {
+      invalidate()
+      notify.success(vars.s === 'published' ? '文章已发布' : '已转为草稿')
+    },
+    onError: (e) => notify.error(e instanceof ApiError ? e.message : '操作失败'),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteAdminArticle(id),
-    onSuccess: invalidate,
-    onError: (e) => setError(e instanceof ApiError ? e.message : '删除失败'),
+    onSuccess: () => {
+      invalidate()
+      notify.success('文章已删除')
+    },
+    onError: (e) => notify.error(e instanceof ApiError ? e.message : '删除失败'),
   })
 
   return (
@@ -94,19 +101,6 @@ export default function AdminArticlesPage() {
             </div>
           </div>
       </div>
-
-      <AnimatePresence>
-        {error && (
-          <motion.p
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mt-4 overflow-hidden rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300"
-          >
-            {error}
-          </motion.p>
-        )}
-      </AnimatePresence>
 
       {isLoading ? (
         <div className="mt-6 space-y-2">
@@ -161,8 +155,14 @@ export default function AdminArticlesPage() {
                   编辑
                 </Link>
                 <button
-                  onClick={() => {
-                    if (confirm(`确定删除「${a.title}」？`)) deleteMutation.mutate(a.id)
+                  onClick={async () => {
+                    const ok = await notify.confirm({
+                      title: `删除「${a.title}」？`,
+                      message: '文章将被永久删除，此操作无法撤销。',
+                      confirmText: '确认删除',
+                      danger: true,
+                    })
+                    if (ok) deleteMutation.mutate(a.id)
                   }}
                   disabled={deleteMutation.isPending}
                   className="rounded-md px-3 py-1.5 text-red-500 transition-colors hover:bg-red-500/10 disabled:opacity-50"

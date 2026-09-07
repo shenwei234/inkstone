@@ -1,9 +1,9 @@
-'use client'
+﻿'use client'
 
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createArticle,
@@ -15,7 +15,7 @@ import {
 import type { Article } from '@/lib/types'
 import { PageTransition } from '@/components/motion'
 import { RichEditor } from '@/components/rich-editor'
-import { ToastStack, useToasts } from '@/components/toast'
+import { useNotify } from '@/components/toast'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
 
@@ -34,16 +34,43 @@ function EditorShell({ mode, article }: EditorShellProps) {
   const [title, setTitle] = useState(article?.title ?? '')
   const [content, setContent] = useState(article?.content ?? '')
   const [viewSlug, setViewSlug] = useState<string | null>(article?.slug ?? null)
-  const { toasts, push, dismiss } = useToasts()
+  const notify = useNotify()
 
   const [autoSavedAt, setAutoSavedAt] = useState<Date | null>(
     mode === 'edit' && article?.status === 'draft' ? new Date(article.updated_at) : null,
   )
   const [autoSaving, setAutoSaving] = useState(false)
-  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
   const baseline = useRef(
     JSON.stringify({ t: article?.title ?? '', c: article?.content ?? '' }),
   )
+
+  // Restore saved preference after mount (default: on).
+  useEffect(() => {
+    try {
+      setAutoSaveEnabled(localStorage.getItem('blog_autosave') !== 'off')
+    } catch {
+      // storage unavailable: keep default
+    }
+  }, [])
+
+  const toggleAutoSave = () => {
+    setAutoSaveEnabled((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('blog_autosave', next ? 'on' : 'off')
+      } catch {
+        // ignore persistence failure
+      }
+      if (next) {
+        baseline.current = JSON.stringify({ t: title, c: content })
+        notify.success(next ? '自动保存已开启' : '自动保存已关闭')
+      } else {
+        notify.success('自动保存已关闭')
+      }
+      return next
+    })
+  }
 
   const isPublished = mode === 'edit' && article?.status === 'published'
 
@@ -61,26 +88,28 @@ function EditorShell({ mode, article }: EditorShellProps) {
       queryClient.invalidateQueries({ queryKey: ['article', res.article.id] })
       if (mode === 'edit' && article) {
         setViewSlug(res.article.slug)
-        push('success', res.article.status === 'published' ? '文章已发布' : '已保存', res.article.slug)
+        notify.success(res.article.status === 'published' ? '文章已发布' : '已保存', res.article.slug)
       } else {
-        push('success', '文章已发布', res.article.slug)
+        notify.success('文章已发布', res.article.slug)
         router.replace(`/admin/articles/edit/${res.article.id}`)
       }
     },
-    onError: (err) => push('error', err instanceof ApiError ? err.message : '发布失败，请稍后重试'),
+    onError: (err) => notify.error(err instanceof ApiError ? err.message : '发布失败，请稍后重试'),
   })
 
   const trash = useMutation({
     mutationFn: () => deleteAdminArticle(article!.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin'] })
+      notify.success('文章已删除')
       router.push('/admin/articles')
     },
-    onError: (err) => push('error', err instanceof ApiError ? err.message : '删除失败'),
+    onError: (err) => notify.error(err instanceof ApiError ? err.message : '删除失败'),
   })
 
   // Auto-save: silently keeps drafts up to date while writing (edit mode only).
   useEffect(() => {
+    if (!autoSaveEnabled) return
     if (mode !== 'edit' || article?.status !== 'draft') return
     const snapshot = JSON.stringify({ t: title, c: content })
     if (snapshot === baseline.current) return
@@ -99,18 +128,18 @@ function EditorShell({ mode, article }: EditorShellProps) {
       }
     }, 2000)
     return () => clearTimeout(timer)
-  }, [title, content, mode, article])
+  }, [title, content, mode, article, autoSaveEnabled])
 
   const wordCount = htmlToText(content).replace(/\s+/g, '').length
   const readMinutes = Math.max(1, Math.round(wordCount / 400))
 
   const doPublish = () => {
     if (!title.trim()) {
-      push('error', '给文章起个标题吧')
+      notify.error('给文章起个标题吧')
       return
     }
     if (!wordCount) {
-      push('error', '先写一点正文，再发布')
+      notify.error('先写一点正文，再发布')
       return
     }
     publish.mutate()
@@ -121,7 +150,9 @@ function EditorShell({ mode, article }: EditorShellProps) {
     doPublish()
   }
 
-  const saveIndicator = autoSaving ? (
+  const saveIndicator = !autoSaveEnabled ? (
+    <span className="text-xs text-muted-foreground">自动保存已关闭</span>
+  ) : autoSaving ? (
     <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
       <span className="h-3 w-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
       保存中...
@@ -136,8 +167,29 @@ function EditorShell({ mode, article }: EditorShellProps) {
     <span className="text-xs text-muted-foreground">输入内容后自动保存</span>
   )
 
-  const primaryLabel =
-    mode === 'new' ? '发布文章' : isPublished ? '更新' : '发布'
+  const autoSaveSwitch = mode === 'edit' && article?.status === 'draft' && (
+    <button
+      type="button"
+      onClick={toggleAutoSave}
+      title={autoSaveEnabled ? '关闭自动保存' : '开启自动保存'}
+      className="flex items-center gap-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+    >
+      <span
+        className={`relative h-5 w-9 rounded-full transition-colors ${
+          autoSaveEnabled ? 'bg-emerald-500' : 'bg-border'
+        }`}
+      >
+        <motion.span
+          animate={{ x: autoSaveEnabled ? 16 : 0 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+          className="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm"
+        />
+      </span>
+      自动保存
+    </button>
+  )
+
+  const primaryLabel = mode === 'new' ? '发布文章' : isPublished ? '更新' : '发布'
 
   return (
     <form onSubmit={submit} className="-mx-4 -my-8">
@@ -152,7 +204,10 @@ function EditorShell({ mode, article }: EditorShellProps) {
               <span className="hidden sm:inline">文章列表</span>
             </Link>
             <span className="hidden h-4 w-px bg-border sm:block" />
-            <div className="hidden sm:block">{saveIndicator}</div>
+            <div className="hidden items-center gap-3 sm:flex">
+              {autoSaveSwitch}
+              {saveIndicator}
+            </div>
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
@@ -202,11 +257,20 @@ function EditorShell({ mode, article }: EditorShellProps) {
               {wordCount} 字 · 约 {readMinutes} 分钟读完
             </span>
             <div className="flex items-center gap-4">
+              <span className="sm:hidden">{autoSaveSwitch}</span>
               <span className="sm:hidden">{saveIndicator}</span>
               {mode === 'edit' && (
                 <button
                   type="button"
-                  onClick={() => setConfirmOpen(true)}
+                  onClick={async () => {
+                    const ok = await notify.confirm({
+                      title: '删除这篇文章？',
+                      message: `「${article?.title}」将被永久删除，此操作无法撤销。`,
+                      confirmText: '确认删除',
+                      danger: true,
+                    })
+                    if (ok) trash.mutate()
+                  }}
                   disabled={trash.isPending}
                   className="transition-colors hover:text-red-500 disabled:opacity-50"
                 >
@@ -226,67 +290,6 @@ function EditorShell({ mode, article }: EditorShellProps) {
           提示：写完点右上角「{primaryLabel}」就能发表。草稿每 2 秒自动保存，不用怕丢。
         </motion.p>
       </div>
-
-      {/* Delete confirmation dialog */}
-      <AnimatePresence>
-        {confirmOpen && (
-          <motion.div
-            key="confirm-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
-            onMouseDown={(e) => {
-              if (e.target === e.currentTarget) setConfirmOpen(false)
-            }}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.94, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 8 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="w-[400px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/25"
-              role="alertdialog"
-              aria-modal="true"
-            >
-              <div className="px-6 pt-6 text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 text-2xl">
-                  🗑
-                </div>
-                <h3 className="mt-4 text-base font-semibold">删除这篇文章？</h3>
-                <p className="mt-1.5 break-all text-sm text-muted-foreground">
-                  「{article?.title}」将被永久删除，此操作无法撤销。
-                </p>
-              </div>
-              <div className="mt-6 flex justify-center gap-3 px-6 pb-6">
-                <button
-                  type="button"
-                  onClick={() => setConfirmOpen(false)}
-                  className="min-w-24 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
-                >
-                  取消
-                </button>
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => {
-                    setConfirmOpen(false)
-                    trash.mutate()
-                  }}
-                  disabled={trash.isPending}
-                  className="min-w-24 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white shadow-md shadow-red-500/25 disabled:opacity-50"
-                >
-                  {trash.isPending ? '删除中...' : '确认删除'}
-                </motion.button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <ToastStack toasts={toasts} dismiss={dismiss} />
     </form>
   )
 }

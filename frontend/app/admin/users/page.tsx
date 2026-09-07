@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   deleteAdminUser,
@@ -10,6 +10,7 @@ import {
   ApiError,
 } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
+import { useNotify } from '@/components/toast'
 import type { AdminUser } from '@/lib/types'
 
 function useDebounce<T>(value: T, delay: number): T {
@@ -24,8 +25,8 @@ function useDebounce<T>(value: T, delay: number): T {
 export default function AdminUsersPage() {
   const { user: me } = useAuth()
   const queryClient = useQueryClient()
+  const notify = useNotify()
   const [search, setSearch] = useState('')
-  const [error, setError] = useState<string | null>(null)
   const debouncedSearch = useDebounce(search, 400)
 
   const { data, isLoading } = useQuery({
@@ -39,14 +40,20 @@ export default function AdminUsersPage() {
 
   const roleMutation = useMutation({
     mutationFn: ({ id, role }: { id: number; role: 'admin' | 'user' }) => updateAdminUserRole(id, role),
-    onSuccess: invalidate,
-    onError: (e) => setError(e instanceof ApiError ? e.message : '操作失败'),
+    onSuccess: (_res, vars) => {
+      invalidate()
+      notify.success(vars.role === 'admin' ? '已设为管理员' : '已设为普通用户')
+    },
+    onError: (e) => notify.error(e instanceof ApiError ? e.message : '操作失败'),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteAdminUser(id),
-    onSuccess: invalidate,
-    onError: (e) => setError(e instanceof ApiError ? e.message : '删除失败'),
+    onSuccess: () => {
+      invalidate()
+      notify.success('用户已删除')
+    },
+    onError: (e) => notify.error(e instanceof ApiError ? e.message : '删除失败'),
   })
 
   return (
@@ -65,19 +72,6 @@ export default function AdminUsersPage() {
           className="w-64 rounded-lg border border-border bg-card px-3.5 py-2 text-sm outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20"
         />
       </div>
-
-      <AnimatePresence>
-        {error && (
-          <motion.p
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mt-4 overflow-hidden rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300"
-          >
-            {error}
-          </motion.p>
-        )}
-      </AnimatePresence>
 
       {isLoading ? (
         <div className="mt-6 space-y-2">
@@ -144,10 +138,14 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <button
-                        onClick={() => {
-                          if (confirm(`确定删除用户「${u.username}」？其所有文章将一并删除。`)) {
-                            deleteMutation.mutate(u.id)
-                          }
+                        onClick={async () => {
+                          const ok = await notify.confirm({
+                            title: `删除用户「${u.username}」？`,
+                            message: '该用户的所有文章将一并删除，此操作无法撤销。',
+                            confirmText: '确认删除',
+                            danger: true,
+                          })
+                          if (ok) deleteMutation.mutate(u.id)
                         }}
                         disabled={isSelf || deleteMutation.isPending}
                         className="rounded-md px-3 py-1.5 text-xs text-red-500 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-30"
