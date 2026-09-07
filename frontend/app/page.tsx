@@ -47,48 +47,7 @@ export default function HomePage() {
 
   return (
     <PageTransition>
-      <section className="relative overflow-hidden border-b border-border">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(37,99,235,0.08),transparent_60%)] dark:bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.12),transparent_60%)]" />
-        <div className="relative mx-auto max-w-5xl px-4 py-16 text-center">
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="bg-gradient-to-br from-foreground via-foreground to-muted-foreground bg-clip-text text-4xl font-bold tracking-tight text-transparent sm:text-5xl"
-          >
-            记录思考 · 分享创作
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-            className="mx-auto mt-4 max-w-md text-muted-foreground"
-          >
-            {data ? `已有 ${data.total} 篇文章在此发布` : '一个为创作者打造的多用户博客平台'}
-          </motion.p>
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-8 flex items-center justify-center gap-3"
-          >
-            <Link
-              href="/dashboard/new"
-              className="rounded-lg bg-accent px-6 py-2.5 text-sm font-medium text-white shadow-lg shadow-accent/25 transition-all hover:shadow-xl hover:shadow-accent/30"
-            >
-              开始写作
-            </Link>
-            <a
-              href="#articles"
-              className="rounded-lg border border-border bg-card px-6 py-2.5 text-sm font-medium transition-colors hover:border-accent/40 hover:text-accent"
-            >
-              浏览文章
-            </a>
-          </motion.div>
-        </div>
-      </section>
-
-      <div id="articles" className="mx-auto max-w-5xl scroll-mt-20 px-4 py-12">
+      <div className="mx-auto max-w-5xl px-4 py-12">
         {isLoading ? (
           <div className="grid gap-4">
             {[...Array(3)].map((_, i) => (
