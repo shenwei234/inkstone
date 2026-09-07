@@ -10,6 +10,7 @@ import { motion } from 'framer-motion'
 interface RichEditorProps {
   content: string
   onChange: (html: string) => void
+  variant?: 'card' | 'plain'
 }
 
 function ToolbarButton({
@@ -162,21 +163,21 @@ function Toolbar({ editor }: { editor: Editor }) {
   )
 }
 
-export function RichEditor({ content, onChange }: RichEditorProps) {
+export function RichEditor({ content, onChange, variant = 'card' }: RichEditorProps) {
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
       }),
-      Placeholder.configure({ placeholder: '开始写作，工具栏可以排版...' }),
+      Placeholder.configure({ placeholder: '开始写作...' }),
       Image.configure({ inline: false }),
     ],
     content,
     editorProps: {
       attributes: {
         class:
-          'prose prose-neutral dark:prose-invert max-w-none min-h-[460px] px-6 py-5 focus:outline-none prose-headings:font-semibold prose-a:text-accent prose-pre:bg-muted prose-code:bg-muted prose-code:rounded prose-code:px-1.5 prose-code:py-0.5 prose-code:text-[0.9em] prose-code:before:content-none prose-code:after:content-none prose-img:rounded-xl prose-blockquote:border-l-accent',
+          'wp-editor prose prose-neutral dark:prose-invert max-w-none min-h-[420px] px-0 py-2 focus:outline-none prose-headings:font-semibold prose-a:text-accent prose-pre:bg-muted prose-code:bg-muted prose-code:rounded prose-code:px-1.5 prose-code:py-0.5 prose-code:text-[0.9em] prose-code:before:content-none prose-code:after:content-none prose-img:rounded-xl prose-blockquote:border-l-accent',
       },
     },
     onUpdate: ({ editor }) => {
@@ -194,14 +195,22 @@ export function RichEditor({ content, onChange }: RichEditorProps) {
     return <div className="skeleton min-h-[460px] rounded-lg" />
   }
 
+  const plain = variant === 'plain'
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="overflow-hidden rounded-lg border border-border bg-card transition-colors focus-within:border-accent/50"
+      className={
+        plain
+          ? 'overflow-visible'
+          : 'overflow-hidden rounded-lg border border-border bg-card transition-colors focus-within:border-accent/50'
+      }
     >
-      <Toolbar editor={editor} />
+      <div className={plain ? 'rounded-t-lg border-b border-border bg-card' : ''}>
+        <Toolbar editor={editor} />
+      </div>
       <EditorContent editor={editor} />
     </motion.div>
   )
