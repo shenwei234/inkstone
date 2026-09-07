@@ -1,0 +1,51 @@
+package middleware
+
+import (
+	"net/http"
+	"strings"
+
+	"github.com/blog-platform/backend/internal/service"
+	"github.com/gin-gonic/gin"
+)
+
+const (
+	ContextUserKey = "currentUser"
+)
+
+type CurrentUser struct {
+	ID   uint
+	Role string
+}
+
+func Auth(tokens *service.TokenManager) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		header := c.GetHeader("Authorization")
+		if header == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing authorization header"})
+			return
+		}
+		parts := strings.SplitN(header, " ", 2)
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || parts[1] == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization header format"})
+			return
+		}
+
+		claims, err := tokens.Parse(parts[1], service.TokenTypeAccess)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
+			return
+		}
+
+		c.Set(ContextUserKey, CurrentUser{ID: claims.UserID, Role: claims.Role})
+		c.Next()
+	}
+}
+
+func GetCurrentUser(c *gin.Context) (CurrentUser, bool) {
+	v, ok := c.Get(ContextUserKey)
+	if !ok {
+		return CurrentUser{}, false
+	}
+	user, ok := v.(CurrentUser)
+	return user, ok
+}
