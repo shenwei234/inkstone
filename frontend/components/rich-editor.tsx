@@ -13,6 +13,24 @@ import Suggestion from '@tiptap/suggestion'
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import {
+  AlignLeft,
+  ChevronDown,
+  ChevronUp,
+  Code2,
+  Heading2,
+  Heading3,
+  Image as ImageIcon,
+  ImagePlus,
+  Link2,
+  List,
+  ListOrdered,
+  Minus,
+  PenLine,
+  Quote,
+  Trash2,
+  Type,
+} from 'lucide-react'
 
 interface RichEditorProps {
   content: string
@@ -37,7 +55,7 @@ interface BlockItem {
   key: string
   label: string
   desc: string
-  icon: string
+  icon: React.ReactNode
   textOnly: boolean
   command: (ctx: { editor: Editor; range: { from: number; to: number } }) => void
 }
@@ -47,7 +65,7 @@ const BLOCK_ITEMS: BlockItem[] = [
     key: 'h2',
     label: '标题',
     desc: '大号章节标题',
-    icon: 'H2',
+    icon: <Heading2 className="h-4 w-4" />,
     textOnly: true,
     command: ({ editor, range }) =>
       editor.chain().focus().deleteRange(range).setNode('heading', { level: 2 }).run(),
@@ -56,7 +74,7 @@ const BLOCK_ITEMS: BlockItem[] = [
     key: 'h3',
     label: '小标题',
     desc: '小号章节标题',
-    icon: 'H3',
+    icon: <Heading3 className="h-4 w-4" />,
     textOnly: true,
     command: ({ editor, range }) =>
       editor.chain().focus().deleteRange(range).setNode('heading', { level: 3 }).run(),
@@ -65,7 +83,7 @@ const BLOCK_ITEMS: BlockItem[] = [
     key: 'p',
     label: '正文',
     desc: '普通文字段落',
-    icon: '¶',
+    icon: <Type className="h-4 w-4" />,
     textOnly: true,
     command: ({ editor, range }) => editor.chain().focus().deleteRange(range).setNode('paragraph').run(),
   },
@@ -73,7 +91,7 @@ const BLOCK_ITEMS: BlockItem[] = [
     key: 'ul',
     label: '列表',
     desc: '圆点符号列表',
-    icon: '•',
+    icon: <List className="h-4 w-4" />,
     textOnly: true,
     command: ({ editor, range }) => editor.chain().focus().deleteRange(range).toggleBulletList().run(),
   },
@@ -81,7 +99,7 @@ const BLOCK_ITEMS: BlockItem[] = [
     key: 'ol',
     label: '编号列表',
     desc: '1. 2. 3. 数字列表',
-    icon: '1.',
+    icon: <ListOrdered className="h-4 w-4" />,
     textOnly: true,
     command: ({ editor, range }) => editor.chain().focus().deleteRange(range).toggleOrderedList().run(),
   },
@@ -89,7 +107,7 @@ const BLOCK_ITEMS: BlockItem[] = [
     key: 'quote',
     label: '引用',
     desc: '突出显示一段话',
-    icon: '❝',
+    icon: <Quote className="h-4 w-4" />,
     textOnly: true,
     command: ({ editor, range }) => editor.chain().focus().deleteRange(range).toggleBlockquote().run(),
   },
@@ -97,7 +115,7 @@ const BLOCK_ITEMS: BlockItem[] = [
     key: 'code',
     label: '代码块',
     desc: '等宽字体的代码',
-    icon: '</>',
+    icon: <Code2 className="h-4 w-4" />,
     textOnly: true,
     command: ({ editor, range }) => editor.chain().focus().deleteRange(range).toggleCodeBlock().run(),
   },
@@ -105,7 +123,7 @@ const BLOCK_ITEMS: BlockItem[] = [
     key: 'hr',
     label: '分割线',
     desc: '分隔内容的横线',
-    icon: '—',
+    icon: <Minus className="h-4 w-4" />,
     textOnly: false,
     command: ({ editor, range }) => editor.chain().focus().deleteRange(range).setHorizontalRule().run(),
   },
@@ -113,7 +131,7 @@ const BLOCK_ITEMS: BlockItem[] = [
     key: 'image',
     label: '图片',
     desc: '插入一张图片',
-    icon: '图',
+    icon: <ImageIcon className="h-4 w-4" />,
     textOnly: false,
     command: async ({ editor, range }) => {
       const opener = promptOpener.current
@@ -285,13 +303,13 @@ function BlockToolbar({
       {isText && (
         <>
           <ToolButton title="正文" active={isP} onClick={() => editor.chain().focus().setNode('paragraph').run()}>
-            ¶
+            <Type className="h-4 w-4" />
           </ToolButton>
           <ToolButton title="标题 H2" active={isH2} onClick={() => editor.chain().focus().setNode('heading', { level: 2 }).run()}>
-            H2
+            <Heading2 className="h-4 w-4" />
           </ToolButton>
           <ToolButton title="小标题 H3" active={isH3} onClick={() => editor.chain().focus().setNode('heading', { level: 3 }).run()}>
-            H3
+            <Heading3 className="h-4 w-4" />
           </ToolButton>
           <span className="mx-0.5 h-4 w-px bg-border" />
           <ToolButton title="加粗" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>
@@ -321,14 +339,14 @@ function BlockToolbar({
               }
             }}
           >
-            链接
+            <Link2 className="h-4 w-4" />
           </ToolButton>
           <span className="mx-0.5 h-4 w-px bg-border" />
           <ToolButton title="列表" active={isUl} onClick={() => editor.chain().focus().toggleBulletList().run()}>
-            •
+            <List className="h-4 w-4" />
           </ToolButton>
           <ToolButton title="引用" active={isQuote} onClick={() => editor.chain().focus().toggleBlockquote().run()}>
-            ❝
+            <Quote className="h-4 w-4" />
           </ToolButton>
         </>
       )}
@@ -344,20 +362,23 @@ function BlockToolbar({
         disabled={block.index === 0}
         onClick={() => moveBlock(editor, -1)}
       >
-        ↑
+        <ChevronUp className="h-4 w-4" />
       </ToolButton>
       <ToolButton
         title="下移"
         disabled={block.index === block.count - 1}
         onClick={() => moveBlock(editor, 1)}
       >
-        ↓
+        <ChevronDown className="h-4 w-4" />
       </ToolButton>
       <ToolButton
         title="删除此块"
         onClick={() => editor.chain().focus().setNodeSelection(block.pos).deleteSelection().run()}
       >
-        <span className="text-red-500">删除</span>
+        <span className="flex items-center gap-1 text-red-500">
+          <Trash2 className="h-3.5 w-3.5" />
+          删除
+        </span>
       </ToolButton>
     </div>
   )

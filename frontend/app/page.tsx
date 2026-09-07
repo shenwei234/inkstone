@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
+import { PenLine } from 'lucide-react'
 import { fetchArticles } from '@/lib/api'
 import type { Article } from '@/lib/types'
 import { PageTransition, StaggerList, StaggerItem, HoverLift } from '@/components/motion'
@@ -90,7 +91,7 @@ export default function HomePage() {
             animate={{ opacity: 1, y: 0 }}
             className="rounded-xl border border-dashed p-16 text-center"
           >
-            <div className="text-4xl">📝</div>
+            <PenLine className="mx-auto h-10 w-10 text-muted-foreground/50" />
             <p className="mt-4 text-muted-foreground">还没有文章，来发布第一篇吧</p>
             <Link
               href="/admin/articles/new"

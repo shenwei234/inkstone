@@ -4,12 +4,13 @@ import { useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
+import { ArrowLeft, FileText, LayoutDashboard, Lock, Users } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 
 const navItems = [
-  { href: '/admin', label: '概览', icon: '📊' },
-  { href: '/admin/users', label: '用户管理', icon: '👥' },
-  { href: '/admin/articles', label: '文章管理', icon: '📄' },
+  { href: '/admin', label: '概览', icon: LayoutDashboard },
+  { href: '/admin/users', label: '用户管理', icon: Users },
+  { href: '/admin/articles', label: '文章管理', icon: FileText },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -33,7 +34,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (user.role !== 'admin') {
     return (
       <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
-        <div className="text-5xl">🔒</div>
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+          <Lock className="h-8 w-8 text-muted-foreground" />
+        </div>
         <h1 className="mt-6 text-xl font-bold">需要管理员权限</h1>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           管理后台仅对管理员开放。你可以浏览首页文章，如需权限请联系站长。
@@ -77,7 +80,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     transition={{ type: 'spring', stiffness: 400, damping: 32 }}
                   />
                 )}
-                <span className="relative text-base">{item.icon}</span>
+                <span className="relative">
+                  <item.icon className="h-4 w-4" />
+                </span>
                 <span className="relative font-medium">{item.label}</span>
               </Link>
             )
@@ -88,7 +93,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             href="/"
             className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
-            <span>←</span> 返回前台
+            <ArrowLeft className="h-4 w-4" /> 返回前台
           </Link>
         </div>
       </motion.aside>

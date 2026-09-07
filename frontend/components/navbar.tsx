@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { ChevronDown, LayoutDashboard, LogOut } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
@@ -74,9 +75,9 @@ export function Navbar() {
                 <motion.span
                   animate={{ rotate: menuOpen ? 180 : 0 }}
                   transition={{ duration: 0.2 }}
-                  className="text-[10px] text-muted-foreground"
+                  className="text-muted-foreground"
                 >
-                  ▼
+                  <ChevronDown className="h-3.5 w-3.5" />
                 </motion.span>
               </button>
 
@@ -97,8 +98,9 @@ export function Navbar() {
                       <Link
                         href="/admin"
                         onClick={() => setMenuOpen(false)}
-                        className="block rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                       >
+                        <LayoutDashboard className="h-4 w-4" />
                         后台管理
                       </Link>
                     )}
@@ -108,8 +110,9 @@ export function Navbar() {
                         logout()
                         router.push('/')
                       }}
-                      className="block w-full rounded-lg px-3 py-2 text-left text-sm text-red-500 transition-colors hover:bg-red-500/10"
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-red-500 transition-colors hover:bg-red-500/10"
                     >
+                      <LogOut className="h-4 w-4" />
                       退出登录
                     </button>
                   </motion.div>

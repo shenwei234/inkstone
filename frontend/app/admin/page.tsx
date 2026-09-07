@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { animate, motion } from 'framer-motion'
+import { FileText, FileEdit, Users, Globe, Lightbulb } from 'lucide-react'
 import { fetchAdminStats } from '@/lib/api'
 
 function AnimatedNumber({ value }: { value: number }) {
@@ -25,10 +26,10 @@ function AnimatedNumber({ value }: { value: number }) {
 }
 
 const cards = [
-  { key: 'total_users', label: '总用户数', icon: '👥', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' },
-  { key: 'total_articles', label: '文章总数', icon: '📄', color: 'bg-purple-500/10 text-purple-600 dark:text-purple-400' },
-  { key: 'published_articles', label: '已发布', icon: '✅', color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
-  { key: 'draft_articles', label: '草稿箱', icon: '📝', color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
+  { key: 'total_users', label: '总用户数', icon: Users, color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' },
+  { key: 'total_articles', label: '文章总数', icon: FileText, color: 'bg-purple-500/10 text-purple-600 dark:text-purple-400' },
+  { key: 'published_articles', label: '已发布', icon: Globe, color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
+  { key: 'draft_articles', label: '草稿箱', icon: FileEdit, color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
 ] as const
 
 export default function AdminOverviewPage() {
@@ -53,8 +54,8 @@ export default function AdminOverviewPage() {
             whileHover={{ y: -4 }}
             className="rounded-xl border border-border bg-card p-5 shadow-sm"
           >
-            <div className={`flex h-10 w-10 items-center justify-center rounded-lg text-lg ${card.color}`}>
-              {card.icon}
+            <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${card.color}`}>
+              <card.icon className="h-5 w-5" />
             </div>
             <p className="mt-4 text-3xl font-bold tracking-tight">
               {isLoading ? <span className="skeleton inline-block h-9 w-16 rounded" /> : <AnimatedNumber value={data?.[card.key] ?? 0} />}
@@ -63,14 +64,14 @@ export default function AdminOverviewPage() {
           </motion.div>
         ))}
       </div>
-
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.35, duration: 0.45 }}
-        className="mt-6 rounded-xl border border-dashed border-border p-6 text-sm text-muted-foreground"
+        className="mt-6 flex items-start gap-2.5 rounded-xl border border-dashed border-border p-6 text-sm text-muted-foreground"
       >
-        💡 提示：数据每 15 秒自动刷新。左侧菜单可管理用户与文章。
+        <Lightbulb className="mt-0.5 h-4 w-4 shrink-0" />
+        <span>提示：数据每 15 秒自动刷新。左侧菜单可管理用户与文章。</span>
       </motion.div>
     </div>
   )

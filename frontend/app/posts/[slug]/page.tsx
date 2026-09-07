@@ -4,6 +4,7 @@ import { use } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
+import { SearchX } from 'lucide-react'
 import { fetchArticleBySlug } from '@/lib/api'
 import { PageTransition } from '@/components/motion'
 
@@ -39,7 +40,9 @@ export default function PostPage({ params }: { params: Promise<{ slug: string }>
         transition={{ duration: 0.4, ease: easeOut }}
         className="mx-auto max-w-3xl px-4 py-24 text-center"
       >
-        <div className="text-5xl">🔍</div>
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+          <SearchX className="h-8 w-8 text-muted-foreground" />
+        </div>
         <h1 className="mt-6 text-2xl font-bold">文章不存在</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           {error instanceof Error ? error.message : '请检查链接是否正确'}

@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
+import { ArrowLeft } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createArticle,
@@ -194,7 +195,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
               href="/admin/articles"
               className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
-              <span className="transition-transform hover:-translate-x-0.5">←</span>
+              <ArrowLeft className="h-4 w-4 transition-transform hover:-translate-x-0.5" />
               <span className="hidden sm:inline">文章列表</span>
             </Link>
             <span className="hidden h-4 w-px bg-border sm:block" />

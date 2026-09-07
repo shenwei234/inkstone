@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import { PenLine } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   deleteAdminArticle,
@@ -74,9 +75,10 @@ export default function AdminArticlesPage() {
             <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
               <Link
                 href="/admin/articles/new"
-                className="inline-block rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white shadow-lg shadow-accent/25"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white shadow-lg shadow-accent/25"
               >
-                + 写文章
+                <PenLine className="h-4 w-4" />
+                写文章
               </Link>
             </motion.div>
             <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">

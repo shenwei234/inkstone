@@ -3,6 +3,14 @@
 import Link from 'next/link'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
+  AlertCircle,
+  CheckCircle2,
+  ExternalLink,
+  HelpCircle,
+  Trash2,
+  X,
+} from 'lucide-react'
+import {
   createContext,
   useCallback,
   useContext,
@@ -112,11 +120,15 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
               }`}
             >
               <span
-                className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white ${
-                  t.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'
+                className={`mt-0.5 shrink-0 ${
+                  t.type === 'success' ? 'text-emerald-500' : 'text-red-500'
                 }`}
               >
-                {t.type === 'success' ? '✓' : '!'}
+                {t.type === 'success' ? (
+                  <CheckCircle2 className="h-5 w-5" />
+                ) : (
+                  <AlertCircle className="h-5 w-5" />
+                )}
               </span>
               <div className="min-w-0 flex-1 text-sm leading-relaxed">
                 <p>{t.message}</p>
@@ -124,19 +136,20 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
                   <Link
                     href={`/posts/${t.slug}`}
                     target="_blank"
-                    className="mt-1 inline-flex items-center gap-1 text-xs font-medium underline underline-offset-4 opacity-80 transition-opacity hover:opacity-100"
-                  >
-                    查看文章 ↗
-                  </Link>
+                  className="mt-1 inline-flex items-center gap-1 text-xs font-medium underline underline-offset-4 opacity-80 transition-opacity hover:opacity-100"
+                >
+                  查看文章
+                  <ExternalLink className="h-3 w-3" />
+                </Link>
                 )}
               </div>
               <button
                 type="button"
                 onClick={() => dismiss(t.id)}
-                className="shrink-0 rounded-md p-0.5 text-lg leading-none opacity-50 transition-opacity hover:opacity-100"
+                className="shrink-0 rounded-md p-0.5 opacity-50 transition-opacity hover:opacity-100"
                 aria-label="关闭"
               >
-                ×
+                <X className="h-4 w-4" />
               </button>
             </motion.div>
           ))}
@@ -178,11 +191,15 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
             >
               <div className="px-6 pt-6 text-center">
                 <div
-                  className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full text-2xl ${
-                    confirmState.danger ? 'bg-red-500/10' : 'bg-accent/10'
+                  className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full ${
+                    confirmState.danger ? 'bg-red-500/10 text-red-500' : 'bg-accent/10 text-accent'
                   }`}
                 >
-                  {confirmState.danger ? '🗑' : '❓'}
+                  {confirmState.danger ? (
+                    <Trash2 className="h-6 w-6" />
+                  ) : (
+                    <HelpCircle className="h-6 w-6" />
+                  )}
                 </div>
                 <h3 className="mt-4 text-base font-semibold">{confirmState.title}</h3>
                 {confirmState.message && (
