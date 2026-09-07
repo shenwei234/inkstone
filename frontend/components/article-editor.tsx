@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -32,34 +32,40 @@ function EditorShell({ mode, article }: EditorShellProps) {
   const queryClient = useQueryClient()
   const [title, setTitle] = useState(article?.title ?? '')
   const [content, setContent] = useState(article?.content ?? '')
-  const [status, setStatus] = useState<'draft' | 'published'>(article?.status ?? 'draft')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [viewSlug, setViewSlug] = useState<string | null>(article?.slug ?? null)
 
-  const save = useMutation({
-    mutationFn: async (saveStatus: 'draft' | 'published') => {
-      const body = { title, content, status: saveStatus }
+  const [autoSavedAt, setAutoSavedAt] = useState<Date | null>(
+    mode === 'edit' && article?.status === 'draft' ? new Date(article.updated_at) : null,
+  )
+  const [autoSaving, setAutoSaving] = useState(false)
+  const baseline = useRef(
+    JSON.stringify({ t: article?.title ?? '', c: article?.content ?? '' }),
+  )
+
+  const isPublished = mode === 'edit' && article?.status === 'published'
+
+  const publish = useMutation({
+    mutationFn: async () => {
+      const body = { title, content, status: 'published' }
       if (mode === 'edit' && article) {
         return updateArticle(article.id, body)
       }
       return createArticle(body)
     },
-    onSuccess: (res, savedStatus) => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['articles'] })
       queryClient.invalidateQueries({ queryKey: ['admin'] })
-      if (article) {
-        queryClient.invalidateQueries({ queryKey: ['article', article.id] })
-        setStatus(res.article.status)
+      queryClient.invalidateQueries({ queryKey: ['article', res.article.id] })
+      if (mode === 'edit' && article) {
         setViewSlug(res.article.slug)
-        setNotice(savedStatus === 'published' ? '文章已发布。' : '草稿已保存。')
+        setNotice(res.article.status === 'published' ? '文章已发布' : '已保存')
       } else {
         router.replace(`/admin/articles/edit/${res.article.id}`)
       }
     },
-    onError: (err) => {
-      setError(err instanceof ApiError ? err.message : '保存失败，请稍后重试')
-    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : '发布失败，请稍后重试'),
   })
 
   const trash = useMutation({
@@ -71,27 +77,66 @@ function EditorShell({ mode, article }: EditorShellProps) {
     onError: (err) => setError(err instanceof ApiError ? err.message : '删除失败'),
   })
 
-  const doSave = (saveStatus: 'draft' | 'published') => {
+  // Auto-save: silently keeps drafts up to date while writing (edit mode only).
+  useEffect(() => {
+    if (mode !== 'edit' || article?.status !== 'draft') return
+    const snapshot = JSON.stringify({ t: title, c: content })
+    if (snapshot === baseline.current) return
+    if (!title.trim() || !htmlToText(content).trim()) return
+
+    const timer = setTimeout(async () => {
+      setAutoSaving(true)
+      try {
+        await updateArticle(article.id, { title, content, status: 'draft' })
+        baseline.current = snapshot
+        setAutoSavedAt(new Date())
+      } catch {
+        // silent failure: user can still publish manually
+      } finally {
+        setAutoSaving(false)
+      }
+    }, 2000)
+    return () => clearTimeout(timer)
+  }, [title, content, mode, article])
+
+  const wordCount = htmlToText(content).replace(/\s+/g, '').length
+  const readMinutes = Math.max(1, Math.round(wordCount / 400))
+
+  const doPublish = () => {
     setError(null)
     if (!title.trim()) {
-      setError('请填写文章标题')
+      setError('给文章起个标题吧')
       return
     }
-    if (!htmlToText(content).trim()) {
-      setError('正文不能为空')
+    if (!wordCount) {
+      setError('先写一点正文，再发布')
       return
     }
-    save.mutate(saveStatus)
+    publish.mutate()
   }
-
-  const isPublished = status === 'published'
-  const primaryLabel = mode === 'new' ? (isPublished ? '发布' : '保存草稿') : '更新'
-  const wordCount = htmlToText(content).replace(/\s+/g, '').length
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    doSave(status)
+    doPublish()
   }
+
+  const saveIndicator = autoSaving ? (
+    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <span className="h-3 w-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
+      保存中...
+    </span>
+  ) : autoSavedAt ? (
+    <span className="text-xs text-emerald-600 dark:text-emerald-400">
+      已自动保存 {autoSavedAt.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+    </span>
+  ) : isPublished ? (
+    <span className="text-xs text-muted-foreground">已发布</span>
+  ) : (
+    <span className="text-xs text-muted-foreground">输入内容后自动保存</span>
+  )
+
+  const primaryLabel =
+    mode === 'new' ? '发布文章' : isPublished ? '更新' : '发布'
 
   return (
     <form onSubmit={submit} className="-mx-4 -my-8">
@@ -105,41 +150,29 @@ function EditorShell({ mode, article }: EditorShellProps) {
               <span className="transition-transform hover:-translate-x-0.5">←</span>
               <span className="hidden sm:inline">文章列表</span>
             </Link>
-            <span className="h-4 w-px bg-border" />
-            <h1 className="truncate text-sm font-medium">
-              {mode === 'new' ? '写文章' : `编辑：${article?.title ?? ''}`}
-            </h1>
+            <span className="hidden h-4 w-px bg-border sm:block" />
+            <div className="hidden sm:block">{saveIndicator}</div>
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
-            {mode === 'edit' && isPublished && viewSlug && (
+            {isPublished && viewSlug && (
               <Link
                 href={`/posts/${viewSlug}`}
                 target="_blank"
                 className="rounded-md border border-border px-3.5 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
-                查看文章
+                查看
               </Link>
             )}
             <motion.button
               type="button"
-              onClick={() => doSave('draft')}
-              disabled={save.isPending}
-              whileHover={{ scale: 1.02 }}
+              onClick={doPublish}
+              disabled={publish.isPending}
+              whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              className="rounded-md border border-border px-4 py-1.5 text-sm font-medium transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50"
+              className="rounded-md bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
             >
-              保存草稿
-            </motion.button>
-            <motion.button
-              type="button"
-              onClick={() => doSave(isPublished ? 'published' : 'published')}
-              disabled={save.isPending}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-              className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
-            >
-              {save.isPending ? '保存中...' : primaryLabel}
+              {publish.isPending ? '保存中...' : primaryLabel}
             </motion.button>
           </div>
         </div>
@@ -185,105 +218,54 @@ function EditorShell({ mode, article }: EditorShellProps) {
         </AnimatePresence>
       </div>
 
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 lg:grid-cols-[1fr_280px]">
+      <div className="mx-auto max-w-4xl px-4 py-8">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: easeOut }}
-          className="min-w-0 rounded-xl border border-border bg-card p-6 sm:p-10"
+          className="rounded-xl border border-border bg-card p-6 sm:p-10"
         >
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="添加标题"
+            placeholder="给文章起个标题吧..."
             className="w-full border-none bg-transparent text-3xl font-semibold tracking-tight outline-none placeholder:text-muted-foreground/50 sm:text-4xl"
           />
           <div className="mt-6 border-t border-border pt-2">
             <RichEditor content={content} onChange={setContent} variant="plain" />
           </div>
-        </motion.div>
 
-        <motion.aside
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.45, delay: 0.1, ease: easeOut }}
-          className="h-fit space-y-4 lg:sticky lg:top-36"
-        >
-          <div className="rounded-xl border border-border bg-card">
-            <div className="border-b border-border px-4 py-3">
-              <p className="text-sm font-semibold">发布</p>
-            </div>
-            <div className="space-y-3 px-4 py-4 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">状态</span>
-                <div className="flex items-center gap-1">
-                  {(['draft', 'published'] as const).map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setStatus(s)}
-                      className={`relative rounded-md px-2.5 py-1 text-xs transition-colors ${
-                        status === s ? 'text-white' : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      {status === s && (
-                        <motion.span
-                          layoutId="wp-status-pill"
-                          className={`absolute inset-0 rounded-md ${
-                            s === 'published' ? 'bg-emerald-500' : 'bg-amber-500'
-                          }`}
-                          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                        />
-                      )}
-                      <span className="relative">{s === 'published' ? '已发布' : '草稿'}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">可见性</span>
-                <span>公开</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">字数</span>
-                <span>{wordCount}</span>
-              </div>
-              {article?.published_at && (
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">发布于</span>
-                  <span className="text-xs">{new Date(article.published_at).toLocaleDateString('zh-CN')}</span>
-                </div>
+          <div className="mt-8 flex items-center justify-between border-t border-border pt-4 text-xs text-muted-foreground">
+            <span>
+              {wordCount} 字 · 约 {readMinutes} 分钟读完
+            </span>
+            <div className="flex items-center gap-4">
+              <span className="sm:hidden">{saveIndicator}</span>
+              {mode === 'edit' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm(`确定删除「${article?.title}」吗？删除后无法恢复。`)) trash.mutate()
+                  }}
+                  disabled={trash.isPending}
+                  className="transition-colors hover:text-red-500 disabled:opacity-50"
+                >
+                  删除文章
+                </button>
               )}
             </div>
-            <div className="border-t border-border px-4 py-3">
-              <motion.button
-                type="submit"
-                disabled={save.isPending}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.97 }}
-                className="w-full rounded-md bg-accent py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
-              >
-                {isPublished ? primaryLabel : '保存'}
-              </motion.button>
-            </div>
           </div>
+        </motion.div>
 
-          {mode === 'edit' && (
-            <div className="rounded-xl border border-border bg-card px-4 py-3">
-              <button
-                type="button"
-                onClick={() => {
-                  if (confirm(`确定将「${article?.title}」移到回收站吗？`)) trash.mutate()
-                }}
-                disabled={trash.isPending}
-                className="text-sm text-red-500 transition-colors hover:text-red-600 disabled:opacity-50"
-              >
-                {trash.isPending ? '删除中...' : '移到回收站'}
-              </button>
-            </div>
-          )}
-        </motion.aside>
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="mt-4 text-center text-xs text-muted-foreground"
+        >
+          提示：写完点右上角「{primaryLabel}」就能发表。草稿每 2 秒自动保存，不用怕丢。
+        </motion.p>
       </div>
     </form>
   )

@@ -1,6 +1,8 @@
 'use client'
 
-import { EditorContent, useEditor, type Editor } from '@tiptap/react'
+import { EditorContent, useEditor } from '@tiptap/react'
+import { BubbleMenu } from '@tiptap/react/menus'
+import type { Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Image from '@tiptap/extension-image'
@@ -13,17 +15,17 @@ interface RichEditorProps {
   variant?: 'card' | 'plain'
 }
 
-function ToolbarButton({
+function ToolButton({
   active,
   disabled,
   onClick,
-  label,
+  children,
   title,
 }: {
   active?: boolean
   disabled?: boolean
   onClick: () => void
-  label: string
+  children: React.ReactNode
   title: string
 }) {
   return (
@@ -32,101 +34,106 @@ function ToolbarButton({
       title={title}
       disabled={disabled}
       onClick={onClick}
-      className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-30 ${
+      className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-30 ${
         active
           ? 'bg-accent/15 text-accent'
           : 'text-muted-foreground hover:bg-muted hover:text-foreground'
       }`}
     >
-      {label}
+      {children}
     </button>
   )
 }
 
-function Divider() {
-  return <span className="mx-1 h-4 w-px bg-border" />
+function BubbleBar({ editor }: { editor: Editor }) {
+  return (
+    <div className="flex items-center gap-0.5 rounded-lg border border-border bg-card p-1 shadow-xl shadow-black/10">
+      <button
+        type="button"
+        title="加粗"
+        onClick={() => editor.chain().focus().toggleBold().run()}
+        className={`h-8 w-8 rounded-md text-sm font-bold transition-colors ${
+          editor.isActive('bold')
+            ? 'bg-accent text-white'
+            : 'text-foreground hover:bg-muted'
+        }`}
+      >
+        B
+      </button>
+      <button
+        type="button"
+        title="设为标题"
+        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+        className={`h-8 rounded-md px-2 text-sm font-semibold transition-colors ${
+          editor.isActive('heading', { level: 2 })
+            ? 'bg-accent text-white'
+            : 'text-foreground hover:bg-muted'
+        }`}
+      >
+        标题
+      </button>
+      <button
+        type="button"
+        title="插入链接"
+        onClick={() => {
+          const url = window.prompt('输入链接地址：', editor.getAttributes('link').href ?? 'https://')
+          if (url === null) return
+          if (url === '') {
+            editor.chain().focus().unsetLink().run()
+          } else {
+            editor.chain().focus().setLink({ href: url }).run()
+          }
+        }}
+        className={`h-8 rounded-md px-2 text-sm transition-colors ${
+          editor.isActive('link')
+            ? 'bg-accent text-white'
+            : 'text-foreground hover:bg-muted'
+        }`}
+      >
+        链接
+      </button>
+    </div>
+  )
 }
 
 function Toolbar({ editor }: { editor: Editor }) {
   const chain = () => editor.chain().focus()
 
   return (
-    <div className="flex flex-wrap items-center gap-0.5 border-b border-border px-2 py-1.5">
-      <ToolbarButton
-        label="B"
+    <div className="flex flex-wrap items-center gap-0.5 border-b border-border px-3 py-2">
+      <ToolButton
         title="加粗"
         active={editor.isActive('bold')}
         onClick={() => chain().toggleBold().run()}
-      />
-      <ToolbarButton
-        label="I"
-        title="斜体"
-        active={editor.isActive('italic')}
-        onClick={() => chain().toggleItalic().run()}
-      />
-      <ToolbarButton
-        label="S"
-        title="删除线"
-        active={editor.isActive('strike')}
-        onClick={() => chain().toggleStrike().run()}
-      />
-      <ToolbarButton
-        label="U"
-        title="下划线"
-        active={editor.isActive('underline')}
-        onClick={() => chain().toggleUnderline().run()}
-      />
-      <Divider />
-      <ToolbarButton
-        label="H1"
-        title="一级标题"
-        active={editor.isActive('heading', { level: 1 })}
-        onClick={() => chain().toggleHeading({ level: 1 }).run()}
-      />
-      <ToolbarButton
-        label="H2"
-        title="二级标题"
+      >
+        <span className="font-bold">B 加粗</span>
+      </ToolButton>
+      <ToolButton
+        title="标题"
         active={editor.isActive('heading', { level: 2 })}
         onClick={() => chain().toggleHeading({ level: 2 }).run()}
-      />
-      <ToolbarButton
-        label="H3"
-        title="三级标题"
-        active={editor.isActive('heading', { level: 3 })}
-        onClick={() => chain().toggleHeading({ level: 3 }).run()}
-      />
-      <Divider />
-      <ToolbarButton
-        label="• 列表"
-        title="无序列表"
+      >
+        标题
+      </ToolButton>
+      <ToolButton
+        title="列表"
         active={editor.isActive('bulletList')}
         onClick={() => chain().toggleBulletList().run()}
-      />
-      <ToolbarButton
-        label="1. 列表"
-        title="有序列表"
-        active={editor.isActive('orderedList')}
-        onClick={() => chain().toggleOrderedList().run()}
-      />
-      <ToolbarButton
-        label="❝ 引用"
+      >
+        • 列表
+      </ToolButton>
+      <ToolButton
         title="引用"
         active={editor.isActive('blockquote')}
         onClick={() => chain().toggleBlockquote().run()}
-      />
-      <ToolbarButton
-        label="代码块"
-        title="代码块"
-        active={editor.isActive('codeBlock')}
-        onClick={() => chain().toggleCodeBlock().run()}
-      />
-      <Divider />
-      <ToolbarButton
-        label="链接"
+      >
+        引用
+      </ToolButton>
+      <ToolButton
         title="插入链接"
         active={editor.isActive('link')}
         onClick={() => {
-          const url = window.prompt('链接地址：', editor.getAttributes('link').href ?? 'https://')
+          const url = window.prompt('输入链接地址：', editor.getAttributes('link').href ?? 'https://')
           if (url === null) return
           if (url === '') {
             chain().unsetLink().run()
@@ -134,31 +141,36 @@ function Toolbar({ editor }: { editor: Editor }) {
             chain().setLink({ href: url }).run()
           }
         }}
-      />
-      <ToolbarButton
-        label="图片"
+      >
+        链接
+      </ToolButton>
+      <ToolButton
         title="插入图片"
         onClick={() => {
-          const url = window.prompt('图片地址：', 'https://')
+          const url = window.prompt('输入图片地址：', 'https://')
           if (url && url !== 'https://') {
             chain().setImage({ src: url }).run()
           }
         }}
-      />
-      <ToolbarButton label="— 分割线" title="分割线" onClick={() => chain().setHorizontalRule().run()} />
-      <Divider />
-      <ToolbarButton
-        label="↺"
+      >
+        图片
+      </ToolButton>
+
+      <span className="mx-1 h-4 w-px bg-border" />
+      <ToolButton
         title="撤销"
         disabled={!editor.can().undo()}
         onClick={() => chain().undo().run()}
-      />
-      <ToolbarButton
-        label="↻"
+      >
+        ↺
+      </ToolButton>
+      <ToolButton
         title="重做"
         disabled={!editor.can().redo()}
         onClick={() => chain().redo().run()}
-      />
+      >
+        ↻
+      </ToolButton>
     </div>
   )
 }
@@ -170,7 +182,7 @@ export function RichEditor({ content, onChange, variant = 'card' }: RichEditorPr
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
       }),
-      Placeholder.configure({ placeholder: '开始写作...' }),
+      Placeholder.configure({ placeholder: '开始写正文吧... 选中文字会出现排版按钮' }),
       Image.configure({ inline: false }),
     ],
     content,
@@ -192,7 +204,7 @@ export function RichEditor({ content, onChange, variant = 'card' }: RichEditorPr
   }, [editor])
 
   if (!editor) {
-    return <div className="skeleton min-h-[460px] rounded-lg" />
+    return <div className="skeleton min-h-[420px] rounded-lg" />
   }
 
   const plain = variant === 'plain'
@@ -208,9 +220,18 @@ export function RichEditor({ content, onChange, variant = 'card' }: RichEditorPr
           : 'overflow-hidden rounded-lg border border-border bg-card transition-colors focus-within:border-accent/50'
       }
     >
-      <div className={plain ? 'rounded-t-lg border-b border-border bg-card' : ''}>
+      {plain ? (
+        <div className="rounded-t-lg border-b border-border bg-card">
+          <Toolbar editor={editor} />
+        </div>
+      ) : (
         <Toolbar editor={editor} />
-      </div>
+      )}
+
+      <BubbleMenu editor={editor} options={{ placement: 'top', offset: 10 }}>
+        <BubbleBar editor={editor} />
+      </BubbleMenu>
+
       <EditorContent editor={editor} />
     </motion.div>
   )
