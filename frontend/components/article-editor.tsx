@@ -55,21 +55,15 @@ function EditorShell({ mode, article }: EditorShellProps) {
   }, [])
 
   const toggleAutoSave = () => {
-    setAutoSaveEnabled((prev) => {
-      const next = !prev
-      try {
-        localStorage.setItem('blog_autosave', next ? 'on' : 'off')
-      } catch {
-        // ignore persistence failure
-      }
-      if (next) {
-        baseline.current = JSON.stringify({ t: title, c: content })
-        notify.success(next ? '自动保存已开启' : '自动保存已关闭')
-      } else {
-        notify.success('自动保存已关闭')
-      }
-      return next
-    })
+    const next = !autoSaveEnabled
+    setAutoSaveEnabled(next)
+    try {
+      localStorage.setItem('blog_autosave', next ? 'on' : 'off')
+    } catch {
+      // ignore persistence failure
+    }
+    baseline.current = JSON.stringify({ t: title, c: content })
+    notify.success(next ? '自动保存已开启' : '自动保存已关闭')
   }
 
   const isPublished = mode === 'edit' && article?.status === 'published'
