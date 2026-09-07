@@ -23,7 +23,7 @@ export default function LoginPage() {
     setSubmitting(true)
     try {
       await login(email, password)
-      router.push('/dashboard')
+      router.push('/admin')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '登录失败，请稍后重试')
       setSubmitting(false)

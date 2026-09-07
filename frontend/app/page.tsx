@@ -93,7 +93,7 @@ export default function HomePage() {
             <div className="text-4xl">📝</div>
             <p className="mt-4 text-muted-foreground">还没有文章，来发布第一篇吧</p>
             <Link
-              href="/dashboard/new"
+              href="/admin/articles/new"
               className="mt-6 inline-block rounded-lg bg-accent px-6 py-2.5 text-sm font-medium text-white transition-transform hover:scale-105"
             >
               写文章

@@ -24,7 +24,7 @@ export default function RegisterPage() {
     setSubmitting(true)
     try {
       await register(email, username, password)
-      router.push('/dashboard')
+      router.push('/admin')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '注册失败，请稍后重试')
       setSubmitting(false)

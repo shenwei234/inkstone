@@ -56,14 +56,23 @@ export default function AdminArticlesPage() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">文章管理</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {data ? `共 ${data.total} 篇` : '加载中...'}
-          </p>
-        </div>
-        <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">文章管理</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {data ? `共 ${data.total} 篇` : '加载中...'}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
+              <Link
+                href="/admin/articles/new"
+                className="inline-block rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white shadow-lg shadow-accent/25"
+              >
+                + 写文章
+              </Link>
+            </motion.div>
+            <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
           {tabs.map((t) => (
             <button
               key={t.key}
@@ -82,7 +91,8 @@ export default function AdminArticlesPage() {
               <span className="relative">{t.label}</span>
             </button>
           ))}
-        </div>
+            </div>
+          </div>
       </div>
 
       <AnimatePresence>
@@ -145,7 +155,7 @@ export default function AdminArticlesPage() {
                   {a.status === 'published' ? '转为草稿' : '发布'}
                 </button>
                 <Link
-                  href={`/dashboard/edit/${a.id}`}
+                  href={`/admin/articles/edit/${a.id}`}
                   className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
                   编辑

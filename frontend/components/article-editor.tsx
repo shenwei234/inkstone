@@ -37,7 +37,8 @@ function ArticleForm({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['articles'] })
       queryClient.invalidateQueries({ queryKey: ['article', articleId] })
-      router.push('/dashboard')
+      queryClient.invalidateQueries({ queryKey: ['admin'] })
+      router.push('/admin/articles')
     },
     onError: (err) => {
       setError(err instanceof ApiError ? err.message : '保存失败，请稍后重试')
@@ -185,7 +186,7 @@ function ArticleForm({
           )}
         </motion.button>
         <Link
-          href="/dashboard"
+          href="/admin/articles"
           className="rounded-lg px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           取消
