@@ -40,6 +40,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
     mode === 'edit' && article?.status === 'draft' ? new Date(article.updated_at) : null,
   )
   const [autoSaving, setAutoSaving] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const baseline = useRef(
     JSON.stringify({ t: article?.title ?? '', c: article?.content ?? '' }),
   )
@@ -245,9 +246,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
               {mode === 'edit' && (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (confirm(`确定删除「${article?.title}」吗？删除后无法恢复。`)) trash.mutate()
-                  }}
+                  onClick={() => setConfirmOpen(true)}
                   disabled={trash.isPending}
                   className="transition-colors hover:text-red-500 disabled:opacity-50"
                 >
@@ -267,6 +266,65 @@ function EditorShell({ mode, article }: EditorShellProps) {
           提示：写完点右上角「{primaryLabel}」就能发表。草稿每 2 秒自动保存，不用怕丢。
         </motion.p>
       </div>
+
+      {/* Delete confirmation dialog */}
+      <AnimatePresence>
+        {confirmOpen && (
+          <motion.div
+            key="confirm-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setConfirmOpen(false)
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 8 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="w-[400px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/25"
+              role="alertdialog"
+              aria-modal="true"
+            >
+              <div className="px-6 pt-6 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 text-2xl">
+                  🗑
+                </div>
+                <h3 className="mt-4 text-base font-semibold">删除这篇文章？</h3>
+                <p className="mt-1.5 break-all text-sm text-muted-foreground">
+                  「{article?.title}」将被永久删除，此操作无法撤销。
+                </p>
+              </div>
+              <div className="mt-6 flex justify-center gap-3 px-6 pb-6">
+                <button
+                  type="button"
+                  onClick={() => setConfirmOpen(false)}
+                  className="min-w-24 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+                >
+                  取消
+                </button>
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => {
+                    setConfirmOpen(false)
+                    trash.mutate()
+                  }}
+                  disabled={trash.isPending}
+                  className="min-w-24 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white shadow-md shadow-red-500/25 disabled:opacity-50"
+                >
+                  {trash.isPending ? '删除中...' : '确认删除'}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </form>
   )
 }

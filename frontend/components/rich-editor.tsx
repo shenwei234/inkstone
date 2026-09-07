@@ -12,13 +12,26 @@ import { Extension } from '@tiptap/core'
 import Suggestion from '@tiptap/suggestion'
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface RichEditorProps {
   content: string
   onChange: (html: string) => void
   variant?: 'card' | 'plain'
 }
+
+interface DialogOptions {
+  title: string
+  label: string
+  placeholder?: string
+  defaultValue?: string
+  hint?: string
+  confirmText?: string
+}
+
+const promptOpener: {
+  current: ((opts: DialogOptions) => Promise<string | null>) | null
+} = { current: null }
 
 interface BlockItem {
   key: string
@@ -102,10 +115,20 @@ const BLOCK_ITEMS: BlockItem[] = [
     desc: '插入一张图片',
     icon: '图',
     textOnly: false,
-    command: ({ editor, range }) => {
-      const url = window.prompt('输入图片地址：', 'https://')
-      if (url && url !== 'https://') {
-        editor.chain().focus().deleteRange(range).setImage({ src: url }).run()
+    command: async ({ editor, range }) => {
+      const opener = promptOpener.current
+      if (!opener) return
+      const url = await opener({
+        title: '插入图片',
+        label: '图片地址',
+        placeholder: 'https://example.com/photo.jpg',
+        hint: '支持外链图片，建议使用 https:// 开头的地址',
+        confirmText: '插入',
+      })
+      if (url && url.trim()) {
+        editor.chain().focus().deleteRange(range).setImage({ src: url.trim() }).run()
+      } else {
+        editor.chain().focus().run()
       }
     },
   },
@@ -237,9 +260,11 @@ function ToolButton({
 function BlockToolbar({
   editor,
   block,
+  openPrompt,
 }: {
   editor: Editor
   block: BlockInfo
+  openPrompt: (opts: DialogOptions) => Promise<string | null>
 }) {
   const isText = !['image', 'horizontalRule'].includes(block.typeName)
   const isP = block.typeName === 'paragraph'
@@ -278,13 +303,21 @@ function BlockToolbar({
           <ToolButton
             title="插入链接"
             active={editor.isActive('link')}
-            onClick={() => {
-              const url = window.prompt('输入链接地址：', editor.getAttributes('link').href ?? 'https://')
+            onClick={async () => {
+              const current = editor.getAttributes('link').href ?? ''
+              const url = await openPrompt({
+                title: '插入链接',
+                label: '链接地址',
+                defaultValue: current,
+                placeholder: 'https://example.com',
+                hint: current ? '清空输入框并确认可移除该链接' : '选中的文字将变为链接',
+                confirmText: '确定',
+              })
               if (url === null) return
-              if (url === '') {
+              if (url.trim() === '') {
                 editor.chain().focus().unsetLink().run()
               } else {
-                editor.chain().focus().setLink({ href: url }).run()
+                editor.chain().focus().setLink({ href: url.trim() }).run()
               }
             }}
           >
@@ -397,6 +430,43 @@ export function RichEditor({ content, onChange, variant = 'card' }: RichEditorPr
   const [block, setBlock] = useState<BlockInfo | null>(null)
   const [slash, setSlash] = useState<SlashState>(INITIAL_SLASH)
   const [plusOpen, setPlusOpen] = useState(false)
+  const [dialog, setDialog] = useState<(DialogOptions & { resolve: (v: string | null) => void }) | null>(null)
+  const dialogRef = useRef<HTMLInputElement>(null)
+
+  const openPrompt = useCallback(
+    (opts: DialogOptions) =>
+      new Promise<string | null>((resolve) => {
+        setDialog({ ...opts, resolve })
+      }),
+    [],
+  )
+
+  const closeDialog = useCallback((value: string | null) => {
+    setDialog((d) => {
+      d?.resolve(value)
+      return null
+    })
+  }, [])
+
+  useEffect(() => {
+    promptOpener.current = openPrompt
+    return () => {
+      promptOpener.current = null
+    }
+  }, [openPrompt])
+
+  useEffect(() => {
+    if (dialog) {
+      requestAnimationFrame(() => {
+        dialogRef.current?.focus()
+        dialogRef.current?.select()
+      })
+    }
+  }, [dialog])
+
+  const confirmDialog = useCallback(() => {
+    closeDialog(dialogRef.current?.value ?? null)
+  }, [closeDialog])
 
   const slashRef = useRef<SlashState>(INITIAL_SLASH)
   useEffect(() => {
@@ -568,7 +638,7 @@ export function RichEditor({ content, onChange, variant = 'card' }: RichEditorPr
 
       {/* Gutenberg-style floating block toolbar */}
       {focused && block && !slash.open && (
-        <BlockToolbar editor={editor} block={block} />
+        <BlockToolbar editor={editor} block={block} openPrompt={openPrompt} />
       )}
 
       {/* Insert button on the left of an empty block */}
@@ -616,6 +686,89 @@ export function RichEditor({ content, onChange, variant = 'card' }: RichEditorPr
       )}
 
       <EditorContent editor={editor} />
+
+      {/* Styled prompt dialog */}
+      <AnimatePresence>
+        {dialog && (
+          <motion.div
+            key="dialog-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) closeDialog(null)
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 8 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="w-[420px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/25"
+              role="dialog"
+              aria-modal="true"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  confirmDialog()
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault()
+                  closeDialog(null)
+                }
+              }}
+            >
+              <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+                <p className="text-sm font-semibold">{dialog.title}</p>
+                <button
+                  type="button"
+                  onClick={() => closeDialog(null)}
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="space-y-2 px-5 py-5">
+                <label className="text-sm font-medium">{dialog.label}</label>
+                <input
+                  ref={dialogRef}
+                  type="text"
+                  defaultValue={dialog.defaultValue ?? ''}
+                  placeholder={dialog.placeholder}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      e.stopPropagation()
+                      closeDialog(null)
+                    }
+                  }}
+                  className="w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20"
+                />
+                {dialog.hint && <p className="text-xs text-muted-foreground">{dialog.hint}</p>}
+              </div>
+              <div className="flex justify-end gap-2 border-t border-border bg-muted/40 px-5 py-3.5">
+                <button
+                  type="button"
+                  onClick={() => closeDialog(null)}
+                  className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+                >
+                  取消
+                </button>
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={confirmDialog}
+                  className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25"
+                >
+                  {dialog.confirmText ?? '确定'}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }
