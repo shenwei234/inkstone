@@ -75,3 +75,52 @@ func (r *UserRepository) FindByID(id uint) (*model.User, error) {
 	}
 	return &user, nil
 }
+
+func (r *UserRepository) Count() (int64, error) {
+	var n int64
+	err := r.db.Model(&model.User{}).Count(&n).Error
+	return n, err
+}
+
+func (r *UserRepository) List(page, pageSize int, query string) ([]model.User, int64, error) {
+	db := r.db.Model(&model.User{})
+	if query != "" {
+		like := "%" + query + "%"
+		db = db.Where("email ILIKE ? OR username ILIKE ?", like, like)
+	}
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	var users []model.User
+	err := db.Order("id ASC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&users).Error
+	return users, total, err
+}
+
+func (r *UserRepository) UpdateRole(id uint, role string) error {
+	res := r.db.Model(&model.User{}).Where("id = ?", id).Update("role", role)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *UserRepository) Delete(id uint) error {
+	res := r.db.Delete(&model.User{}, id)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}

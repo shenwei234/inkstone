@@ -13,6 +13,7 @@ export function Navbar() {
   const links = [
     { href: '/', label: '首页' },
     ...(user ? [{ href: '/dashboard', label: '我的文章' }] : []),
+    ...(user?.role === 'admin' ? [{ href: '/admin', label: '管理后台' }] : []),
   ]
 
   return (

@@ -11,6 +11,7 @@ import (
 type ArticleQuery struct {
 	AuthorID uint
 	Status   string
+	All      bool
 	Page     int
 	PageSize int
 }
@@ -40,6 +41,33 @@ func (r *ArticleRepository) Delete(id, authorID uint) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+func (r *ArticleRepository) DeleteAny(id uint) error {
+	result := r.db.Delete(&model.Article{}, id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *ArticleRepository) DeleteByAuthor(authorID uint) error {
+	return r.db.Where("author_id = ?", authorID).Delete(&model.Article{}).Error
+}
+
+func (r *ArticleRepository) CountAll() (int64, error) {
+	var n int64
+	err := r.db.Model(&model.Article{}).Count(&n).Error
+	return n, err
+}
+
+func (r *ArticleRepository) CountByStatus(status string) (int64, error) {
+	var n int64
+	err := r.db.Model(&model.Article{}).Where("status = ?", status).Count(&n).Error
+	return n, err
 }
 
 func (r *ArticleRepository) FindByID(id uint) (*model.Article, error) {
@@ -72,10 +100,10 @@ func (r *ArticleRepository) List(q ArticleQuery) ([]model.Article, int64, error)
 	if q.AuthorID > 0 {
 		db = db.Where("author_id = ?", q.AuthorID)
 	}
-	if q.Status != "" {
+	switch {
+	case q.Status != "":
 		db = db.Where("status = ?", q.Status)
-	} else {
-		// Public listing defaults to published articles only.
+	case !q.All:
 		db = db.Where("status = ?", model.ArticlePublished)
 	}
 

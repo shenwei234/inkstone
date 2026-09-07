@@ -45,3 +45,25 @@ export interface Pagination {
   page_size: number
   total: number
 }
+
+export interface AdminStats {
+  total_users: number
+  total_articles: number
+  published_articles: number
+  draft_articles: number
+}
+
+export interface AdminUser {
+  id: number
+  email: string
+  username: string
+  role: 'admin' | 'user'
+  created_at: string
+}
+
+export interface AdminUserListResponse {
+  users: AdminUser[]
+  total: number
+  page: number
+  page_size: number
+}

@@ -52,11 +52,16 @@ func (s *AuthService) Register(input RegisterInput) (*model.User, *TokenPair, er
 		return nil, nil, err
 	}
 
+	role := model.RoleUser
+	if count, err := s.users.Count(); err == nil && count == 0 {
+		role = model.RoleAdmin
+	}
+
 	user := &model.User{
 		Email:        email,
 		Username:     username,
 		PasswordHash: string(hash),
-		Role:         model.RoleUser,
+		Role:         role,
 	}
 	if err := s.users.Create(user); err != nil {
 		switch {

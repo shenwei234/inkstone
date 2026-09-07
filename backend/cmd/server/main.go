@@ -5,6 +5,7 @@ import (
 
 	"github.com/blog-platform/backend/internal/handler"
 	"github.com/blog-platform/backend/internal/middleware"
+	"github.com/blog-platform/backend/internal/model"
 	"github.com/blog-platform/backend/internal/repository"
 	"github.com/blog-platform/backend/internal/service"
 	"github.com/blog-platform/backend/pkg/config"
@@ -23,9 +24,11 @@ func main() {
 
 	authSvc := service.NewAuthService(userRepo, tokens)
 	articleSvc := service.NewArticleService(articleRepo)
+	adminSvc := service.NewAdminService(userRepo, articleRepo)
 
 	authHandler := handler.NewAuthHandler(authSvc)
 	articleHandler := handler.NewArticleHandler(articleSvc)
+	adminHandler := handler.NewAdminHandler(adminSvc, userRepo, articleSvc, articleRepo)
 
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
@@ -60,6 +63,17 @@ func main() {
 				authed.PUT("/:id", articleHandler.Update)
 				authed.DELETE("/:id", articleHandler.Delete)
 			}
+		}
+
+		admin := api.Group("/admin", middleware.Auth(tokens), middleware.RequireRole(model.RoleAdmin))
+		{
+			admin.GET("/stats", adminHandler.Stats)
+			admin.GET("/users", adminHandler.ListUsers)
+			admin.PUT("/users/:id/role", adminHandler.UpdateUserRole)
+			admin.DELETE("/users/:id", adminHandler.DeleteUser)
+			admin.GET("/articles", adminHandler.ListArticles)
+			admin.PUT("/articles/:id/status", adminHandler.SetArticleStatus)
+			admin.DELETE("/articles/:id", adminHandler.DeleteArticle)
 		}
 	}
 

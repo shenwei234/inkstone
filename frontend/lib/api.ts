@@ -3,6 +3,8 @@ import type {
   ArticleListResponse,
   AuthResponse,
   User,
+  AdminStats,
+  AdminUserListResponse,
 } from './types'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/api/v1'
@@ -174,4 +176,54 @@ export function updateArticle(
 
 export function deleteArticle(id: number) {
   return api<void>(`/articles/${id}`, { method: 'DELETE', auth: true })
+}
+
+// ---------- Admin API ----------
+
+export type { AdminStats, AdminUser, AdminUserListResponse } from './types'
+
+export function fetchAdminStats() {
+  return api<AdminStats>('/admin/stats', { auth: true })
+}
+
+export function fetchAdminUsers(params: { page?: number; page_size?: number; q?: string } = {}) {
+  const search = new URLSearchParams()
+  if (params.page) search.set('page', String(params.page))
+  if (params.page_size) search.set('page_size', String(params.page_size))
+  if (params.q) search.set('q', params.q)
+  const qs = search.toString()
+  return api<AdminUserListResponse>(`/admin/users${qs ? `?${qs}` : ''}`, { auth: true })
+}
+
+export function updateAdminUserRole(id: number, role: 'admin' | 'user') {
+  return api<{ message: string }>(`/admin/users/${id}/role`, {
+    method: 'PUT',
+    body: { role },
+    auth: true,
+  })
+}
+
+export function deleteAdminUser(id: number) {
+  return api<void>(`/admin/users/${id}`, { method: 'DELETE', auth: true })
+}
+
+export function fetchAdminArticles(params: { page?: number; page_size?: number; status?: string } = {}) {
+  const search = new URLSearchParams()
+  if (params.page) search.set('page', String(params.page))
+  if (params.page_size) search.set('page_size', String(params.page_size))
+  if (params.status) search.set('status', params.status)
+  const qs = search.toString()
+  return api<ArticleListResponse>(`/admin/articles${qs ? `?${qs}` : ''}`, { auth: true })
+}
+
+export function setAdminArticleStatus(id: number, status: 'draft' | 'published') {
+  return api<{ article: Article }>(`/admin/articles/${id}/status`, {
+    method: 'PUT',
+    body: { status },
+    auth: true,
+  })
+}
+
+export function deleteAdminArticle(id: number) {
+  return api<void>(`/admin/articles/${id}`, { method: 'DELETE', auth: true })
 }
