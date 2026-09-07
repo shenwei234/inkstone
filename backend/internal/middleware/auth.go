@@ -49,3 +49,22 @@ func GetCurrentUser(c *gin.Context) (CurrentUser, bool) {
 	user, ok := v.(CurrentUser)
 	return user, ok
 }
+
+// OptionalAuth parses the Bearer token when present and stores the current
+// user, but lets the request continue anonymously otherwise.
+func OptionalAuth(tokens *service.TokenManager) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		header := c.GetHeader("Authorization")
+		if header == "" {
+			c.Next()
+			return
+		}
+		parts := strings.SplitN(header, " ", 2)
+		if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") && parts[1] != "" {
+			if claims, err := tokens.Parse(parts[1], service.TokenTypeAccess); err == nil {
+				c.Set(ContextUserKey, CurrentUser{ID: claims.UserID, Role: claims.Role})
+			}
+		}
+		c.Next()
+	}
+}

@@ -2,8 +2,10 @@ package repository
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/blog-platform/backend/internal/model"
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 )
 
@@ -23,10 +25,31 @@ func NewUserRepository(db *gorm.DB) *UserRepository {
 
 func (r *UserRepository) Create(user *model.User) error {
 	err := r.db.Create(user).Error
-	if err != nil && isUniqueViolation(err) {
-		return ErrEmailTaken
+	if err != nil {
+		if uniqueField, ok := uniqueViolationField(err); ok {
+			if uniqueField == "username" {
+				return ErrUsernameTaken
+			}
+			return ErrEmailTaken
+		}
 	}
 	return err
+}
+
+// uniqueViolationField inspects a Postgres unique violation (SQLSTATE 23505)
+// and extracts the constrained column name.
+func uniqueViolationField(err error) (string, bool) {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		switch {
+		case strings.Contains(pgErr.ConstraintName, "username"):
+			return "username", true
+		case strings.Contains(pgErr.ConstraintName, "email"):
+			return "email", true
+		}
+		return "unknown", true
+	}
+	return "", false
 }
 
 func (r *UserRepository) FindByEmail(email string) (*model.User, error) {
@@ -51,10 +74,4 @@ func (r *UserRepository) FindByID(id uint) (*model.User, error) {
 		return nil, err
 	}
 	return &user, nil
-}
-
-// isUniqueViolation reports whether err is a Postgres unique constraint
-// violation (SQLSTATE 23505).
-func isUniqueViolation(err error) bool {
-	return err != nil && errors.Is(err, gorm.ErrDuplicatedKey)
 }

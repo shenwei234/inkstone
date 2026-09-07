@@ -28,7 +28,8 @@ func NewDB() *gorm.DB {
 	}
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: gormlogger.Default.LogMode(logLevel),
+		Logger:         gormlogger.Default.LogMode(logLevel),
+		TranslateError: true,
 	})
 	if err != nil {
 		log.Fatalf("failed to connect database: %v", err)

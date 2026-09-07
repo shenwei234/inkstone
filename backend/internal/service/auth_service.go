@@ -59,8 +59,11 @@ func (s *AuthService) Register(input RegisterInput) (*model.User, *TokenPair, er
 		Role:         model.RoleUser,
 	}
 	if err := s.users.Create(user); err != nil {
-		if errors.Is(err, repository.ErrEmailTaken) {
+		switch {
+		case errors.Is(err, repository.ErrEmailTaken):
 			return nil, nil, NewValidationError("该邮箱已被注册")
+		case errors.Is(err, repository.ErrUsernameTaken):
+			return nil, nil, NewValidationError("该用户名已被占用")
 		}
 		return nil, nil, err
 	}

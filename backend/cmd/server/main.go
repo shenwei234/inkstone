@@ -49,7 +49,7 @@ func main() {
 			auth.GET("/me", middleware.Auth(tokens), authHandler.Me)
 		}
 
-		articles := api.Group("/articles")
+		articles := api.Group("/articles", middleware.OptionalAuth(tokens))
 		{
 			articles.GET("", articleHandler.List)
 			articles.GET("/:id", articleHandler.Get)
