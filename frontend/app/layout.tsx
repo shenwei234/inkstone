@@ -18,7 +18,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Providers>
           <Navbar />
           <main className="flex-1">{children}</main>
-          <footer className="border-t py-6">
+          <footer className="border-t border-border py-8">
             <p className="mx-auto max-w-5xl px-4 text-sm text-muted-foreground">
               Blog 平台 · Powered by Next.js + Gin
             </p>
