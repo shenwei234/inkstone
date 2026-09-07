@@ -21,8 +21,8 @@ import type { TokenPair, User } from './types'
 interface AuthContextValue {
   user: User | null
   loading: boolean
-  login: (email: string, password: string) => Promise<void>
-  register: (email: string, username: string, password: string) => Promise<void>
+  login: (email: string, password: string) => Promise<User>
+  register: (email: string, username: string, password: string) => Promise<User>
   logout: () => void
   applyTokens: (token: TokenPair, user: User) => void
 }
@@ -54,6 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (email: string, password: string) => {
       const res = await apiLogin(email, password)
       applyTokens(res.token, res.user)
+      return res.user
     },
     [applyTokens],
   )
@@ -62,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (email: string, username: string, password: string) => {
       const res = await apiRegister(email, username, password)
       applyTokens(res.token, res.user)
+      return res.user
     },
     [applyTokens],
   )

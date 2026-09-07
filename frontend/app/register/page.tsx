@@ -23,8 +23,8 @@ export default function RegisterPage() {
     setError(null)
     setSubmitting(true)
     try {
-      await register(email, username, password)
-      router.push('/admin')
+      const newUser = await register(email, username, password)
+      router.push(newUser.role === 'admin' ? '/admin' : '/')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '注册失败，请稍后重试')
       setSubmitting(false)

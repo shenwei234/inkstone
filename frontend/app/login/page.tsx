@@ -22,8 +22,8 @@ export default function LoginPage() {
     setError(null)
     setSubmitting(true)
     try {
-      await login(email, password)
-      router.push('/admin')
+      const loggedIn = await login(email, password)
+      router.push(loggedIn.role === 'admin' ? '/admin' : '/')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '登录失败，请稍后重试')
       setSubmitting(false)

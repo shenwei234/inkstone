@@ -16,11 +16,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { user, loading } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
-  const allowed = user?.role === 'admin'
 
   useEffect(() => {
-    if (!loading && !allowed) router.push('/login')
-  }, [loading, allowed, router])
+    if (!loading && !user) router.push('/login')
+  }, [loading, user, router])
 
   if (loading) {
     return (
@@ -29,7 +28,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
     )
   }
-  if (!allowed) return null
+  if (!user) return null
+
+  if (user.role !== 'admin') {
+    return (
+      <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center">
+        <div className="text-5xl">🔒</div>
+        <h1 className="mt-6 text-xl font-bold">需要管理员权限</h1>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          管理后台仅对管理员开放。你可以浏览首页文章，如需权限请联系站长。
+        </p>
+        <Link
+          href="/"
+          className="mt-8 rounded-lg bg-accent px-6 py-2.5 text-sm font-medium text-white shadow-lg shadow-accent/25 transition-transform hover:scale-105"
+        >
+          返回首页
+        </Link>
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto flex max-w-6xl gap-6 px-4 py-8">
