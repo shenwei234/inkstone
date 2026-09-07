@@ -21,9 +21,9 @@ function ArticleCard({ article }: { article: Article }) {
             <h2 className="text-lg font-semibold tracking-tight transition-colors group-hover:text-accent">
               {article.title}
             </h2>
-            <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-              {article.content.slice(0, 160)}
-            </p>
+        <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+          {article.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)}
+        </p>
             <div className="mt-4 flex items-center gap-3 text-xs text-muted-foreground">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/10 text-[10px] font-bold text-accent">
                 {article.author.username.charAt(0).toUpperCase()}

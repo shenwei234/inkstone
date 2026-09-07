@@ -5,12 +5,15 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { createArticle, fetchArticle, updateArticle, ApiError } from '@/lib/api'
 import { PageTransition } from '@/components/motion'
+import { RichEditor } from '@/components/rich-editor'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
+
+function htmlToText(html: string): string {
+  return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ')
+}
 
 function ArticleForm({
   articleId,
@@ -24,7 +27,6 @@ function ArticleForm({
   const [title, setTitle] = useState(initial?.title ?? '')
   const [content, setContent] = useState(initial?.content ?? '')
   const [status, setStatus] = useState(initial?.status ?? 'draft')
-  const [preview, setPreview] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const mutation = useMutation({
@@ -48,11 +50,13 @@ function ArticleForm({
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
     setError(null)
+    const text = htmlToText(content).trim()
+    if (!text) {
+      setError('正文不能为空')
+      return
+    }
     mutation.mutate()
   }
-
-  const inputClass =
-    'w-full rounded-lg border border-border bg-card px-4 py-3 outline-none transition-all duration-200 placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20'
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
@@ -67,7 +71,7 @@ function ArticleForm({
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="文章标题..."
-          className={`${inputClass} text-xl font-semibold`}
+          className="w-full rounded-lg border border-border bg-card px-4 py-3 text-xl font-semibold outline-none transition-all duration-200 placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20"
         />
       </motion.div>
 
@@ -100,57 +104,15 @@ function ArticleForm({
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>{content.length} 字</span>
-          <span>·</span>
-          <button
-            type="button"
-            onClick={() => setPreview((p) => !p)}
-            className="rounded-md px-2.5 py-1 transition-colors hover:bg-muted hover:text-foreground"
-          >
-            {preview ? '✏️ 编辑' : '👁 预览'}
-          </button>
-        </div>
+        <span className="text-xs text-muted-foreground">{htmlToText(content).length} 字</span>
       </motion.div>
 
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45, delay: 0.16, ease: easeOut }}
-        className="relative"
       >
-        <AnimatePresence mode="wait">
-          {preview ? (
-            <motion.div
-              key="preview"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
-              className="min-h-[480px] rounded-lg border border-border bg-card p-8"
-            >
-              <div className="prose prose-neutral dark:prose-invert max-w-none prose-code:before:content-none prose-code:after:content-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {content || '*暂无内容，切回编辑开始写作*'}
-                </ReactMarkdown>
-              </div>
-            </motion.div>
-          ) : (
-            <motion.textarea
-              key="editor"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
-              required
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="# 标题&#10;&#10;开始你的 Markdown 创作..."
-              rows={22}
-              className={`${inputClass} resize-y font-mono text-sm leading-relaxed`}
-            />
-          )}
-        </AnimatePresence>
+        <RichEditor content={initial?.content ?? ''} onChange={setContent} />
       </motion.div>
 
       <AnimatePresence>
@@ -196,14 +158,24 @@ function ArticleForm({
   )
 }
 
+function Shell({ heading }: { heading: string }) {
+  return (
+    <div className="mx-auto max-w-5xl px-4 py-10">
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold tracking-tight">{heading}</h1>
+        <Link href="/admin/articles" className="text-sm text-muted-foreground hover:text-foreground">
+          返回列表
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 export function NewArticlePage() {
   return (
     <PageTransition>
-      <div className="mx-auto max-w-4xl px-4 py-10">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold tracking-tight">写文章</h1>
-          <p className="mt-1 text-sm text-muted-foreground">支持 Markdown 语法</p>
-        </div>
+      <Shell heading="写文章" />
+      <div className="mx-auto max-w-5xl px-4 pb-10">
         <ArticleForm />
       </div>
     </PageTransition>
@@ -218,7 +190,7 @@ export function EditArticlePage({ id }: { id: number }) {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-4xl px-4 py-10">
+      <div className="mx-auto max-w-5xl px-4 py-10">
         <div className="skeleton h-14 rounded-lg" />
         <div className="skeleton mt-4 h-12 rounded-lg" />
         <div className="skeleton mt-4 h-96 rounded-lg" />
@@ -230,7 +202,7 @@ export function EditArticlePage({ id }: { id: number }) {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="mx-auto max-w-4xl px-4 py-24 text-center text-muted-foreground"
+        className="mx-auto max-w-5xl px-4 py-24 text-center text-muted-foreground"
       >
         文章不存在或无权访问
       </motion.div>
@@ -239,11 +211,8 @@ export function EditArticlePage({ id }: { id: number }) {
 
   return (
     <PageTransition>
-      <div className="mx-auto max-w-4xl px-4 py-10">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold tracking-tight">编辑文章</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{data.article.title}</p>
-        </div>
+      <Shell heading="编辑文章" />
+      <div className="mx-auto max-w-5xl px-4 pb-10">
         <ArticleForm
           key={data.article.id}
           articleId={data.article.id}

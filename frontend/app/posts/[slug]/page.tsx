@@ -3,8 +3,6 @@
 import { use } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { motion } from 'framer-motion'
 import { fetchArticleBySlug } from '@/lib/api'
 import { PageTransition } from '@/components/motion'
@@ -90,9 +88,8 @@ export default function PostPage({ params }: { params: Promise<{ slug: string }>
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, delay: 0.12, ease: easeOut }}
           className="prose prose-neutral dark:prose-invert max-w-none prose-headings:font-semibold prose-a:text-accent prose-pre:bg-muted prose-code:bg-muted prose-code:rounded prose-code:px-1.5 prose-code:py-0.5 prose-code:text-[0.9em] prose-code:before:content-none prose-code:after:content-none prose-img:rounded-xl prose-blockquote:border-l-accent"
-        >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{article.content}</ReactMarkdown>
-        </motion.article>
+          dangerouslySetInnerHTML={{ __html: article.content }}
+        />
 
         <motion.footer
           initial={{ opacity: 0 }}
