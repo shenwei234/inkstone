@@ -15,6 +15,7 @@ import {
 import type { Article } from '@/lib/types'
 import { PageTransition } from '@/components/motion'
 import { RichEditor } from '@/components/rich-editor'
+import { ToastStack, useToasts } from '@/components/toast'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
 
@@ -32,9 +33,8 @@ function EditorShell({ mode, article }: EditorShellProps) {
   const queryClient = useQueryClient()
   const [title, setTitle] = useState(article?.title ?? '')
   const [content, setContent] = useState(article?.content ?? '')
-  const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
   const [viewSlug, setViewSlug] = useState<string | null>(article?.slug ?? null)
+  const { toasts, push, dismiss } = useToasts()
 
   const [autoSavedAt, setAutoSavedAt] = useState<Date | null>(
     mode === 'edit' && article?.status === 'draft' ? new Date(article.updated_at) : null,
@@ -61,12 +61,13 @@ function EditorShell({ mode, article }: EditorShellProps) {
       queryClient.invalidateQueries({ queryKey: ['article', res.article.id] })
       if (mode === 'edit' && article) {
         setViewSlug(res.article.slug)
-        setNotice(res.article.status === 'published' ? '文章已发布' : '已保存')
+        push('success', res.article.status === 'published' ? '文章已发布' : '已保存', res.article.slug)
       } else {
+        push('success', '文章已发布', res.article.slug)
         router.replace(`/admin/articles/edit/${res.article.id}`)
       }
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : '发布失败，请稍后重试'),
+    onError: (err) => push('error', err instanceof ApiError ? err.message : '发布失败，请稍后重试'),
   })
 
   const trash = useMutation({
@@ -75,7 +76,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
       queryClient.invalidateQueries({ queryKey: ['admin'] })
       router.push('/admin/articles')
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : '删除失败'),
+    onError: (err) => push('error', err instanceof ApiError ? err.message : '删除失败'),
   })
 
   // Auto-save: silently keeps drafts up to date while writing (edit mode only).
@@ -104,13 +105,12 @@ function EditorShell({ mode, article }: EditorShellProps) {
   const readMinutes = Math.max(1, Math.round(wordCount / 400))
 
   const doPublish = () => {
-    setError(null)
     if (!title.trim()) {
-      setError('给文章起个标题吧')
+      push('error', '给文章起个标题吧')
       return
     }
     if (!wordCount) {
-      setError('先写一点正文，再发布')
+      push('error', '先写一点正文，再发布')
       return
     }
     publish.mutate()
@@ -177,46 +177,6 @@ function EditorShell({ mode, article }: EditorShellProps) {
             </motion.button>
           </div>
         </div>
-
-        <AnimatePresence>
-          {(error || notice) && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden"
-            >
-              <div className="mx-auto max-w-7xl px-4 pb-3">
-                {error && (
-                  <p className="rounded-md border border-red-200 bg-red-50 px-3.5 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
-                    {error}
-                  </p>
-                )}
-                {notice && (
-                  <p className="flex items-center gap-3 rounded-md border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-sm text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
-                    {notice}
-                    {viewSlug && (
-                      <Link
-                        href={`/posts/${viewSlug}`}
-                        target="_blank"
-                        className="font-medium underline underline-offset-4"
-                      >
-                        查看文章
-                      </Link>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setNotice(null)}
-                      className="ml-auto text-emerald-600/70 transition-colors hover:text-emerald-700 dark:text-emerald-400/70"
-                    >
-                      ×
-                    </button>
-                  </p>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
       <div className="mx-auto max-w-4xl px-4 py-8">
@@ -325,6 +285,8 @@ function EditorShell({ mode, article }: EditorShellProps) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ToastStack toasts={toasts} dismiss={dismiss} />
     </form>
   )
 }
