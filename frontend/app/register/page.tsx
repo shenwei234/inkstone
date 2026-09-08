@@ -1,9 +1,11 @@
 'use client'
 
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
+import { fetchSiteConfig } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { ApiError } from '@/lib/api'
 
@@ -12,6 +14,8 @@ const easeOut = [0.16, 1, 0.3, 1] as const
 export default function RegisterPage() {
   const { register } = useAuth()
   const router = useRouter()
+  const configQuery = useQuery({ queryKey: ['site-config'], queryFn: fetchSiteConfig })
+  const registrationOpen = configQuery.data?.allow_registration !== false
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -39,6 +43,29 @@ export default function RegisterPage() {
     { id: 'username', label: '用户名', type: 'text', value: username, set: setUsername, placeholder: '2-32 个字符', auto: 'username', min: 2, max: 32 },
     { id: 'password', label: '密码', type: 'password', value: password, set: setPassword, placeholder: '至少 8 个字符', auto: 'new-password', min: 8, max: 72 },
   ]
+
+  if (!registrationOpen) {
+    return (
+      <div className="relative flex min-h-[calc(100vh-4rem-57px)] items-center justify-center px-4 py-16">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-sm rounded-2xl border border-border bg-card p-8 text-center shadow-xl shadow-black/5"
+        >
+          <h1 className="text-xl font-bold">暂未开放注册</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            网站已关闭用户注册，如需账号请联系站长。
+          </p>
+          <Link
+            href="/login"
+            className="mt-6 inline-block rounded-lg bg-accent px-6 py-2.5 text-sm font-medium text-white transition-transform hover:scale-105"
+          >
+            去登录
+          </Link>
+        </motion.div>
+      </div>
+    )
+  }
 
   return (
     <div className="relative flex min-h-[calc(100vh-4rem-57px)] items-center justify-center overflow-hidden px-4 py-16">

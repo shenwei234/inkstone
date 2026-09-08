@@ -9,6 +9,7 @@ import (
 	"github.com/blog-platform/backend/internal/repository"
 	"github.com/blog-platform/backend/internal/service"
 	"github.com/blog-platform/backend/pkg/config"
+	"github.com/blog-platform/backend/pkg/mailer"
 	"github.com/gin-gonic/gin"
 )
 
@@ -25,7 +26,10 @@ func main() {
 	commentRepo := repository.NewCommentRepository(db)
 	reactionRepo := repository.NewReactionRepository(db)
 
-	authSvc := service.NewAuthService(userRepo, tokens)
+	settingsSvc := service.NewSettingsService(db)
+	mailer := mailer.New(settingsSvc)
+
+	authSvc := service.NewAuthService(userRepo, tokens, settingsSvc)
 	articleSvc := service.NewArticleService(articleRepo, taxonomyRepo)
 	adminSvc := service.NewAdminService(userRepo, articleRepo)
 	commentSvc := service.NewCommentService(commentRepo, articleRepo)
@@ -38,6 +42,7 @@ func main() {
 	commentHandler := handler.NewCommentHandler(commentSvc, tokens)
 	reactionHandler := handler.NewReactionHandler(reactionSvc)
 	rssHandler := handler.NewRSSHandler(articleSvc, cfg.FrontendURL)
+	settingsHandler := handler.NewSettingsHandler(settingsSvc, mailer)
 
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
@@ -46,6 +51,7 @@ func main() {
 	router := gin.New()
 	router.Use(gin.Logger(), gin.Recovery())
 	router.Use(middleware.CORS([]string{cfg.FrontendURL}))
+	router.MaxMultipartMemory = 12 << 20
 
 	userStatusOK := func(id uint) bool {
 		u, err := userRepo.FindByID(id)
@@ -56,9 +62,17 @@ func main() {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 	router.GET("/feed.xml", rssHandler.Feed)
+	router.Static("/uploads", cfg.UploadDir)
+
+	uploadsHandler := handler.NewUploadsHandler(cfg)
 
 	api := router.Group("/api/v1")
 	{
+		uploads := api.Group("/uploads", middleware.Auth(tokens, userStatusOK))
+		{
+			uploads.POST("", uploadsHandler.Create)
+		}
+
 		auth := api.Group("/auth")
 		{
 			auth.POST("/register", authHandler.Register)
@@ -69,6 +83,7 @@ func main() {
 
 		api.GET("/categories", taxonomyHandler.ListCategories)
 		api.GET("/tags", taxonomyHandler.ListTags)
+		api.GET("/site-config", settingsHandler.SiteConfig)
 
 		articles := api.Group("/articles", middleware.OptionalAuth(tokens))
 		{
@@ -106,6 +121,9 @@ func main() {
 			admin.DELETE("/articles/:id", adminHandler.DeleteArticle)
 			admin.GET("/comments", adminHandler.ListComments)
 			admin.DELETE("/comments/:id", adminHandler.DeleteComment)
+			admin.GET("/settings", settingsHandler.Get)
+			admin.PUT("/settings", settingsHandler.Update)
+			admin.POST("/settings/test-mail", settingsHandler.TestMail)
 		}
 	}
 

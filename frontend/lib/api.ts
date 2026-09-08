@@ -260,6 +260,47 @@ export function deleteAdminComment(id: number) {
   return api<void>(`/admin/comments/${id}`, { method: 'DELETE', auth: true })
 }
 
+// ---------- Site Settings API ----------
+
+export interface SiteConfig {
+  allow_registration: boolean
+  site_name: string
+  site_description: string
+  site_icp: string
+}
+
+export interface AdminSettings {
+  allow_registration: boolean
+  site_name: string
+  site_description: string
+  site_icp: string
+  smtp_host: string
+  smtp_port: string
+  smtp_user: string
+  smtp_from: string
+  smtp_pass_set: boolean
+}
+
+export function fetchSiteConfig() {
+  return api<SiteConfig>('/site-config')
+}
+
+export function fetchAdminSettings() {
+  return api<AdminSettings>('/admin/settings', { auth: true })
+}
+
+export function updateAdminSettings(patch: Record<string, unknown>) {
+  return api<AdminSettings>('/admin/settings', { method: 'PUT', body: patch, auth: true })
+}
+
+export function sendTestMail(to: string) {
+  return api<{ message: string }>('/admin/settings/test-mail', {
+    method: 'POST',
+    body: { to },
+    auth: true,
+  })
+}
+
 export function fetchAdminUsers(params: { page?: number; page_size?: number; q?: string } = {}) {
   const search = new URLSearchParams()
   if (params.page) search.set('page', String(params.page))

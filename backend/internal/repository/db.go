@@ -50,6 +50,7 @@ func NewDB() *gorm.DB {
 		&model.Tag{},
 		&model.Comment{},
 		&model.Reaction{},
+		&model.Setting{},
 	); err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}

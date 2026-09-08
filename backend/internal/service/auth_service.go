@@ -13,18 +13,20 @@ import (
 var (
 	ErrInvalidCredentials = errors.New("invalid email or password")
 	ErrUserBanned         = errors.New("该账号已被封禁，请联系管理员")
+	ErrRegistrationClosed = errors.New("网站已关闭注册，请联系管理员")
 	ErrValidation         = errors.New("validation failed")
 )
 
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
 type AuthService struct {
-	users  *repository.UserRepository
-	tokens *TokenManager
+	users    *repository.UserRepository
+	tokens   *TokenManager
+	settings *SettingsService
 }
 
-func NewAuthService(users *repository.UserRepository, tokens *TokenManager) *AuthService {
-	return &AuthService{users: users, tokens: tokens}
+func NewAuthService(users *repository.UserRepository, tokens *TokenManager, settings *SettingsService) *AuthService {
+	return &AuthService{users: users, tokens: tokens, settings: settings}
 }
 
 type RegisterInput struct {
@@ -34,6 +36,13 @@ type RegisterInput struct {
 }
 
 func (s *AuthService) Register(input RegisterInput) (*model.User, *TokenPair, error) {
+	// First registered account always gets through (bootstrap admin).
+	if count, err := s.users.Count(); err != nil || count > 0 {
+		if !s.settings.AllowRegistration() {
+			return nil, nil, ErrRegistrationClosed
+		}
+	}
+
 	email := strings.ToLower(strings.TrimSpace(input.Email))
 	username := strings.TrimSpace(input.Username)
 	password := input.Password
