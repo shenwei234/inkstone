@@ -35,7 +35,7 @@ func (h *SettingsHandler) Get(c *gin.Context) {
 		errorResponse(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, out)
+	c.JSON(http.StatusOK, gin.H{"settings": out})
 }
 
 // Update handles PUT /admin/settings with a JSON object of key/value pairs.
@@ -56,7 +56,7 @@ func (h *SettingsHandler) Update(c *gin.Context) {
 		errorResponse(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, out)
+	c.JSON(http.StatusOK, gin.H{"settings": out})
 }
 
 type testMailRequest struct {
