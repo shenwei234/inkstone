@@ -14,6 +14,8 @@ const (
 	SettingAllowRegistration = "allow_registration" // "true"/"false"
 	SettingSiteName          = "site_name"          // string
 	SettingSiteDescription   = "site_description"   // string
+	SettingSiteLogo          = "site_logo"          // image URL, empty = default letter mark
+	SettingSiteFavicon       = "site_favicon"       // image URL, empty = default
 	SettingICP               = "site_icp"           // string
 	SettingSMTPHost          = "smtp_host"
 	SettingSMTPPort          = "smtp_port" // string digits
@@ -26,6 +28,8 @@ var settingDefaults = map[string]string{
 	SettingAllowRegistration: "true",
 	SettingSiteName:          "Blog 平台",
 	SettingSiteDescription:   "多用户博客平台",
+	SettingSiteLogo:          "",
+	SettingSiteFavicon:       "",
 	SettingICP:               "",
 	SettingSMTPHost:          "",
 	SettingSMTPPort:          "465",

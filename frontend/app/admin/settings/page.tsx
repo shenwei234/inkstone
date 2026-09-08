@@ -1,13 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Globe, Mail, Send, ShieldCheck } from 'lucide-react'
+import { Globe, ImagePlus, Mail, Send, ShieldCheck, Trash2 } from 'lucide-react'
 import {
   fetchAdminSettings,
   sendTestMail,
   updateAdminSettings,
+  uploadImage,
   ApiError,
 } from '@/lib/api'
 import { useNotify } from '@/components/toast'
@@ -79,6 +80,91 @@ function Section({
 const inputClass =
   'w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20'
 
+function ImageField({
+  label,
+  desc,
+  value,
+  onChange,
+  round,
+}: {
+  label: string
+  desc: string
+  value: string
+  onChange: (url: string) => void
+  round?: boolean
+}) {
+  const notify = useNotify()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const upload = useMutation({
+    mutationFn: (file: File) => uploadImage(file),
+    onSuccess: (url) => {
+      onChange(url)
+      notify.success('图片已上传，记得点击保存设置')
+    },
+    onError: (e) => notify.error(e instanceof ApiError ? e.message : '上传失败'),
+  })
+
+  return (
+    <div className="space-y-1.5">
+      <label className="text-sm font-medium">{label}</label>
+      <div className="flex items-center gap-3">
+        <div
+          className={`flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden border border-border bg-muted ${
+            round ? 'rounded-full' : 'rounded-lg'
+          }`}
+        >
+          {value ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={value} alt={label} className="h-full w-full object-cover" />
+          ) : (
+            <ImagePlus className="h-5 w-5 text-muted-foreground/50" />
+          )}
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={upload.isPending}
+              className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50"
+            >
+              {upload.isPending ? '上传中...' : '上传图片'}
+            </button>
+            {value && (
+              <button
+                type="button"
+                onClick={() => onChange('')}
+                className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-500"
+              >
+                <Trash2 className="h-3 w-3" /> 清除
+              </button>
+            )}
+          </div>
+          <p className="truncate text-xs text-muted-foreground">{desc}</p>
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) upload.mutate(file)
+            e.target.value = ''
+          }}
+        />
+      </div>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="或直接粘贴图片地址..."
+        className={inputClass}
+      />
+    </div>
+  )
+}
+
 export default function AdminSettingsPage() {
   const notify = useNotify()
   const queryClient = useQueryClient()
@@ -103,6 +189,8 @@ export default function AdminSettingsPage() {
         allow_registration: form!.allow_registration,
         site_name: form!.site_name,
         site_description: form!.site_description,
+        site_logo: form!.site_logo ?? '',
+        site_favicon: form!.site_favicon ?? '',
         site_icp: form!.site_icp,
         smtp_host: form!.smtp_host,
         smtp_port: form!.smtp_port,
@@ -164,6 +252,19 @@ export default function AdminSettingsPage() {
       <div className="mt-6 grid gap-4">
         <Section icon={<Globe className="h-4 w-4 text-accent" />} title="站点信息">
           <div className="grid gap-4 sm:grid-cols-2">
+            <ImageField
+              label="站点 Logo（导航栏）"
+              desc="建议 128x128 以上正方形图，留空显示站点名首字"
+              value={form.site_logo ?? ''}
+              onChange={(url) => update('site_logo', url)}
+              round
+            />
+            <ImageField
+              label="浏览器图标 Favicon"
+              desc="建议 64x64 正方形 PNG/ICO，留空使用默认"
+              value={form.site_favicon ?? ''}
+              onChange={(url) => update('site_favicon', url)}
+            />
             <div className="space-y-1.5">
               <label className="text-sm font-medium">站点名称</label>
               <input

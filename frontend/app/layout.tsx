@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Navbar } from "@/components/navbar";
+import { SiteFooter } from "@/components/site-footer";
 
 export const metadata: Metadata = {
   title: {
@@ -18,11 +19,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Providers>
           <Navbar />
           <main className="flex-1">{children}</main>
-          <footer className="border-t border-border py-8">
-            <p className="mx-auto max-w-5xl px-4 text-sm text-muted-foreground">
-              Blog 平台 · Powered by Next.js + Gin
-            </p>
-          </footer>
+          <SiteFooter />
         </Providers>
       </body>
     </html>

@@ -6,11 +6,13 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, LayoutDashboard, LogOut } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
+import { useSiteConfig } from '@/components/site-config-context'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
 
 export function Navbar() {
   const { user, loading, logout } = useAuth()
+  const site = useSiteConfig()
   const pathname = usePathname()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -25,14 +27,23 @@ export function Navbar() {
       <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
         <div className="flex items-center gap-8">
           <Link href="/" className="group flex items-center gap-2 text-lg font-bold tracking-tight">
-            <motion.span
-              whileHover={{ rotate: 12, scale: 1.15 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-sm font-black text-white"
-            >
-              B
-            </motion.span>
-            <span className="transition-colors group-hover:text-accent">Blog平台</span>
+            {site.siteLogo ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={site.siteLogo}
+                alt={site.siteName}
+                className="h-8 w-8 rounded-lg object-cover transition-transform group-hover:scale-110"
+              />
+            ) : (
+              <motion.span
+                whileHover={{ rotate: 12, scale: 1.15 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-sm font-black text-white"
+              >
+                {site.siteName.charAt(0).toUpperCase()}
+              </motion.span>
+            )}
+            <span className="transition-colors group-hover:text-accent">{site.siteName}</span>
           </Link>
           <nav className="flex items-center gap-1">
             <Link

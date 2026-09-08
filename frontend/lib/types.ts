@@ -74,6 +74,8 @@ export interface SiteSettings {
   allow_registration: boolean
   site_name: string
   site_description: string
+  site_logo?: string
+  site_favicon?: string
   site_icp: string
   smtp_host: string
   smtp_port: string

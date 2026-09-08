@@ -261,6 +261,29 @@ export function deleteAdminComment(id: number) {
   return api<void>(`/admin/comments/${id}`, { method: 'DELETE', auth: true })
 }
 
+// ---------- Uploads API ----------
+
+export async function uploadImage(file: File): Promise<string> {
+  const form = new FormData()
+  form.append('file', file)
+  const token = getAccessToken()
+  const headers: Record<string, string> = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  const res = await fetch(`${API_BASE}/uploads`, { method: 'POST', headers, body: form })
+  if (!res.ok) {
+    let message = `上传失败 (${res.status})`
+    try {
+      const data = await res.json()
+      if (data && typeof data.error === 'string') message = data.error
+    } catch {
+      // keep default message
+    }
+    throw new ApiError(res.status, message)
+  }
+  const data = (await res.json()) as { url: string }
+  return data.url
+}
+
 // ---------- Site Settings API ----------
 
 export function fetchSiteConfig() {
