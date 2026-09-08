@@ -21,14 +21,23 @@ func main() {
 
 	userRepo := repository.NewUserRepository(db)
 	articleRepo := repository.NewArticleRepository(db)
+	taxonomyRepo := repository.NewTaxonomyRepository(db)
+	commentRepo := repository.NewCommentRepository(db)
+	reactionRepo := repository.NewReactionRepository(db)
 
 	authSvc := service.NewAuthService(userRepo, tokens)
-	articleSvc := service.NewArticleService(articleRepo)
+	articleSvc := service.NewArticleService(articleRepo, taxonomyRepo)
 	adminSvc := service.NewAdminService(userRepo, articleRepo)
+	commentSvc := service.NewCommentService(commentRepo, articleRepo)
+	reactionSvc := service.NewReactionService(reactionRepo, articleRepo)
 
 	authHandler := handler.NewAuthHandler(authSvc)
 	articleHandler := handler.NewArticleHandler(articleSvc)
-	adminHandler := handler.NewAdminHandler(adminSvc, userRepo, articleSvc, articleRepo)
+	adminHandler := handler.NewAdminHandler(adminSvc, userRepo, articleSvc, articleRepo, commentSvc)
+	taxonomyHandler := handler.NewTaxonomyHandler(taxonomyRepo)
+	commentHandler := handler.NewCommentHandler(commentSvc, tokens)
+	reactionHandler := handler.NewReactionHandler(reactionSvc)
+	rssHandler := handler.NewRSSHandler(articleSvc, cfg.FrontendURL)
 
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
@@ -46,6 +55,7 @@ func main() {
 	router.GET("/healthz", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
+	router.GET("/feed.xml", rssHandler.Feed)
 
 	api := router.Group("/api/v1")
 	{
@@ -57,17 +67,30 @@ func main() {
 			auth.GET("/me", middleware.Auth(tokens, userStatusOK), authHandler.Me)
 		}
 
+		api.GET("/categories", taxonomyHandler.ListCategories)
+		api.GET("/tags", taxonomyHandler.ListTags)
+
 		articles := api.Group("/articles", middleware.OptionalAuth(tokens))
 		{
 			articles.GET("", articleHandler.List)
 			articles.GET("/:id", articleHandler.Get)
 			articles.GET("/slug/:slug", articleHandler.GetBySlug)
+			articles.GET("/:id/comments", commentHandler.List)
+			articles.GET("/:id/reactions", reactionHandler.Stats)
+
 			authed := articles.Group("", middleware.Auth(tokens, userStatusOK))
 			{
 				authed.POST("", articleHandler.Create)
 				authed.PUT("/:id", articleHandler.Update)
 				authed.DELETE("/:id", articleHandler.Delete)
+				authed.POST("/:id/comments", commentHandler.Create)
+				authed.POST("/:id/reactions", reactionHandler.Toggle)
 			}
+		}
+
+		comments := api.Group("/comments", middleware.Auth(tokens, userStatusOK))
+		{
+			comments.DELETE("/:id", commentHandler.Delete)
 		}
 
 		admin := api.Group("/admin", middleware.Auth(tokens, userStatusOK), middleware.RequireRole(model.RoleAdmin))
@@ -81,6 +104,8 @@ func main() {
 			admin.GET("/articles", adminHandler.ListArticles)
 			admin.PUT("/articles/:id/status", adminHandler.SetArticleStatus)
 			admin.DELETE("/articles/:id", adminHandler.DeleteArticle)
+			admin.GET("/comments", adminHandler.ListComments)
+			admin.DELETE("/comments/:id", adminHandler.DeleteComment)
 		}
 	}
 

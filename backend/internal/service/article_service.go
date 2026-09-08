@@ -12,23 +12,28 @@ import (
 var ErrForbidden = errors.New("forbidden")
 
 type ArticleService struct {
-	articles *repository.ArticleRepository
+	articles  *repository.ArticleRepository
+	taxonomy  *repository.TaxonomyRepository
 }
 
-func NewArticleService(articles *repository.ArticleRepository) *ArticleService {
-	return &ArticleService{articles: articles}
+func NewArticleService(articles *repository.ArticleRepository, taxonomy *repository.TaxonomyRepository) *ArticleService {
+	return &ArticleService{articles: articles, taxonomy: taxonomy}
 }
 
 type ArticleInput struct {
-	Title   string
-	Content string
-	Status  string
+	Title       string
+	Content     string
+	Status      string
+	CategoryID  *uint
+	TagNames    []string
 }
 
 type ArticleUpdate struct {
-	Title   *string
-	Content *string
-	Status  *string
+	Title      *string
+	Content    *string
+	Status     *string
+	CategoryID **uint
+	TagNames   *[]string
 }
 
 func (s *ArticleService) Create(authorID uint, input ArticleInput) (*model.Article, error) {
@@ -48,12 +53,19 @@ func (s *ArticleService) Create(authorID uint, input ArticleInput) (*model.Artic
 		status = model.ArticleDraft
 	}
 
+	if input.CategoryID != nil {
+		if _, err := s.taxonomy.FindCategoryByID(*input.CategoryID); err != nil {
+			return nil, NewValidationError("分类不存在")
+		}
+	}
+
 	article := &model.Article{
-		AuthorID: authorID,
-		Title:    title,
-		Slug:     repository.Slugify(title),
-		Content:  input.Content,
-		Status:   status,
+		AuthorID:   authorID,
+		CategoryID: input.CategoryID,
+		Title:      title,
+		Slug:       repository.Slugify(title),
+		Content:    input.Content,
+		Status:     status,
 	}
 	if status == model.ArticlePublished {
 		now := time.Now()
@@ -61,6 +73,16 @@ func (s *ArticleService) Create(authorID uint, input ArticleInput) (*model.Artic
 	}
 	if err := s.articles.Create(article); err != nil {
 		return nil, err
+	}
+
+	if len(input.TagNames) > 0 {
+		tags, err := s.taxonomy.FindOrCreateTags(input.TagNames)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.articles.ReplaceTags(article, tags); err != nil {
+			return nil, err
+		}
 	}
 	return article, nil
 }
@@ -99,11 +121,32 @@ func (s *ArticleService) Update(articleID, authorID uint, update ArticleUpdate) 
 		}
 		article.Status = status
 	}
+	if update.CategoryID != nil {
+		if *update.CategoryID == nil {
+			article.CategoryID = nil
+			article.Category = nil
+		} else {
+			if _, err := s.taxonomy.FindCategoryByID(**update.CategoryID); err != nil {
+				return nil, NewValidationError("分类不存在")
+			}
+			article.CategoryID = *update.CategoryID
+		}
+	}
 
 	if err := s.articles.Update(article); err != nil {
 		return nil, err
 	}
-	return article, nil
+
+	if update.TagNames != nil {
+		tags, err := s.taxonomy.FindOrCreateTags(*update.TagNames)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.articles.ReplaceTags(article, tags); err != nil {
+			return nil, err
+		}
+	}
+	return s.articles.FindByID(articleID)
 }
 
 func (s *ArticleService) Delete(articleID, authorID uint) error {
@@ -116,6 +159,10 @@ func (s *ArticleService) GetByID(id uint) (*model.Article, error) {
 
 func (s *ArticleService) GetBySlug(slug string) (*model.Article, error) {
 	return s.articles.FindBySlug(slug)
+}
+
+func (s *ArticleService) IncrementViews(id uint) error {
+	return s.articles.IncrementViews(id)
 }
 
 func (s *ArticleService) List(q repository.ArticleQuery) ([]model.Article, int64, error) {

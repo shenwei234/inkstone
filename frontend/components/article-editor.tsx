@@ -4,12 +4,13 @@ import { FormEvent, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createArticle,
   deleteAdminArticle,
   fetchArticle,
+  fetchCategories,
   updateArticle,
   ApiError,
 } from '@/lib/api'
@@ -35,7 +36,25 @@ function EditorShell({ mode, article }: EditorShellProps) {
   const [title, setTitle] = useState(article?.title ?? '')
   const [content, setContent] = useState(article?.content ?? '')
   const [viewSlug, setViewSlug] = useState<string | null>(article?.slug ?? null)
+  const [categoryId, setCategoryId] = useState<number | null>(article?.category?.id ?? null)
+  const [tags, setTags] = useState<string[]>((article?.tags ?? []).map((t) => t.name))
+  const [tagInput, setTagInput] = useState('')
   const notify = useNotify()
+
+  const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
+
+  const addTag = () => {
+    const name = tagInput.trim()
+    if (!name) return
+    if (tags.some((t) => t.toLowerCase() === name.toLowerCase())) {
+      setTagInput('')
+      return
+    }
+    setTags((t) => [...t, name])
+    setTagInput('')
+  }
+
+  const removeTag = (name: string) => setTags((t) => t.filter((x) => x !== name))
 
   const [autoSavedAt, setAutoSavedAt] = useState<Date | null>(
     mode === 'edit' && article?.status === 'draft' ? new Date(article.updated_at) : null,
@@ -43,7 +62,12 @@ function EditorShell({ mode, article }: EditorShellProps) {
   const [autoSaving, setAutoSaving] = useState(false)
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
   const baseline = useRef(
-    JSON.stringify({ t: article?.title ?? '', c: article?.content ?? '' }),
+    JSON.stringify({
+      t: article?.title ?? '',
+      c: article?.content ?? '',
+      g: article?.category?.id ?? null,
+      s: (article?.tags ?? []).map((t) => t.name).join(','),
+    }),
   )
 
   // Restore saved preference after mount (default: on).
@@ -71,7 +95,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
 
   const publish = useMutation({
     mutationFn: async () => {
-      const body = { title, content, status: 'published' }
+      const body = { title, content, status: 'published', category_id: categoryId, tags }
       if (mode === 'edit' && article) {
         return updateArticle(article.id, body)
       }
@@ -106,14 +130,20 @@ function EditorShell({ mode, article }: EditorShellProps) {
   useEffect(() => {
     if (!autoSaveEnabled) return
     if (mode !== 'edit' || article?.status !== 'draft') return
-    const snapshot = JSON.stringify({ t: title, c: content })
+    const snapshot = JSON.stringify({ t: title, c: content, g: categoryId, s: tags.join(',') })
     if (snapshot === baseline.current) return
     if (!title.trim() || !htmlToText(content).trim()) return
 
     const timer = setTimeout(async () => {
       setAutoSaving(true)
       try {
-        await updateArticle(article.id, { title, content, status: 'draft' })
+        await updateArticle(article.id, {
+          title,
+          content,
+          status: 'draft',
+          category_id: categoryId,
+          tags,
+        })
         baseline.current = snapshot
         setAutoSavedAt(new Date())
       } catch {
@@ -123,7 +153,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
       }
     }, 2000)
     return () => clearTimeout(timer)
-  }, [title, content, mode, article, autoSaveEnabled])
+  }, [title, content, categoryId, tags, mode, article, autoSaveEnabled])
 
   const wordCount = htmlToText(content).replace(/\s+/g, '').length
   const readMinutes = Math.max(1, Math.round(wordCount / 400))
@@ -243,6 +273,48 @@ function EditorShell({ mode, article }: EditorShellProps) {
             placeholder="给文章起个标题吧..."
             className="w-full border-none bg-transparent text-3xl font-semibold tracking-tight outline-none placeholder:text-muted-foreground/50 sm:text-4xl"
           />
+
+          <div className="mt-5 flex flex-wrap items-center gap-2">
+            <select
+              value={categoryId ?? ''}
+              onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : null)}
+              className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs outline-none transition-colors focus:border-accent"
+            >
+              <option value="">未分类</option>
+              {(categoriesQuery.data?.categories ?? []).map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+
+            {tags.map((t) => (
+              <span
+                key={t}
+                className="flex items-center gap-1 rounded-lg border border-accent/30 bg-accent/10 px-2 py-1 text-xs text-accent"
+              >
+                {t}
+                <button type="button" onClick={() => removeTag(t)}>
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            <input
+              type="text"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ',') {
+                  e.preventDefault()
+                  addTag()
+                }
+              }}
+              onBlur={addTag}
+              placeholder="+ 标签，回车添加"
+              className="w-32 rounded-lg border border-dashed border-border bg-transparent px-2.5 py-1 text-xs outline-none transition-colors focus:border-accent"
+            />
+          </div>
+
           <div className="mt-6 border-t border-border pt-2">
             <RichEditor content={content} onChange={setContent} variant="plain" />
           </div>

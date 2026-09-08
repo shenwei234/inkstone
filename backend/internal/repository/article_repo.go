@@ -9,11 +9,14 @@ import (
 )
 
 type ArticleQuery struct {
-	AuthorID uint
-	Status   string
-	All      bool
-	Page     int
-	PageSize int
+	AuthorID     uint
+	Status       string
+	All          bool
+	CategorySlug string
+	TagSlug      string
+	Search       string
+	Page         int
+	PageSize     int
 }
 
 type ArticleRepository struct {
@@ -72,7 +75,7 @@ func (r *ArticleRepository) CountByStatus(status string) (int64, error) {
 
 func (r *ArticleRepository) FindByID(id uint) (*model.Article, error) {
 	var article model.Article
-	err := r.db.Preload("Author").First(&article, id).Error
+	err := r.db.Preload("Author").Preload("Category").Preload("Tags").First(&article, id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrNotFound
 	}
@@ -84,7 +87,8 @@ func (r *ArticleRepository) FindByID(id uint) (*model.Article, error) {
 
 func (r *ArticleRepository) FindBySlug(slug string) (*model.Article, error) {
 	var article model.Article
-	err := r.db.Preload("Author").Where("slug = ?", slug).First(&article).Error
+	err := r.db.Preload("Author").Preload("Category").Preload("Tags").
+		Where("slug = ?", slug).First(&article).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrNotFound
 	}
@@ -94,17 +98,41 @@ func (r *ArticleRepository) FindBySlug(slug string) (*model.Article, error) {
 	return &article, nil
 }
 
+// IncrementViews atomically bumps the view counter.
+func (r *ArticleRepository) IncrementViews(id uint) error {
+	return r.db.Model(&model.Article{}).Where("id = ?", id).
+		UpdateColumn("views", gorm.Expr("views + 1")).Error
+}
+
+// ReplaceTags swaps the tag association for an article.
+func (r *ArticleRepository) ReplaceTags(article *model.Article, tags []model.Tag) error {
+	return r.db.Model(article).Association("Tags").Replace(tags)
+}
+
 func (r *ArticleRepository) List(q ArticleQuery) ([]model.Article, int64, error) {
 	db := r.db.Model(&model.Article{})
 
 	if q.AuthorID > 0 {
-		db = db.Where("author_id = ?", q.AuthorID)
+		db = db.Where("articles.author_id = ?", q.AuthorID)
 	}
 	switch {
 	case q.Status != "":
-		db = db.Where("status = ?", q.Status)
+		db = db.Where("articles.status = ?", q.Status)
 	case !q.All:
-		db = db.Where("status = ?", model.ArticlePublished)
+		db = db.Where("articles.status = ?", model.ArticlePublished)
+	}
+	if q.CategorySlug != "" {
+		db = db.Joins("JOIN categories ON categories.id = articles.category_id").
+			Where("categories.slug = ?", q.CategorySlug)
+	}
+	if q.TagSlug != "" {
+		db = db.Joins("JOIN article_tags at_filter ON at_filter.article_id = articles.id").
+			Joins("JOIN tags t_filter ON t_filter.id = at_filter.tag_id").
+			Where("t_filter.slug = ?", q.TagSlug)
+	}
+	if q.Search != "" {
+		like := "%" + q.Search + "%"
+		db = db.Where("articles.title ILIKE ? OR articles.content ILIKE ?", like, like)
 	}
 
 	var total int64
@@ -115,7 +143,9 @@ func (r *ArticleRepository) List(q ArticleQuery) ([]model.Article, int64, error)
 	page, pageSize := normalizePage(q.Page, q.PageSize)
 	var articles []model.Article
 	err := db.Preload("Author").
-		Order("published_at DESC NULLS LAST, id DESC").
+		Preload("Category").
+		Preload("Tags").
+		Order("articles.published_at DESC NULLS LAST, articles.id DESC").
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
 		Find(&articles).Error

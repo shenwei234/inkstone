@@ -4,13 +4,14 @@ import { useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { ArrowLeft, FileText, LayoutDashboard, Lock, Users } from 'lucide-react'
+import { ArrowLeft, FileText, LayoutDashboard, Lock, MessageSquare, Users } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 
 const navItems = [
   { href: '/admin', label: '概览', icon: LayoutDashboard },
   { href: '/admin/users', label: '用户管理', icon: Users },
   { href: '/admin/articles', label: '文章管理', icon: FileText },
+  { href: '/admin/comments', label: '评论管理', icon: MessageSquare },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

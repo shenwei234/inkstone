@@ -43,7 +43,14 @@ func NewDB() *gorm.DB {
 	sqlDB.SetMaxIdleConns(10)
 	sqlDB.SetConnMaxLifetime(30 * time.Minute)
 
-	if err := db.AutoMigrate(&model.User{}, &model.Article{}); err != nil {
+	if err := db.AutoMigrate(
+		&model.User{},
+		&model.Article{},
+		&model.Category{},
+		&model.Tag{},
+		&model.Comment{},
+		&model.Reaction{},
+	); err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
 

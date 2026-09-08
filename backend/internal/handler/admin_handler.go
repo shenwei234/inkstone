@@ -13,14 +13,15 @@ import (
 )
 
 type AdminHandler struct {
-	admin    *service.AdminService
-	users    *repository.UserRepository
-	articles *service.ArticleService
+	admin       *service.AdminService
+	users       *repository.UserRepository
+	articles    *service.ArticleService
 	articleRepo *repository.ArticleRepository
+	comments    *service.CommentService
 }
 
-func NewAdminHandler(admin *service.AdminService, users *repository.UserRepository, articles *service.ArticleService, articleRepo *repository.ArticleRepository) *AdminHandler {
-	return &AdminHandler{admin: admin, users: users, articles: articles, articleRepo: articleRepo}
+func NewAdminHandler(admin *service.AdminService, users *repository.UserRepository, articles *service.ArticleService, articleRepo *repository.ArticleRepository, comments *service.CommentService) *AdminHandler {
+	return &AdminHandler{admin: admin, users: users, articles: articles, articleRepo: articleRepo, comments: comments}
 }
 
 // Stats handles GET /admin/stats.
@@ -234,6 +235,40 @@ func (h *AdminHandler) SetArticleStatus(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"article": toArticleResponse(article)})
+}
+
+// ListComments handles GET /admin/comments.
+func (h *AdminHandler) ListComments(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	comments, total, err := h.comments.ListAll(page, pageSize)
+	if err != nil {
+		errorResponse(c, err)
+		return
+	}
+	items := make([]gin.H, 0, len(comments))
+	for i := range comments {
+		items = append(items, toCommentResponse(&comments[i]))
+	}
+	c.JSON(http.StatusOK, gin.H{"comments": items, "total": total, "page": page, "page_size": pageSize})
+}
+
+// DeleteComment handles DELETE /admin/comments/:id.
+func (h *AdminHandler) DeleteComment(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的评论 ID"})
+		return
+	}
+	if err := h.comments.DeleteAny(uint(id)); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "评论不存在"})
+			return
+		}
+		errorResponse(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // DeleteArticle handles DELETE /admin/articles/:id (any article).

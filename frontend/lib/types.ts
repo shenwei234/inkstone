@@ -21,16 +21,53 @@ export interface ArticleAuthor {
   username: string
 }
 
+export interface TaxonomyItem {
+  id: number
+  name: string
+  slug: string
+}
+
 export interface Article {
   id: number
   title: string
   slug: string
   content: string
   status: 'draft' | 'published'
+  views: number
+  category?: TaxonomyItem | null
+  tags?: TaxonomyItem[]
   published_at: string | null
   created_at: string
   updated_at: string
   author: ArticleAuthor
+}
+
+export interface CategoryCount extends TaxonomyItem {
+  article_count: number
+}
+
+export interface TagCount extends TaxonomyItem {
+  article_count: number
+}
+
+export interface CommentItem {
+  id: number
+  article_id: number
+  article_title?: string
+  article_slug?: string
+  content: string
+  created_at: string
+  author: {
+    id: number
+    username: string
+  }
+}
+
+export interface ReactionStats {
+  likes: number
+  favorites: number
+  liked?: boolean
+  favorited?: boolean
 }
 
 export interface ArticleListResponse {

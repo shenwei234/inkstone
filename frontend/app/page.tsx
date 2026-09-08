@@ -1,10 +1,12 @@
 'use client'
 
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
+import { Suspense } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { PenLine } from 'lucide-react'
-import { fetchArticles } from '@/lib/api'
+import { Eye, FolderOpen, PenLine, Search, Tag as TagIcon, X } from 'lucide-react'
+import { fetchArticles, fetchCategories, fetchTags } from '@/lib/api'
 import type { Article } from '@/lib/types'
 import { PageTransition, StaggerList, StaggerItem, HoverLift } from '@/components/motion'
 
@@ -19,19 +21,39 @@ function ArticleCard({ article }: { article: Article }) {
         <Link href={`/posts/${article.slug}`} className="block">
           <article className="group relative overflow-hidden rounded-xl border border-border bg-card p-6 shadow-sm transition-shadow duration-300 hover:shadow-lg hover:shadow-accent/5">
             <div className="absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-gradient-to-r from-accent to-purple-500 transition-transform duration-300 group-hover:scale-x-100" />
-            <h2 className="text-lg font-semibold tracking-tight transition-colors group-hover:text-accent">
-              {article.title}
-            </h2>
-        <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-          {article.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)}
-        </p>
-            <div className="mt-4 flex items-center gap-3 text-xs text-muted-foreground">
+            <div className="flex items-start justify-between gap-4">
+              <h2 className="text-lg font-semibold tracking-tight transition-colors group-hover:text-accent">
+                {article.title}
+              </h2>
+              {article.category && (
+                <span className="shrink-0 rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">
+                  {article.category.name}
+                </span>
+              )}
+            </div>
+            <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+              {article.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)}
+            </p>
+            <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/10 text-[10px] font-bold text-accent">
                 {article.author.username.charAt(0).toUpperCase()}
               </span>
               <span className="font-medium text-foreground">{article.author.username}</span>
               <span>·</span>
               <time dateTime={article.published_at ?? article.created_at}>{date}</time>
+              <span className="flex items-center gap-1">
+                <Eye className="h-3 w-3" />
+                {article.views}
+              </span>
+              {article.tags && article.tags.length > 0 && (
+                <span className="ml-auto hidden items-center gap-1.5 sm:flex">
+                  {article.tags.slice(0, 3).map((tag) => (
+                    <span key={tag.id} className="rounded border border-border px-1.5 py-0.5">
+                      {tag.name}
+                    </span>
+                  ))}
+                </span>
+              )}
             </div>
           </article>
         </Link>
@@ -40,15 +62,141 @@ function ArticleCard({ article }: { article: Article }) {
   )
 }
 
-export default function HomePage() {
+export default function HomePageWrapper() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-5xl px-4 py-10">
+          <div className="grid gap-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="skeleton h-40 rounded-xl" />
+            ))}
+          </div>
+        </div>
+      }
+    >
+      <HomePage />
+    </Suspense>
+  )
+}
+
+function HomePage() {
+  const searchParams = useSearchParams()
+  const category = searchParams.get('category') ?? ''
+  const tag = searchParams.get('tag') ?? ''
+  const q = searchParams.get('q') ?? ''
+
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['articles', 'published', 1],
-    queryFn: () => fetchArticles({ page: 1, page_size: 10 }),
+    queryKey: ['articles', 'published', 1, category, tag, q],
+    queryFn: () =>
+      fetchArticles({
+        page: 1,
+        page_size: 20,
+        category: category || undefined,
+        tag: tag || undefined,
+        q: q || undefined,
+      }),
   })
+
+  const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
+  const tagsQuery = useQuery({ queryKey: ['tags'], queryFn: fetchTags })
+
+  const buildHref = (key: 'category' | 'tag' | 'q', value: string | null) => {
+    const sp = new URLSearchParams(searchParams.toString())
+    if (value) sp.set(key, value)
+    else sp.delete(key)
+    const s = sp.toString()
+    return s ? `/?${s}` : '/'
+  }
+
+  const hasFilter = Boolean(category || tag || q)
 
   return (
     <PageTransition>
-      <div className="mx-auto max-w-5xl px-4 py-12">
+      <div className="mx-auto max-w-5xl px-4 py-10">
+        {/* Filter bar */}
+        <div className="mb-6 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h1 className="text-2xl font-bold tracking-tight">
+              {category
+                ? `分类：${categoriesQuery.data?.categories.find((c) => c.slug === category)?.name ?? category}`
+                : tag
+                  ? `标签：${tagsQuery.data?.tags.find((t) => t.slug === tag)?.name ?? tag}`
+                  : q
+                    ? `搜索：${q}`
+                    : '最新文章'}
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                {data ? `${data.total} 篇` : ''}
+              </span>
+            </h1>
+            <form
+              action="/"
+              className="relative"
+              onSubmit={(e) => {
+                e.preventDefault()
+                const input = (e.currentTarget.elements.namedItem('q') as HTMLInputElement) ?? null
+                if (input) {
+                  window.location.href = input.value.trim() ? `/?q=${encodeURIComponent(input.value.trim())}` : '/'
+                }
+              }}
+            >
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                name="q"
+                defaultValue={q}
+                placeholder="搜索文章..."
+                className="w-56 rounded-lg border border-border bg-card py-2 pl-9 pr-3 text-sm outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20"
+              />
+            </form>
+          </div>
+
+          {/* Category chips */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
+            <Link
+              href={buildHref('category', null)}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                !category ? 'bg-accent text-white' : 'border border-border text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              全部
+            </Link>
+            {(categoriesQuery.data?.categories ?? []).map((cat) => (
+              <Link
+                key={cat.id}
+                href={buildHref('category', cat.slug)}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  category === cat.slug
+                    ? 'bg-accent text-white'
+                    : 'border border-border text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {cat.name}
+                <span className="ml-1 opacity-60">{cat.article_count}</span>
+              </Link>
+            ))}
+          </div>
+
+          {/* Tag chips */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <TagIcon className="h-3.5 w-3.5 text-muted-foreground" />
+            {(tagsQuery.data?.tags ?? []).slice(0, 12).map((t) => (
+              <Link
+                key={t.id}
+                href={buildHref('tag', t.slug)}
+                className={`rounded-full px-3 py-1 text-xs transition-colors ${
+                  tag === t.slug
+                    ? 'bg-foreground text-background'
+                    : 'border border-border text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {t.name}
+                <span className="ml-1 opacity-60">{t.article_count}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+
         {isLoading ? (
           <div className="grid gap-4">
             {[...Array(3)].map((_, i) => (
@@ -71,34 +219,40 @@ export default function HomePage() {
             </p>
           </motion.div>
         ) : data && data.articles.length > 0 ? (
-          <>
-            <motion.h2
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="mb-6 text-sm font-medium uppercase tracking-widest text-muted-foreground"
-            >
-              最新发布
-            </motion.h2>
-            <StaggerList className="grid gap-4">
-              {data.articles.map((article) => (
-                <ArticleCard key={article.id} article={article} />
-              ))}
-            </StaggerList>
-          </>
+          <StaggerList className="grid gap-4">
+            {data.articles.map((article) => (
+              <ArticleCard key={article.id} article={article} />
+            ))}
+          </StaggerList>
         ) : (
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             className="rounded-xl border border-dashed p-16 text-center"
           >
-            <PenLine className="mx-auto h-10 w-10 text-muted-foreground/50" />
-            <p className="mt-4 text-muted-foreground">还没有文章，来发布第一篇吧</p>
-            <Link
-              href="/admin/articles/new"
-              className="mt-6 inline-block rounded-lg bg-accent px-6 py-2.5 text-sm font-medium text-white transition-transform hover:scale-105"
-            >
-              写文章
-            </Link>
+            {hasFilter ? (
+              <>
+                <Search className="mx-auto h-10 w-10 text-muted-foreground/50" />
+                <p className="mt-4 text-muted-foreground">没有符合条件的文章</p>
+                <Link
+                  href="/"
+                  className="mt-4 inline-flex items-center gap-1.5 text-sm text-accent underline underline-offset-4"
+                >
+                  <X className="h-3.5 w-3.5" /> 清除筛选
+                </Link>
+              </>
+            ) : (
+              <>
+                <PenLine className="mx-auto h-10 w-10 text-muted-foreground/50" />
+                <p className="mt-4 text-muted-foreground">还没有文章，来发布第一篇吧</p>
+                <Link
+                  href="/admin/articles/new"
+                  className="mt-6 inline-block rounded-lg bg-accent px-6 py-2.5 text-sm font-medium text-white transition-transform hover:scale-105"
+                >
+                  写文章
+                </Link>
+              </>
+            )}
           </motion.div>
         )}
       </div>

@@ -5,6 +5,10 @@ import type {
   User,
   AdminStats,
   AdminUserListResponse,
+  CategoryCount,
+  TagCount,
+  CommentItem,
+  ReactionStats,
 } from './types'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/api/v1'
@@ -141,6 +145,9 @@ export interface ArticleListParams {
   page_size?: number
   status?: string
   author_id?: number
+  category?: string
+  tag?: string
+  q?: string
 }
 
 export function fetchArticles(params: ArticleListParams = {}) {
@@ -149,6 +156,9 @@ export function fetchArticles(params: ArticleListParams = {}) {
   if (params.page_size) search.set('page_size', String(params.page_size))
   if (params.status) search.set('status', params.status)
   if (params.author_id) search.set('author_id', String(params.author_id))
+  if (params.category) search.set('category', params.category)
+  if (params.tag) search.set('tag', params.tag)
+  if (params.q) search.set('q', params.q)
   const qs = search.toString()
   return api<ArticleListResponse>(`/articles${qs ? `?${qs}` : ''}`, {
     auth: Boolean(params.status && params.status !== 'published'),
@@ -163,13 +173,25 @@ export function fetchArticleBySlug(slug: string) {
   return api<{ article: Article }>(`/articles/slug/${encodeURIComponent(slug)}`)
 }
 
-export function createArticle(input: { title: string; content: string; status: string }) {
+export function createArticle(input: {
+  title: string
+  content: string
+  status: string
+  category_id?: number | null
+  tags?: string[]
+}) {
   return api<{ article: Article }>('/articles', { method: 'POST', body: input, auth: true })
 }
 
 export function updateArticle(
   id: number,
-  input: Partial<{ title: string; content: string; status: string }>,
+  input: Partial<{
+    title: string
+    content: string
+    status: string
+    category_id: number | null
+    tags: string[]
+  }>,
 ) {
   return api<{ article: Article }>(`/articles/${id}`, { method: 'PUT', body: input, auth: true })
 }
@@ -178,12 +200,64 @@ export function deleteArticle(id: number) {
   return api<void>(`/articles/${id}`, { method: 'DELETE', auth: true })
 }
 
+// ---------- Engagement API ----------
+
+export function fetchCategories() {
+  return api<{ categories: CategoryCount[] }>('/categories')
+}
+
+export function fetchTags() {
+  return api<{ tags: TagCount[] }>('/tags')
+}
+
+export function fetchComments(articleId: number | string) {
+  return api<{ comments: CommentItem[] }>(`/articles/${articleId}/comments`)
+}
+
+export function postComment(articleId: number | string, content: string) {
+  return api<{ comment: CommentItem }>(`/articles/${articleId}/comments`, {
+    method: 'POST',
+    body: { content },
+    auth: true,
+  })
+}
+
+export function deleteComment(id: number) {
+  return api<void>(`/comments/${id}`, { method: 'DELETE', auth: true })
+}
+
+export function fetchReactions(articleId: number | string) {
+  return api<ReactionStats>(`/articles/${articleId}/reactions`, { auth: true })
+}
+
+export function toggleReaction(articleId: number | string, type: 'like' | 'favorite') {
+  return api<{ active: boolean; count: number }>(`/articles/${articleId}/reactions`, {
+    method: 'POST',
+    body: { type },
+    auth: true,
+  })
+}
+
 // ---------- Admin API ----------
 
 export type { AdminStats, AdminUser, AdminUserListResponse } from './types'
 
 export function fetchAdminStats() {
   return api<AdminStats>('/admin/stats', { auth: true })
+}
+
+export function fetchAdminComments(params: { page?: number; page_size?: number } = {}) {
+  const search = new URLSearchParams()
+  if (params.page) search.set('page', String(params.page))
+  if (params.page_size) search.set('page_size', String(params.page_size))
+  const qs = search.toString()
+  return api<{ comments: CommentItem[]; total: number }>(`/admin/comments${qs ? `?${qs}` : ''}`, {
+    auth: true,
+  })
+}
+
+export function deleteAdminComment(id: number) {
+  return api<void>(`/admin/comments/${id}`, { method: 'DELETE', auth: true })
 }
 
 export function fetchAdminUsers(params: { page?: number; page_size?: number; q?: string } = {}) {

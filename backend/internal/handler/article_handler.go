@@ -22,27 +22,34 @@ func NewArticleHandler(articles *service.ArticleService) *ArticleHandler {
 }
 
 type articleRequest struct {
-	Title   string `json:"title" binding:"required"`
-	Content string `json:"content" binding:"required"`
-	Status  string `json:"status"`
+	Title      string   `json:"title" binding:"required"`
+	Content    string   `json:"content" binding:"required"`
+	Status     string   `json:"status"`
+	CategoryID *uint    `json:"category_id"`
+	Tags       []string `json:"tags"`
 }
 
 type articleUpdateRequest struct {
-	Title   *string `json:"title"`
-	Content *string `json:"content"`
-	Status  *string `json:"status"`
+	Title      *string   `json:"title"`
+	Content    *string   `json:"content"`
+	Status     *string   `json:"status"`
+	CategoryID **uint    `json:"category_id"`
+	Tags       *[]string `json:"tags"`
 }
 
 type articleResponse struct {
-	ID          uint       `json:"id"`
-	Title       string     `json:"title"`
-	Slug        string     `json:"slug"`
-	Content     string     `json:"content"`
-	Status      string     `json:"status"`
-	PublishedAt *time.Time `json:"published_at"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
-	Author      authorInfo `json:"author"`
+	ID          uint        `json:"id"`
+	Title       string      `json:"title"`
+	Slug        string      `json:"slug"`
+	Content     string      `json:"content"`
+	Status      string      `json:"status"`
+	Views       int64       `json:"views"`
+	Category    *categoryInfo `json:"category,omitempty"`
+	Tags        []tagInfo   `json:"tags,omitempty"`
+	PublishedAt *time.Time  `json:"published_at"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+	Author      authorInfo  `json:"author"`
 }
 
 type authorInfo struct {
@@ -50,13 +57,26 @@ type authorInfo struct {
 	Username string `json:"username"`
 }
 
+type categoryInfo struct {
+	ID   uint   `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
+type tagInfo struct {
+	ID   uint   `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
 func toArticleResponse(a *model.Article) articleResponse {
-	return articleResponse{
+	resp := articleResponse{
 		ID:          a.ID,
 		Title:       a.Title,
 		Slug:        a.Slug,
 		Content:     a.Content,
 		Status:      a.Status,
+		Views:       a.Views,
 		PublishedAt: a.PublishedAt,
 		CreatedAt:   a.CreatedAt,
 		UpdatedAt:   a.UpdatedAt,
@@ -65,6 +85,16 @@ func toArticleResponse(a *model.Article) articleResponse {
 			Username: a.Author.Username,
 		},
 	}
+	if a.Category != nil {
+		resp.Category = &categoryInfo{ID: a.Category.ID, Name: a.Category.Name, Slug: a.Category.Slug}
+	}
+	if len(a.Tags) > 0 {
+		resp.Tags = make([]tagInfo, 0, len(a.Tags))
+		for _, t := range a.Tags {
+			resp.Tags = append(resp.Tags, tagInfo{ID: t.ID, Name: t.Name, Slug: t.Slug})
+		}
+	}
+	return resp
 }
 
 // Create handles POST /articles. Requires authentication.
@@ -82,9 +112,11 @@ func (h *ArticleHandler) Create(c *gin.Context) {
 	}
 
 	article, err := h.articles.Create(current.ID, service.ArticleInput{
-		Title:   req.Title,
-		Content: req.Content,
-		Status:  req.Status,
+		Title:      req.Title,
+		Content:    req.Content,
+		Status:     req.Status,
+		CategoryID: req.CategoryID,
+		TagNames:   req.Tags,
 	})
 	if err != nil {
 		errorResponse(c, err)
@@ -114,9 +146,11 @@ func (h *ArticleHandler) Update(c *gin.Context) {
 	}
 
 	article, err := h.articles.Update(uint(id), current.ID, service.ArticleUpdate{
-		Title:   req.Title,
-		Content: req.Content,
-		Status:  req.Status,
+		Title:      req.Title,
+		Content:    req.Content,
+		Status:     req.Status,
+		CategoryID: req.CategoryID,
+		TagNames:   req.Tags,
 	})
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
@@ -166,6 +200,8 @@ func (h *ArticleHandler) Get(c *gin.Context) {
 		errorResponse(c, err)
 		return
 	}
+	_ = h.articles.IncrementViews(uint(id))
+	article.Views++
 	c.JSON(http.StatusOK, gin.H{"article": toArticleResponse(article)})
 }
 
@@ -176,6 +212,8 @@ func (h *ArticleHandler) GetBySlug(c *gin.Context) {
 		errorResponse(c, err)
 		return
 	}
+	_ = h.articles.IncrementViews(article.ID)
+	article.Views++
 	c.JSON(http.StatusOK, gin.H{"article": toArticleResponse(article)})
 }
 
@@ -186,9 +224,12 @@ func (h *ArticleHandler) List(c *gin.Context) {
 		pageSize = 50
 	}
 	q := repository.ArticleQuery{
-		Page:     page,
-		PageSize: pageSize,
-		Status:   c.Query("status"),
+		Page:         page,
+		PageSize:     pageSize,
+		Status:       c.Query("status"),
+		CategorySlug: c.Query("category"),
+		TagSlug:      c.Query("tag"),
+		Search:       c.Query("q"),
 	}
 	if v := c.Query("author_id"); v != "" {
 		if id, err := strconv.ParseUint(v, 10, 64); err == nil {
