@@ -70,6 +70,18 @@ export interface ReactionStats {
   favorited?: boolean
 }
 
+export interface SiteSettings {
+  allow_registration: boolean
+  site_name: string
+  site_description: string
+  site_icp: string
+  smtp_host: string
+  smtp_port: string
+  smtp_user: string
+  smtp_from: string
+  smtp_pass_set?: boolean
+}
+
 export interface ArticleListResponse {
   articles: Article[]
   total: number

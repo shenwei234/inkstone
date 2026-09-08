@@ -40,12 +40,14 @@ func (h *SettingsHandler) Get(c *gin.Context) {
 
 // Update handles PUT /admin/settings with a JSON object of key/value pairs.
 func (h *SettingsHandler) Update(c *gin.Context) {
-	var payload map[string]any
-	if err := c.ShouldBindJSON(&payload); err != nil {
+	var wrapper struct {
+		Settings map[string]any `json:"settings" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&wrapper); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误"})
 		return
 	}
-	if err := h.settings.Update(payload); err != nil {
+	if err := h.settings.Update(wrapper.Settings); err != nil {
 		errorResponse(c, err)
 		return
 	}
