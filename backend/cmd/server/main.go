@@ -35,6 +35,9 @@ func main() {
 	commentSvc := service.NewCommentService(commentRepo, articleRepo)
 	reactionSvc := service.NewReactionService(reactionRepo, articleRepo)
 
+	pageRepo := repository.NewPageRepository(db)
+	pageSvc := service.NewPageService(pageRepo)
+
 	authHandler := handler.NewAuthHandler(authSvc)
 	articleHandler := handler.NewArticleHandler(articleSvc)
 	adminHandler := handler.NewAdminHandler(adminSvc, userRepo, articleSvc, articleRepo, commentSvc)
@@ -43,6 +46,7 @@ func main() {
 	reactionHandler := handler.NewReactionHandler(reactionSvc)
 	rssHandler := handler.NewRSSHandler(articleSvc, cfg.FrontendURL)
 	settingsHandler := handler.NewSettingsHandler(settingsSvc, mailer)
+	pageHandler := handler.NewPageHandler(pageSvc)
 
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
@@ -84,6 +88,8 @@ func main() {
 		api.GET("/categories", taxonomyHandler.ListCategories)
 		api.GET("/tags", taxonomyHandler.ListTags)
 		api.GET("/site-config", settingsHandler.SiteConfig)
+		api.GET("/pages", pageHandler.ListPublic)
+		api.GET("/pages/:slug", pageHandler.GetBySlug)
 
 		articles := api.Group("/articles", middleware.OptionalAuth(tokens))
 		{
@@ -124,6 +130,11 @@ func main() {
 			admin.GET("/settings", settingsHandler.Get)
 			admin.PUT("/settings", settingsHandler.Update)
 			admin.POST("/settings/test-mail", settingsHandler.TestMail)
+			admin.GET("/pages", pageHandler.ListAll)
+			admin.POST("/pages", pageHandler.Create)
+			admin.GET("/pages/:id", pageHandler.Get)
+			admin.PUT("/pages/:id", pageHandler.Update)
+			admin.DELETE("/pages/:id", pageHandler.Delete)
 		}
 	}
 

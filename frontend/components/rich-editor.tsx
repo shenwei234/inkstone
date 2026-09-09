@@ -14,19 +14,16 @@ import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  AlignLeft,
   ChevronDown,
   ChevronUp,
   Code2,
   Heading2,
   Heading3,
   Image as ImageIcon,
-  ImagePlus,
   Link2,
   List,
   ListOrdered,
   Minus,
-  PenLine,
   Quote,
   Trash2,
   Type,
@@ -560,8 +557,9 @@ export function RichEditor({ content, onChange, variant = 'card' }: RichEditorPr
     const onScroll = () => updateBlockInfo()
     window.addEventListener('scroll', onScroll, true)
     window.addEventListener('resize', onScroll)
-    updateBlockInfo()
+    const raf = requestAnimationFrame(handler)
     return () => {
+      cancelAnimationFrame(raf)
       editor.off('selectionUpdate', handler)
       editor.off('transaction', handler)
       editor.off('focus', handler)

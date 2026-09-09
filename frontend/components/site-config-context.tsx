@@ -25,6 +25,7 @@ export interface SiteConfig {
   siteIcp: string
   navMenu: NavMenuItem[]
   widgets: SidebarWidget[]
+  sidebarPosition: 'left' | 'right'
   allowRegistration: boolean
   loaded: boolean
 }
@@ -37,6 +38,7 @@ const DEFAULT_CONFIG: SiteConfig = {
   siteIcp: '',
   navMenu: [],
   widgets: [],
+  sidebarPosition: 'right',
   allowRegistration: true,
   loaded: false,
 }
@@ -52,6 +54,7 @@ interface RawSiteConfig {
   allow_registration?: boolean
   nav_menu?: unknown
   sidebar_widgets?: unknown
+  sidebar_position?: string
 }
 
 function parseItems<T>(raw: unknown, validate: (item: unknown) => T | null): T[] {
@@ -96,6 +99,7 @@ export function SiteConfigProvider({ children }: { children: ReactNode }) {
             return null
           }),
           allowRegistration: cfg.allow_registration !== false,
+          sidebarPosition: cfg.sidebar_position === 'left' ? 'left' : 'right',
           loaded: true,
         }
         setConfig(next)

@@ -76,6 +76,7 @@ export interface SiteSettings {
   site_description: string
   site_logo?: string
   site_favicon?: string
+  sidebar_position?: 'right' | 'left'
   site_icp: string
   smtp_host: string
   smtp_port: string

@@ -178,9 +178,9 @@ export default function AdminSettingsPage() {
   })
 
   useEffect(() => {
-    if (data?.settings) {
-      setForm({ ...data.settings })
-    }
+    if (!data?.settings) return
+    const t = setTimeout(() => setForm({ ...data.settings }), 0)
+    return () => clearTimeout(t)
   }, [data])
 
   const save = useMutation({

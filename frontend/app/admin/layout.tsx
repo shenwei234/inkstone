@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
   ArrowLeft,
+  FileStack,
   FileText,
   LayoutDashboard,
   Lock,
@@ -20,6 +21,7 @@ const navItems = [
   { href: '/admin', label: '概览', icon: LayoutDashboard },
   { href: '/admin/users', label: '用户管理', icon: Users },
   { href: '/admin/articles', label: '文章管理', icon: FileText },
+  { href: '/admin/pages', label: '页面管理', icon: FileStack },
   { href: '/admin/comments', label: '评论管理', icon: MessageSquare },
   { href: '/admin/appearance', label: '外观管理', icon: Paintbrush },
   { href: '/admin/settings', label: '网站管理', icon: Settings },

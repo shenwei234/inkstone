@@ -286,6 +286,43 @@ export async function uploadImage(file: File): Promise<string> {
   return data.url
 }
 
+// ---------- Pages API ----------
+
+export interface PageItem {
+  id: number
+  title: string
+  slug: string
+  content?: string
+  template?: string
+  status?: string
+  sort_order?: number
+  show_in_nav?: boolean
+}
+
+export function fetchPageBySlug(slug: string) {
+  return api<{ page: PageItem }>(`/pages/${encodeURIComponent(slug)}`)
+}
+
+export function fetchAdminPages() {
+  return api<{ pages: PageItem[] }>('/admin/pages', { auth: true })
+}
+
+export function fetchAdminPage(id: number) {
+  return api<{ page: PageItem }>(`/admin/pages/${id}`, { auth: true })
+}
+
+export function createPage(input: Partial<PageItem>) {
+  return api<{ page: PageItem }>('/admin/pages', { method: 'POST', body: input, auth: true })
+}
+
+export function updatePage(id: number, input: Partial<PageItem>) {
+  return api<{ page: PageItem }>(`/admin/pages/${id}`, { method: 'PUT', body: input, auth: true })
+}
+
+export function deletePage(id: number) {
+  return api<void>(`/admin/pages/${id}`, { method: 'DELETE', auth: true })
+}
+
 // ---------- Site Settings API ----------
 
 export function fetchSiteConfig() {

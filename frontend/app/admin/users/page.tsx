@@ -14,7 +14,6 @@ import {
 } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { useNotify } from '@/components/toast'
-import type { AdminUser } from '@/lib/types'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
 

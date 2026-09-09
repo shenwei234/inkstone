@@ -72,11 +72,14 @@ function EditorShell({ mode, article }: EditorShellProps) {
 
   // Restore saved preference after mount (default: on).
   useEffect(() => {
-    try {
-      setAutoSaveEnabled(localStorage.getItem('blog_autosave') !== 'off')
-    } catch {
-      // storage unavailable: keep default
-    }
+    const t = setTimeout(() => {
+      try {
+        setAutoSaveEnabled(localStorage.getItem('blog_autosave') !== 'off')
+      } catch {
+        // storage unavailable: keep default
+      }
+    }, 0)
+    return () => clearTimeout(t)
   }, [])
 
   const toggleAutoSave = () => {

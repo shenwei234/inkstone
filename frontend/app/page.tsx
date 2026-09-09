@@ -202,21 +202,46 @@ function HomePage() {
         </div>
 
         {widgets.length > 0 ? (
-          <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
-            <div className="min-w-0">
-              <ArticleListSection
-                isLoading={isLoading}
-                isError={isError}
-                error={error}
-                data={data}
-                hasFilter={hasFilter}
-              />
-            </div>
-            <aside className="h-fit space-y-4 lg:sticky lg:top-24">
-              {widgets.map((w, i) => (
-                <WidgetRenderer key={`${w.type}-${i}`} widget={w} />
-              ))}
-            </aside>
+          <div
+            className={`grid gap-8 ${
+              site.sidebarPosition === 'left' ? 'lg:grid-cols-[280px_1fr]' : 'lg:grid-cols-[1fr_280px]'
+            }`}
+          >
+            {site.sidebarPosition === 'left' ? (
+              <>
+                <aside className="h-fit space-y-4 lg:sticky lg:top-24">
+                  {widgets.map((w, i) => (
+                    <WidgetRenderer key={`${w.type}-${i}`} widget={w} />
+                  ))}
+                </aside>
+                <div className="min-w-0">
+                  <ArticleListSection
+                    isLoading={isLoading}
+                    isError={isError}
+                    error={error}
+                    data={data}
+                    hasFilter={hasFilter}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="min-w-0">
+                  <ArticleListSection
+                    isLoading={isLoading}
+                    isError={isError}
+                    error={error}
+                    data={data}
+                    hasFilter={hasFilter}
+                  />
+                </div>
+                <aside className="h-fit space-y-4 lg:sticky lg:top-24">
+                  {widgets.map((w, i) => (
+                    <WidgetRenderer key={`${w.type}-${i}`} widget={w} />
+                  ))}
+                </aside>
+              </>
+            )}
           </div>
         ) : (
           <ArticleListSection

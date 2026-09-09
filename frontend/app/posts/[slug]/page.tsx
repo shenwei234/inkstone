@@ -14,7 +14,6 @@ import {
   Star,
   Tag as TagIcon,
   SearchX,
-  FolderOpen,
   Trash2,
 } from 'lucide-react'
 import {
@@ -128,7 +127,6 @@ export default function PostPage({ params }: { params: Promise<{ slug: string }>
     : new Date(article.created_at).toLocaleDateString('zh-CN')
   const reactions = reactionsQuery.data
   const comments = commentsQuery.data?.comments ?? []
-  const isOwn = user?.id === article.author.id
 
   const requireLogin = () => {
     if (!user) {

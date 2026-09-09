@@ -34,15 +34,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let cancelled = false
     const token = getAccessToken()
     if (!token) {
-      setLoading(false)
-      return
+      // Defer to avoid sync setState in effect body.
+      const t = setTimeout(() => {
+        if (!cancelled) setLoading(false)
+      }, 0)
+      return () => clearTimeout(t)
     }
     fetchMe()
-      .then((res) => setUser(res.user))
-      .catch(() => clearTokens())
-      .finally(() => setLoading(false))
+      .then((res) => {
+        if (!cancelled) setUser(res.user)
+      })
+      .catch(() => {
+        if (!cancelled) clearTokens()
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const applyTokens = useCallback((token: TokenPair, nextUser: User) => {

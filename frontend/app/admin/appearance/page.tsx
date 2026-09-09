@@ -3,7 +3,16 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useMutation } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, Eye, EyeOff, LayoutList, PanelLeft, Plus, Trash2 } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  Eye,
+  LayoutList,
+  PanelLeft,
+  PanelTop,
+  Plus,
+  Trash2,
+} from 'lucide-react'
 import { updateAdminSettings, ApiError } from '@/lib/api'
 import { useNotify } from '@/components/toast'
 import type { NavMenuItem, SidebarWidget, WidgetType } from '@/components/site-config-context'
@@ -323,11 +332,95 @@ function WidgetsTab() {
   )
 }
 
+function SidebarPositionTab() {
+  const notify = useNotify()
+  const [position, setPosition] = useState<'right' | 'left'>('right')
+
+  useEffect(() => {
+    fetchSiteConfig().then((raw) => {
+      const rawPos = (raw as { sidebar_position?: string }).sidebar_position
+      setPosition(rawPos === 'left' ? 'left' : 'right')
+    })
+  }, [])
+
+  const save = useMutation({
+    mutationFn: () => updateAdminSettings({ sidebar_position: position }),
+    onSuccess: () => notify.success('侧边栏位置已保存，前台刷新即可看到'),
+    onError: (e) => notify.error(e instanceof ApiError ? e.message : '保存失败'),
+  })
+
+  const options = [
+    {
+      value: 'right' as const,
+      label: '右侧边栏',
+      desc: '文章列表在左，小工具在右（经典博客布局）',
+      visual: (
+        <div className="flex h-16 w-24 gap-1 rounded-md border border-border bg-background p-1">
+          <div className="flex-1 rounded-sm bg-accent/20" />
+          <div className="w-8 rounded-sm bg-accent" />
+        </div>
+      ),
+    },
+    {
+      value: 'left' as const,
+      label: '左侧边栏',
+      desc: '小工具在左，文章列表在右',
+      visual: (
+        <div className="flex h-16 w-24 gap-1 rounded-md border border-border bg-background p-1">
+          <div className="w-8 rounded-sm bg-accent" />
+          <div className="flex-1 rounded-sm bg-accent/20" />
+        </div>
+      ),
+    },
+  ]
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        选择首页侧边栏小工具的显示位置。
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {options.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => setPosition(opt.value)}
+            className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-all ${
+              position === opt.value
+                ? 'border-accent bg-accent/5 ring-2 ring-accent/20'
+                : 'border-border hover:border-accent/40'
+            }`}
+          >
+            {opt.visual}
+            <span>
+              <span className="block text-sm font-medium">{opt.label}</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">{opt.desc}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="flex justify-end">
+        <motion.button
+          type="button"
+          onClick={() => save.mutate()}
+          disabled={save.isPending}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.97 }}
+          className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
+        >
+          {save.isPending ? '保存中...' : '保存位置'}
+        </motion.button>
+      </div>
+    </div>
+  )
+}
+
 export default function AdminAppearancePage() {
-  const [tab, setTab] = useState<'menu' | 'widgets'>('menu')
+  const [tab, setTab] = useState<'menu' | 'widgets' | 'sidebar'>('menu')
   const tabs = [
     { key: 'menu' as const, label: '顶部菜单', icon: LayoutList },
     { key: 'widgets' as const, label: '侧边栏小工具', icon: PanelLeft },
+    { key: 'sidebar' as const, label: '侧边栏位置', icon: PanelTop },
   ]
 
   return (
@@ -367,7 +460,7 @@ export default function AdminAppearancePage() {
         transition={{ duration: 0.35, ease: easeOut }}
         className="mt-6 rounded-xl border border-border bg-card p-5"
       >
-        {tab === 'menu' ? <MenuTab /> : <WidgetsTab />}
+        {tab === 'menu' ? <MenuTab /> : tab === 'widgets' ? <WidgetsTab /> : <SidebarPositionTab />}
       </motion.div>
 
       <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">

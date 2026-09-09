@@ -18,6 +18,7 @@ const (
 	SettingSiteFavicon       = "site_favicon"       // image URL, empty = default
 	SettingNavMenu           = "nav_menu"           // JSON array of menu items
 	SettingSidebarWidgets    = "sidebar_widgets"    // JSON array of widgets
+	SettingSidebarPosition   = "sidebar_position"   // "right" (default) | "left"
 	SettingICP               = "site_icp"           // string
 	SettingSMTPHost          = "smtp_host"
 	SettingSMTPPort          = "smtp_port" // string digits
@@ -34,6 +35,7 @@ var settingDefaults = map[string]string{
 	SettingSiteFavicon:       "",
 	SettingNavMenu:           "[]",
 	SettingSidebarWidgets:    "[]",
+	SettingSidebarPosition:   "right",
 	SettingICP:               "",
 	SettingSMTPHost:          "",
 	SettingSMTPPort:          "465",
