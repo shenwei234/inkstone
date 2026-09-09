@@ -16,6 +16,8 @@ const (
 	SettingSiteDescription   = "site_description"   // string
 	SettingSiteLogo          = "site_logo"          // image URL, empty = default letter mark
 	SettingSiteFavicon       = "site_favicon"       // image URL, empty = default
+	SettingNavMenu           = "nav_menu"           // JSON array of menu items
+	SettingSidebarWidgets    = "sidebar_widgets"    // JSON array of widgets
 	SettingICP               = "site_icp"           // string
 	SettingSMTPHost          = "smtp_host"
 	SettingSMTPPort          = "smtp_port" // string digits
@@ -30,12 +32,31 @@ var settingDefaults = map[string]string{
 	SettingSiteDescription:   "多用户博客平台",
 	SettingSiteLogo:          "",
 	SettingSiteFavicon:       "",
+	SettingNavMenu:           "[]",
+	SettingSidebarWidgets:    "[]",
 	SettingICP:               "",
 	SettingSMTPHost:          "",
 	SettingSMTPPort:          "465",
 	SettingSMTPUser:          "",
 	SettingSMTPPass:          "",
 	SettingSMTPFrom:          "",
+}
+
+// jsonSettingKeys hold JSON arrays; they are decoded before leaving the API.
+var jsonSettingKeys = map[string]bool{
+	SettingNavMenu:        true,
+	SettingSidebarWidgets: true,
+}
+
+func decodeJSONSetting(value string) any {
+	if value == "" {
+		return []any{}
+	}
+	var out any
+	if err := json.Unmarshal([]byte(value), &out); err != nil {
+		return []any{}
+	}
+	return out
 }
 
 // maskKeys are never exposed through the public API.
@@ -140,6 +161,10 @@ func (s *SettingsService) Public() (map[string]any, error) {
 		if maskKeys[k] {
 			continue
 		}
+		if jsonSettingKeys[k] {
+			out[k] = decodeJSONSetting(v)
+			continue
+		}
 		if k == SettingAllowRegistration {
 			out[k] = v == "true"
 			continue
@@ -164,6 +189,10 @@ func (s *SettingsService) AdminView() (map[string]any, error) {
 			} else {
 				out["smtp_pass_set"] = false
 			}
+			continue
+		}
+		if jsonSettingKeys[k] {
+			out[k] = decodeJSONSetting(v)
 			continue
 		}
 		if k == SettingAllowRegistration {
@@ -192,6 +221,12 @@ func marshalValue(raw any) (string, error) {
 			return "true", nil
 		}
 		return "false", nil
+	case []any, map[string]any:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return "", err
+		}
+		return string(b), nil
 	default:
 		b, err := json.Marshal(raw)
 		if err != nil {

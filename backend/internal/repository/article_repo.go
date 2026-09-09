@@ -15,6 +15,7 @@ type ArticleQuery struct {
 	CategorySlug string
 	TagSlug      string
 	Search       string
+	OrderBy      string // empty = published_at DESC; "views" = hot articles
 	Page         int
 	PageSize     int
 }
@@ -142,10 +143,14 @@ func (r *ArticleRepository) List(q ArticleQuery) ([]model.Article, int64, error)
 
 	page, pageSize := normalizePage(q.Page, q.PageSize)
 	var articles []model.Article
+	order := "articles.published_at DESC NULLS LAST, articles.id DESC"
+	if q.OrderBy == "views" {
+		order = "articles.views DESC, articles.id DESC"
+	}
 	err := db.Preload("Author").
 		Preload("Category").
 		Preload("Tags").
-		Order("articles.published_at DESC NULLS LAST, articles.id DESC").
+		Order(order).
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
 		Find(&articles).Error

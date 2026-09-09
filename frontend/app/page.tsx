@@ -7,8 +7,10 @@ import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Eye, FolderOpen, PenLine, Search, Tag as TagIcon, X } from 'lucide-react'
 import { fetchArticles, fetchCategories, fetchTags } from '@/lib/api'
-import type { Article } from '@/lib/types'
+import type { Article, ArticleListResponse } from '@/lib/types'
 import { PageTransition, StaggerList, StaggerItem, HoverLift } from '@/components/motion'
+import { useSiteConfig } from '@/components/site-config-context'
+import { WidgetRenderer } from '@/components/sidebar-widgets'
 
 function ArticleCard({ article }: { article: Article }) {
   const date = article.published_at
@@ -82,9 +84,11 @@ export default function HomePageWrapper() {
 
 function HomePage() {
   const searchParams = useSearchParams()
+  const site = useSiteConfig()
   const category = searchParams.get('category') ?? ''
   const tag = searchParams.get('tag') ?? ''
   const q = searchParams.get('q') ?? ''
+  const widgets = site.widgets.filter((w) => w.type && w.title)
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['articles', 'published', 1, category, tag, q],
@@ -113,7 +117,7 @@ function HomePage() {
 
   return (
     <PageTransition>
-      <div className="mx-auto max-w-5xl px-4 py-10">
+      <div className={`mx-auto px-4 py-10 ${widgets.length > 0 ? 'max-w-6xl' : 'max-w-5xl'}`}>
         {/* Filter bar */}
         <div className="mb-6 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -197,65 +201,106 @@ function HomePage() {
           </div>
         </div>
 
-        {isLoading ? (
-          <div className="grid gap-4">
-            {[...Array(3)].map((_, i) => (
-              <div
-                key={i}
-                className="skeleton h-40 rounded-xl"
-                style={{ animationDelay: `${i * 0.1}s` }}
+        {widgets.length > 0 ? (
+          <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
+            <div className="min-w-0">
+              <ArticleListSection
+                isLoading={isLoading}
+                isError={isError}
+                error={error}
+                data={data}
+                hasFilter={hasFilter}
               />
-            ))}
+            </div>
+            <aside className="h-fit space-y-4 lg:sticky lg:top-24">
+              {widgets.map((w, i) => (
+                <WidgetRenderer key={`${w.type}-${i}`} widget={w} />
+              ))}
+            </aside>
           </div>
-        ) : isError ? (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="rounded-xl border border-red-200 bg-red-50 p-8 text-center dark:border-red-900/50 dark:bg-red-950/30"
-          >
-            <p className="font-medium text-red-700 dark:text-red-300">加载失败</p>
-            <p className="mt-1 text-sm text-red-600/70 dark:text-red-400/70">
-              {error instanceof Error ? error.message : '请确认后端服务已启动'}
-            </p>
-          </motion.div>
-        ) : data && data.articles.length > 0 ? (
-          <StaggerList className="grid gap-4">
-            {data.articles.map((article) => (
-              <ArticleCard key={article.id} article={article} />
-            ))}
-          </StaggerList>
         ) : (
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-xl border border-dashed p-16 text-center"
-          >
-            {hasFilter ? (
-              <>
-                <Search className="mx-auto h-10 w-10 text-muted-foreground/50" />
-                <p className="mt-4 text-muted-foreground">没有符合条件的文章</p>
-                <Link
-                  href="/"
-                  className="mt-4 inline-flex items-center gap-1.5 text-sm text-accent underline underline-offset-4"
-                >
-                  <X className="h-3.5 w-3.5" /> 清除筛选
-                </Link>
-              </>
-            ) : (
-              <>
-                <PenLine className="mx-auto h-10 w-10 text-muted-foreground/50" />
-                <p className="mt-4 text-muted-foreground">还没有文章，来发布第一篇吧</p>
-                <Link
-                  href="/admin/articles/new"
-                  className="mt-6 inline-block rounded-lg bg-accent px-6 py-2.5 text-sm font-medium text-white transition-transform hover:scale-105"
-                >
-                  写文章
-                </Link>
-              </>
-            )}
-          </motion.div>
+          <ArticleListSection
+            isLoading={isLoading}
+            isError={isError}
+            error={error}
+            data={data}
+            hasFilter={hasFilter}
+          />
         )}
       </div>
     </PageTransition>
+  )
+}
+
+function ArticleListSection({
+  isLoading,
+  isError,
+  error,
+  data,
+  hasFilter,
+}: {
+  isLoading: boolean
+  isError: boolean
+  error: Error | null
+  data?: ArticleListResponse
+  hasFilter: boolean
+}) {
+  return isLoading ? (
+    <div className="grid gap-4">
+      {[...Array(3)].map((_, i) => (
+        <div
+          key={i}
+          className="skeleton h-40 rounded-xl"
+          style={{ animationDelay: `${i * 0.1}s` }}
+        />
+      ))}
+    </div>
+  ) : isError ? (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="rounded-xl border border-red-200 bg-red-50 p-8 text-center dark:border-red-900/50 dark:bg-red-950/30"
+    >
+      <p className="font-medium text-red-700 dark:text-red-300">加载失败</p>
+      <p className="mt-1 text-sm text-red-600/70 dark:text-red-400/70">
+        {error instanceof Error ? error.message : '请确认后端服务已启动'}
+      </p>
+    </motion.div>
+  ) : data && data.articles.length > 0 ? (
+    <StaggerList className="grid gap-4">
+      {data.articles.map((article: Article) => (
+        <ArticleCard key={article.id} article={article} />
+      ))}
+    </StaggerList>
+  ) : (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl border border-dashed p-16 text-center"
+    >
+      {hasFilter ? (
+        <>
+          <Search className="mx-auto h-10 w-10 text-muted-foreground/50" />
+          <p className="mt-4 text-muted-foreground">没有符合条件的文章</p>
+          <Link
+            href="/"
+            className="mt-4 inline-flex items-center gap-1.5 text-sm text-accent underline underline-offset-4"
+          >
+            <X className="h-3.5 w-3.5" /> 清除筛选
+          </Link>
+        </>
+      ) : (
+        <>
+          <PenLine className="mx-auto h-10 w-10 text-muted-foreground/50" />
+          <p className="mt-4 text-muted-foreground">还没有文章，来发布第一篇吧</p>
+          <Link
+            href="/admin/articles/new"
+            className="mt-6 inline-block rounded-lg bg-accent px-6 py-2.5 text-sm font-medium text-white transition-transform hover:scale-105"
+          >
+            写文章
+          </Link>
+        </>
+      )}
+    </motion.div>
   )
 }

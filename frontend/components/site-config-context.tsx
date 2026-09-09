@@ -3,12 +3,28 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { fetchSiteConfig } from '@/lib/api'
 
+export interface NavMenuItem {
+  label: string
+  url: string
+}
+
+export type WidgetType = 'about' | 'hot' | 'tags' | 'search' | 'html'
+
+export interface SidebarWidget {
+  type: WidgetType
+  title: string
+  content?: string
+  limit?: number
+}
+
 export interface SiteConfig {
   siteName: string
   siteDescription: string
   siteLogo: string
   siteFavicon: string
   siteIcp: string
+  navMenu: NavMenuItem[]
+  widgets: SidebarWidget[]
   allowRegistration: boolean
   loaded: boolean
 }
@@ -19,11 +35,31 @@ const DEFAULT_CONFIG: SiteConfig = {
   siteLogo: '',
   siteFavicon: '',
   siteIcp: '',
+  navMenu: [],
+  widgets: [],
   allowRegistration: true,
   loaded: false,
 }
 
 const SiteConfigContext = createContext<SiteConfig>(DEFAULT_CONFIG)
+
+interface RawSiteConfig {
+  site_name?: string
+  site_description?: string
+  site_logo?: string
+  site_favicon?: string
+  site_icp?: string
+  allow_registration?: boolean
+  nav_menu?: unknown
+  sidebar_widgets?: unknown
+}
+
+function parseItems<T>(raw: unknown, validate: (item: unknown) => T | null): T[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((item) => validate(item))
+    .filter((item): item is T => item !== null)
+}
 
 export function SiteConfigProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<SiteConfig>(DEFAULT_CONFIG)
@@ -31,14 +67,34 @@ export function SiteConfigProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false
     fetchSiteConfig()
-      .then((cfg) => {
+      .then((raw) => {
         if (cancelled) return
+        const cfg = raw as RawSiteConfig
         const next: SiteConfig = {
           siteName: cfg.site_name || DEFAULT_CONFIG.siteName,
           siteDescription: cfg.site_description || DEFAULT_CONFIG.siteDescription,
           siteLogo: cfg.site_logo || '',
           siteFavicon: cfg.site_favicon || '',
           siteIcp: cfg.site_icp || '',
+          navMenu: parseItems(cfg.nav_menu, (item) => {
+            const m = item as { label?: string; url?: string }
+            if (m && typeof m.label === 'string' && typeof m.url === 'string') {
+              return { label: m.label, url: m.url }
+            }
+            return null
+          }),
+          widgets: parseItems(cfg.sidebar_widgets, (item) => {
+            const w = item as { type?: string; title?: string; content?: string; limit?: number }
+            if (w && typeof w.type === 'string' && typeof w.title === 'string') {
+              return {
+                type: w.type as WidgetType,
+                title: w.title,
+                content: typeof w.content === 'string' ? w.content : '',
+                limit: typeof w.limit === 'number' ? w.limit : undefined,
+              }
+            }
+            return null
+          }),
           allowRegistration: cfg.allow_registration !== false,
           loaded: true,
         }

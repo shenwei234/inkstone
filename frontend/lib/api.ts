@@ -149,6 +149,7 @@ export interface ArticleListParams {
   category?: string
   tag?: string
   q?: string
+  order?: string
 }
 
 export function fetchArticles(params: ArticleListParams = {}) {
@@ -160,6 +161,7 @@ export function fetchArticles(params: ArticleListParams = {}) {
   if (params.category) search.set('category', params.category)
   if (params.tag) search.set('tag', params.tag)
   if (params.q) search.set('q', params.q)
+  if (params.order) search.set('order', params.order)
   const qs = search.toString()
   return api<ArticleListResponse>(`/articles${qs ? `?${qs}` : ''}`, {
     auth: Boolean(params.status && params.status !== 'published'),
@@ -287,13 +289,21 @@ export async function uploadImage(file: File): Promise<string> {
 // ---------- Site Settings API ----------
 
 export function fetchSiteConfig() {
-  return api<Partial<SiteSettings> & { config?: Partial<SiteSettings> }>('/site-config').then(
-    (res) => {
-      // Backend returns { config: {...} } — unwrap for flat consumption.
-      const cfg = (res as { config?: Partial<SiteSettings> }).config
-      return cfg ?? (res as Partial<SiteSettings>)
-    },
-  )
+  return api<
+    Partial<SiteSettings> & {
+      config?: Partial<SiteSettings>
+      nav_menu?: unknown
+      sidebar_widgets?: unknown
+    }
+  >('/site-config').then((res) => {
+    // Backend returns { config: {...} } — unwrap for flat consumption.
+    const cfg = (res as { config?: Partial<SiteSettings> }).config
+    const flat = cfg ?? (res as Partial<SiteSettings>)
+    return Object.assign(flat, {
+      nav_menu: (res as { nav_menu?: unknown }).nav_menu,
+      sidebar_widgets: (res as { sidebar_widgets?: unknown }).sidebar_widgets,
+    }) as Partial<SiteSettings> & { nav_menu?: unknown; sidebar_widgets?: unknown }
+  })
 }
 
 export function fetchAdminSettings() {

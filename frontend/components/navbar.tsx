@@ -17,6 +17,11 @@ export function Navbar() {
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
 
+  const menuItems =
+    site.navMenu.length > 0
+      ? site.navMenu.map((m) => ({ label: m.label, href: m.url }))
+      : [{ label: '首页', href: '/' }]
+
   return (
     <motion.header
       initial={{ y: -60, opacity: 0 }}
@@ -46,23 +51,32 @@ export function Navbar() {
             <span className="transition-colors group-hover:text-accent">{site.siteName}</span>
           </Link>
           <nav className="flex items-center gap-1">
-            <Link
-              href="/"
-              className={`relative rounded-md px-3 py-1.5 text-sm transition-colors ${
-                pathname === '/'
-                  ? 'text-foreground font-medium'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              首页
-              {pathname === '/' && (
-                <motion.span
-                  layoutId="nav-underline"
-                  className="absolute inset-x-3 -bottom-[13px] h-0.5 rounded-full bg-accent"
-                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                />
-              )}
-            </Link>
+            {menuItems.map((item) => {
+              const external = item.href.startsWith('http')
+              const active = !external && (pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href)))
+              return (
+                <Link
+                  key={item.label + item.href}
+                  href={item.href}
+                  target={external ? '_blank' : undefined}
+                  rel={external ? 'noreferrer' : undefined}
+                  className={`relative rounded-md px-3 py-1.5 text-sm transition-colors ${
+                    active
+                      ? 'text-foreground font-medium'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {item.label}
+                  {active && (
+                    <motion.span
+                      layoutId="nav-underline"
+                      className="absolute inset-x-3 -bottom-[13px] h-0.5 rounded-full bg-accent"
+                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                    />
+                  )}
+                </Link>
+              )
+            })}
           </nav>
         </div>
 

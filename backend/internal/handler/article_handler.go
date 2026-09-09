@@ -230,6 +230,7 @@ func (h *ArticleHandler) List(c *gin.Context) {
 		CategorySlug: c.Query("category"),
 		TagSlug:      c.Query("tag"),
 		Search:       c.Query("q"),
+		OrderBy:      c.Query("order"),
 	}
 	if v := c.Query("author_id"); v != "" {
 		if id, err := strconv.ParseUint(v, 10, 64); err == nil {
