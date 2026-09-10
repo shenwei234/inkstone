@@ -47,6 +47,7 @@ func main() {
 	rssHandler := handler.NewRSSHandler(articleSvc, cfg.FrontendURL)
 	settingsHandler := handler.NewSettingsHandler(settingsSvc, mailer)
 	pageHandler := handler.NewPageHandler(pageSvc)
+	systemHandler := handler.NewSystemHandler(settingsSvc)
 
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
@@ -83,7 +84,15 @@ func main() {
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/refresh", authHandler.Refresh)
 			auth.GET("/me", middleware.Auth(tokens, userStatusOK), authHandler.Me)
+			authAuthed := api.Group("/auth", middleware.Auth(tokens, userStatusOK))
+			{
+				authAuthed.PUT("/password", authHandler.ChangePassword)
+				authAuthed.PUT("/profile", authHandler.UpdateProfile)
+				authAuthed.GET("/my-comments", commentHandler.MyComments)
+			}
 		}
+
+		api.GET("/system/info", systemHandler.Info)
 
 		api.GET("/categories", taxonomyHandler.ListCategories)
 		api.GET("/tags", taxonomyHandler.ListTags)
@@ -127,9 +136,12 @@ func main() {
 			admin.DELETE("/articles/:id", adminHandler.DeleteArticle)
 			admin.GET("/comments", adminHandler.ListComments)
 			admin.DELETE("/comments/:id", adminHandler.DeleteComment)
-			admin.GET("/settings", settingsHandler.Get)
-			admin.PUT("/settings", settingsHandler.Update)
-			admin.POST("/settings/test-mail", settingsHandler.TestMail)
+		admin.GET("/settings", settingsHandler.Get)
+		admin.PUT("/settings", settingsHandler.Update)
+		admin.POST("/settings/test-mail", settingsHandler.TestMail)
+		admin.GET("/updates", systemHandler.Changelog)
+		admin.POST("/updates/check", systemHandler.CheckUpdates)
+		admin.PUT("/updates/manifest", systemHandler.SaveManifestURL)
 			admin.GET("/pages", pageHandler.ListAll)
 			admin.POST("/pages", pageHandler.Create)
 			admin.GET("/pages/:id", pageHandler.Get)

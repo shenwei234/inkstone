@@ -125,6 +125,28 @@ func (r *UserRepository) UpdateStatus(id uint, status string) error {
 	return nil
 }
 
+func (r *UserRepository) UpdatePasswordHash(id uint, hash string) error {
+	res := r.db.Model(&model.User{}).Where("id = ?", id).Update("password_hash", hash)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *UserRepository) UpdateUsername(id uint, username string) error {
+	err := r.db.Model(&model.User{}).Where("id = ?", id).Update("username", username).Error
+	if err != nil {
+		if uniqueField, ok := uniqueViolationField(err); ok && uniqueField == "username" {
+			return ErrUsernameTaken
+		}
+		return err
+	}
+	return nil
+}
+
 func (r *UserRepository) Delete(id uint) error {
 	res := r.db.Delete(&model.User{}, id)
 	if res.Error != nil {

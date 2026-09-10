@@ -115,6 +115,27 @@ func (h *CommentHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// MyComments handles GET /auth/my-comments.
+func (h *CommentHandler) MyComments(c *gin.Context) {
+	current, ok := middleware.GetCurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	comments, total, err := h.comments.ListByUser(current.ID, page, pageSize)
+	if err != nil {
+		errorResponse(c, err)
+		return
+	}
+	items := make([]gin.H, 0, len(comments))
+	for i := range comments {
+		items = append(items, toCommentResponse(&comments[i]))
+	}
+	c.JSON(http.StatusOK, gin.H{"comments": items, "total": total, "page": page, "page_size": pageSize})
+}
+
 func toCommentResponse(cm *model.Comment) gin.H {
 	user := gin.H{"id": 0, "username": "已注销"}
 	if cm.User.ID != 0 {

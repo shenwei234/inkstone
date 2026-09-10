@@ -114,6 +114,58 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": toUserResponse(user)})
 }
 
+type changePasswordRequest struct {
+	CurrentPassword string `json:"current_password" binding:"required"`
+	NewPassword     string `json:"new_password" binding:"required"`
+}
+
+// ChangePassword handles PUT /auth/password.
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	current, ok := middleware.GetCurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	var req changePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请填写当前密码和新密码"})
+		return
+	}
+	if err := h.auth.ChangePassword(current.ID, req.CurrentPassword, req.NewPassword); err != nil {
+		errorResponse(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "密码已更新"})
+}
+
+type updateProfileRequest struct {
+	Username string `json:"username" binding:"required"`
+}
+
+// UpdateProfile handles PUT /auth/profile.
+func (h *AuthHandler) UpdateProfile(c *gin.Context) {
+	current, ok := middleware.GetCurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	var req updateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请填写用户名"})
+		return
+	}
+	if err := h.auth.UpdateUsername(current.ID, req.Username); err != nil {
+		errorResponse(c, err)
+		return
+	}
+	user, err := h.auth.GetUserByID(current.ID)
+	if err != nil {
+		errorResponse(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"user": toUserResponse(user)})
+}
+
 func toUserResponse(u *model.User) gin.H {
 	return gin.H{
 		"id":       u.ID,

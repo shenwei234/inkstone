@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, LayoutDashboard, LogOut } from 'lucide-react'
+import { ChevronDown, LayoutDashboard, LogOut, User } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { useSiteConfig } from '@/components/site-config-context'
 import { MenuIcon } from '@/components/menu-icon'
@@ -121,6 +121,14 @@ export function Navbar() {
                       <p className="text-sm font-medium">{user.username}</p>
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">{user.email}</p>
                     </div>
+                    <Link
+                      href="/me"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    >
+                      <User className="h-4 w-4" />
+                      我的账户
+                    </Link>
                     {user.role === 'admin' && (
                       <Link
                         href="/admin"

@@ -61,3 +61,7 @@ func (s *CommentService) ListAll(page, pageSize int) ([]model.Comment, int64, er
 func (s *CommentService) DeleteAny(commentID uint) error {
 	return s.comments.Delete(commentID)
 }
+
+func (s *CommentService) ListByUser(userID uint, page, pageSize int) ([]model.Comment, int64, error) {
+	return s.comments.ListByUser(userID, page, pageSize)
+}

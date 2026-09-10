@@ -323,6 +323,76 @@ export function deletePage(id: number) {
   return api<void>(`/admin/pages/${id}`, { method: 'DELETE', auth: true })
 }
 
+// ---------- System / Account API ----------
+
+export interface SystemInfo {
+  name: string
+  version: string
+  go_version: string
+  uptime: string
+  author: string
+}
+
+export interface ChangelogEntry {
+  version: string
+  date: string
+  items: string[]
+}
+
+export interface UpdateCheckResult {
+  current: string
+  latest: string
+  has_update: boolean
+  notes?: string[]
+  download_url?: string
+  message: string
+  manifest_url: string
+}
+
+export function fetchSystemInfo() {
+  return api<{ info: SystemInfo }>('/system/info')
+}
+
+export function fetchUpdateInfo() {
+  return api<{ current: string; changelog: ChangelogEntry[]; manifest_url: string }>('/admin/updates', {
+    auth: true,
+  })
+}
+
+export function checkSystemUpdates() {
+  return api<UpdateCheckResult>('/admin/updates/check', { method: 'POST', auth: true })
+}
+
+export function saveUpdateManifest(url: string) {
+  return api<{ message: string }>('/admin/updates/manifest', {
+    method: 'PUT',
+    body: { manifest_url: url },
+    auth: true,
+  })
+}
+
+export function changePassword(currentPassword: string, newPassword: string) {
+  return api<{ message: string }>('/auth/password', {
+    method: 'PUT',
+    body: { current_password: currentPassword, new_password: newPassword },
+    auth: true,
+  })
+}
+
+export function updateProfile(username: string) {
+  return api<{ user: User }>('/auth/profile', { method: 'PUT', body: { username }, auth: true })
+}
+
+export function fetchMyComments(params: { page?: number; page_size?: number } = {}) {
+  const search = new URLSearchParams()
+  if (params.page) search.set('page', String(params.page))
+  if (params.page_size) search.set('page_size', String(params.page_size))
+  const qs = search.toString()
+  return api<{ comments: CommentItem[]; total: number }>(`/auth/my-comments${qs ? `?${qs}` : ''}`, {
+    auth: true,
+  })
+}
+
 // ---------- Site Settings API ----------
 
 export function fetchSiteConfig() {

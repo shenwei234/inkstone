@@ -135,6 +135,44 @@ func (s *AuthService) GetUserByID(id uint) (*model.User, error) {
 	return s.users.FindByID(id)
 }
 
+// ChangePassword verifies the current password then stores the new hash.
+func (s *AuthService) ChangePassword(userID uint, currentPw, newPw string) error {
+	user, err := s.users.FindByID(userID)
+	if err != nil {
+		return err
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(currentPw)); err != nil {
+		return NewValidationError("当前密码不正确")
+	}
+	newPw = strings.TrimSpace(newPw)
+	if l := len(newPw); l < 8 || l > 72 {
+		return NewValidationError("新密码长度需在 8-72 个字符之间")
+	}
+	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(newPw)) == nil {
+		return NewValidationError("新密码不能与当前密码相同")
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPw), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	return s.users.UpdatePasswordHash(userID, string(hash))
+}
+
+// UpdateProfile allows a user to rename themselves.
+func (s *AuthService) UpdateUsername(userID uint, username string) error {
+	username = strings.TrimSpace(username)
+	if l := len([]rune(username)); l < 2 || l > 32 {
+		return NewValidationError("用户名长度需在 2-32 个字符之间")
+	}
+	if err := s.users.UpdateUsername(userID, username); err != nil {
+		if errors.Is(err, repository.ErrUsernameTaken) {
+			return NewValidationError("该用户名已被占用")
+		}
+		return err
+	}
+	return nil
+}
+
 type ValidationError struct {
 	Message string
 }

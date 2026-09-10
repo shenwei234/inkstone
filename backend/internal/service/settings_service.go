@@ -25,6 +25,7 @@ const (
 	SettingSMTPUser          = "smtp_user"
 	SettingSMTPPass          = "smtp_pass"
 	SettingSMTPFrom          = "smtp_from" // From header, e.g. "Blog <no-reply@x.com>"
+	SettingUpdateManifest    = "update_manifest_url"
 )
 
 var settingDefaults = map[string]string{
@@ -42,6 +43,7 @@ var settingDefaults = map[string]string{
 	SettingSMTPUser:          "",
 	SettingSMTPPass:          "",
 	SettingSMTPFrom:          "",
+	SettingUpdateManifest:    "",
 }
 
 // jsonSettingKeys hold JSON arrays; they are decoded before leaving the API.

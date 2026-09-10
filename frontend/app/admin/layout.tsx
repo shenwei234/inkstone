@@ -8,10 +8,12 @@ import {
   ArrowLeft,
   FileStack,
   FileText,
+  Info,
   LayoutDashboard,
   Lock,
   MessageSquare,
   Paintbrush,
+  RefreshCw,
   Settings,
   Users,
 } from 'lucide-react'
@@ -25,6 +27,8 @@ const navItems = [
   { href: '/admin/comments', label: '评论管理', icon: MessageSquare },
   { href: '/admin/appearance', label: '外观管理', icon: Paintbrush },
   { href: '/admin/settings', label: '网站管理', icon: Settings },
+  { href: '/admin/updates', label: '系统更新', icon: RefreshCw },
+  { href: '/admin/about', label: '关于系统', icon: Info },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

@@ -65,6 +65,28 @@ func (r *CommentRepository) ListAll(page, pageSize int) ([]model.Comment, int64,
 	return comments, total, err
 }
 
+func (r *CommentRepository) ListByUser(userID uint, page, pageSize int) ([]model.Comment, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	var total int64
+	if err := r.db.Model(&model.Comment{}).Where("user_id = ?", userID).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var comments []model.Comment
+	err := r.db.Preload("User").
+		Preload("Article").
+		Where("user_id = ?", userID).
+		Order("created_at DESC").
+		Offset((page - 1) * pageSize).
+		Limit(pageSize).
+		Find(&comments).Error
+	return comments, total, err
+}
+
 func (r *CommentRepository) Delete(id uint) error {
 	res := r.db.Delete(&model.Comment{}, id)
 	if res.Error != nil {
