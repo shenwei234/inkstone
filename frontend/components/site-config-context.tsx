@@ -6,15 +6,31 @@ import { fetchSiteConfig } from '@/lib/api'
 export interface NavMenuItem {
   label: string
   url: string
+  icon?: string
 }
 
-export type WidgetType = 'about' | 'hot' | 'tags' | 'search' | 'html'
+export type WidgetType =
+  | 'about'
+  | 'hot'
+  | 'tags'
+  | 'search'
+  | 'html'
+  | 'profile'
+  | 'weather'
+  | 'countdown'
+  | 'clock'
+  | 'stats'
+  | 'hitokoto'
 
 export interface SidebarWidget {
   type: WidgetType
   title: string
   content?: string
   limit?: number
+  city?: string
+  avatar?: string
+  date?: string
+  eventName?: string
 }
 
 export interface SiteConfig {
@@ -87,13 +103,26 @@ export function SiteConfigProvider({ children }: { children: ReactNode }) {
             return null
           }),
           widgets: parseItems(cfg.sidebar_widgets, (item) => {
-            const w = item as { type?: string; title?: string; content?: string; limit?: number }
+            const w = item as {
+              type?: string
+              title?: string
+              content?: string
+              limit?: number
+              city?: string
+              avatar?: string
+              date?: string
+              eventName?: string
+            }
             if (w && typeof w.type === 'string' && typeof w.title === 'string') {
               return {
                 type: w.type as WidgetType,
                 title: w.title,
                 content: typeof w.content === 'string' ? w.content : '',
                 limit: typeof w.limit === 'number' ? w.limit : undefined,
+                city: typeof w.city === 'string' ? w.city : undefined,
+                avatar: typeof w.avatar === 'string' ? w.avatar : undefined,
+                date: typeof w.date === 'string' ? w.date : undefined,
+                eventName: typeof w.eventName === 'string' ? w.eventName : undefined,
               }
             }
             return null

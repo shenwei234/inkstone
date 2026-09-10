@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, LayoutDashboard, LogOut } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { useSiteConfig } from '@/components/site-config-context'
+import { MenuIcon } from '@/components/menu-icon'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
 
@@ -19,8 +20,8 @@ export function Navbar() {
 
   const menuItems =
     site.navMenu.length > 0
-      ? site.navMenu.map((m) => ({ label: m.label, href: m.url }))
-      : [{ label: '首页', href: '/' }]
+      ? site.navMenu.map((m) => ({ label: m.label, href: m.url, icon: m.icon }))
+      : [{ label: '首页', href: '/', icon: undefined as string | undefined }]
 
   return (
     <motion.header
@@ -66,6 +67,7 @@ export function Navbar() {
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
+                  <MenuIcon name={item.icon} className="mr-1 inline h-4 w-4 align-[-2px]" />
                   {item.label}
                   {active && (
                     <motion.span
