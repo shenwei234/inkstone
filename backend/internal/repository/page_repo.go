@@ -2,7 +2,7 @@ package repository
 
 import (
 	"errors"
-	"strings"
+	"fmt"
 
 	"github.com/blog-platform/backend/internal/model"
 	"gorm.io/gorm"
@@ -82,7 +82,7 @@ func (r *PageRepository) NormalizePageSlug(title, fallback string) string {
 		if count == 0 {
 			break
 		}
-		slug = base + "-" + string(rune('0'+i%10)) + string(rune('0'+i/10))
+		slug = fmt.Sprintf("%s-%d", base, i)
 	}
-	return strings.TrimSuffix(slug, "-")
+	return slug
 }

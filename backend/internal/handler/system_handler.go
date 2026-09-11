@@ -28,9 +28,9 @@ func (h *SystemHandler) Info(c *gin.Context) {
 func (h *SystemHandler) Changelog(c *gin.Context) {
 	manifestURL, _ := h.settings.Get(service.SettingUpdateManifest)
 	c.JSON(http.StatusOK, gin.H{
-		"current":       service.AppVersion,
-		"changelog":     service.ChangelogList(),
-		"manifest_url":  manifestURL,
+		"current":      service.AppVersion,
+		"changelog":    service.ChangelogList(),
+		"manifest_url": manifestURL,
 	})
 }
 

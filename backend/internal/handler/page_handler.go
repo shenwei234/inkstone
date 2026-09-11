@@ -19,16 +19,16 @@ func NewPageHandler(pages *service.PageService) *PageHandler {
 
 func toPageResponse(p *model.Page) gin.H {
 	return gin.H{
-		"id":         p.ID,
-		"title":      p.Title,
-		"slug":       p.Slug,
-		"content":    p.Content,
-		"template":   p.Template,
-		"status":     p.Status,
-		"sort_order": p.SortOrder,
+		"id":          p.ID,
+		"title":       p.Title,
+		"slug":        p.Slug,
+		"content":     p.Content,
+		"template":    p.Template,
+		"status":      p.Status,
+		"sort_order":  p.SortOrder,
 		"show_in_nav": p.ShowInNav,
-		"created_at": p.CreatedAt,
-		"updated_at": p.UpdatedAt,
+		"created_at":  p.CreatedAt,
+		"updated_at":  p.UpdatedAt,
 	}
 }
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import {
   ArrowDown,
   ArrowUp,
@@ -77,7 +77,6 @@ function MoveButtons({
 
 function MenuTab() {
   const notify = useNotify()
-  const queryClient = useQueryClient()
   const [items, setItems] = useState<NavMenuItem[]>([])
   const [addPageOpen, setAddPageOpen] = useState(false)
 

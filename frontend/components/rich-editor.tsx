@@ -24,6 +24,7 @@ import {
   List,
   ListOrdered,
   Minus,
+  Plus,
   Quote,
   Trash2,
   Type,
@@ -671,7 +672,7 @@ export function RichEditor({ content, onChange, variant = 'card' }: RichEditorPr
           onClick={() => setPlusOpen((o) => !o)}
           className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-lg leading-none text-muted-foreground shadow-sm transition-colors hover:border-accent/50 hover:text-accent"
         >
-          +
+          <Plus className={"h-4 w-4"} />
         </button>
       )}
 

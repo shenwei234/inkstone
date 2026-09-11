@@ -85,7 +85,8 @@ func (r *UserRepository) Count() (int64, error) {
 func (r *UserRepository) List(page, pageSize int, query string) ([]model.User, int64, error) {
 	db := r.db.Model(&model.User{})
 	if query != "" {
-		like := "%" + query + "%"
+		escaped := strings.NewReplacer("\\", "\\\\", "%", "\\%", "_", "\\_").Replace(query)
+		like := "%" + escaped + "%"
 		db = db.Where("email ILIKE ? OR username ILIKE ?", like, like)
 	}
 	var total int64

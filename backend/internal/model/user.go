@@ -8,8 +8,8 @@ const (
 )
 
 const (
-	StatusActive   = "active"
-	StatusBanned   = "banned"
+	StatusActive = "active"
+	StatusBanned = "banned"
 )
 
 type User struct {
@@ -26,4 +26,3 @@ type User struct {
 func (u *User) IsBanned() bool {
 	return u.Status == StatusBanned
 }
-

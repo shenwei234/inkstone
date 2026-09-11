@@ -110,6 +110,14 @@ func (r *ArticleRepository) ReplaceTags(article *model.Article, tags []model.Tag
 	return r.db.Model(article).Association("Tags").Replace(tags)
 }
 
+// escapeLike neutralizes LIKE wildcards in user input so searches match
+// literal characters instead of patterns.
+func escapeLike(s string) string {
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	s = strings.ReplaceAll(s, "%", "\\%")
+	return strings.ReplaceAll(s, "_", "\\_")
+}
+
 func (r *ArticleRepository) List(q ArticleQuery) ([]model.Article, int64, error) {
 	db := r.db.Model(&model.Article{})
 
@@ -123,16 +131,15 @@ func (r *ArticleRepository) List(q ArticleQuery) ([]model.Article, int64, error)
 		db = db.Where("articles.status = ?", model.ArticlePublished)
 	}
 	if q.CategorySlug != "" {
-		db = db.Joins("JOIN categories ON categories.id = articles.category_id").
-			Where("categories.slug = ?", q.CategorySlug)
+		// Subquery filters avoid row multiplication (and inflated counts)
+		// when combining multiple filters in one query.
+		db = db.Where("articles.category_id IN (SELECT id FROM categories WHERE slug = ?)", q.CategorySlug)
 	}
 	if q.TagSlug != "" {
-		db = db.Joins("JOIN article_tags at_filter ON at_filter.article_id = articles.id").
-			Joins("JOIN tags t_filter ON t_filter.id = at_filter.tag_id").
-			Where("t_filter.slug = ?", q.TagSlug)
+		db = db.Where("articles.id IN (SELECT article_id FROM article_tags WHERE tag_id IN (SELECT id FROM tags WHERE slug = ?))", q.TagSlug)
 	}
 	if q.Search != "" {
-		like := "%" + q.Search + "%"
+		like := "%" + escapeLike(q.Search) + "%"
 		db = db.Where("articles.title ILIKE ? OR articles.content ILIKE ?", like, like)
 	}
 

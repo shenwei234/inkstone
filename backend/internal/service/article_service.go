@@ -12,8 +12,8 @@ import (
 var ErrForbidden = errors.New("forbidden")
 
 type ArticleService struct {
-	articles  *repository.ArticleRepository
-	taxonomy  *repository.TaxonomyRepository
+	articles *repository.ArticleRepository
+	taxonomy *repository.TaxonomyRepository
 }
 
 func NewArticleService(articles *repository.ArticleRepository, taxonomy *repository.TaxonomyRepository) *ArticleService {
@@ -21,11 +21,11 @@ func NewArticleService(articles *repository.ArticleRepository, taxonomy *reposit
 }
 
 type ArticleInput struct {
-	Title       string
-	Content     string
-	Status      string
-	CategoryID  *uint
-	TagNames    []string
+	Title      string
+	Content    string
+	Status     string
+	CategoryID *uint
+	TagNames   []string
 }
 
 type ArticleUpdate struct {

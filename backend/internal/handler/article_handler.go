@@ -38,18 +38,18 @@ type articleUpdateRequest struct {
 }
 
 type articleResponse struct {
-	ID          uint        `json:"id"`
-	Title       string      `json:"title"`
-	Slug        string      `json:"slug"`
-	Content     string      `json:"content"`
-	Status      string      `json:"status"`
-	Views       int64       `json:"views"`
+	ID          uint          `json:"id"`
+	Title       string        `json:"title"`
+	Slug        string        `json:"slug"`
+	Content     string        `json:"content"`
+	Status      string        `json:"status"`
+	Views       int64         `json:"views"`
 	Category    *categoryInfo `json:"category,omitempty"`
-	Tags        []tagInfo   `json:"tags,omitempty"`
-	PublishedAt *time.Time  `json:"published_at"`
-	CreatedAt   time.Time   `json:"created_at"`
-	UpdatedAt   time.Time   `json:"updated_at"`
-	Author      authorInfo  `json:"author"`
+	Tags        []tagInfo     `json:"tags,omitempty"`
+	PublishedAt *time.Time    `json:"published_at"`
+	CreatedAt   time.Time     `json:"created_at"`
+	UpdatedAt   time.Time     `json:"updated_at"`
+	Author      authorInfo    `json:"author"`
 }
 
 type authorInfo struct {
