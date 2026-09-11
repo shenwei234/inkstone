@@ -24,9 +24,10 @@ export default function AdminUpdatesPage() {
   const infoQuery = useQuery({ queryKey: ['admin', 'updates'], queryFn: fetchUpdateInfo })
 
   useEffect(() => {
-    if (infoQuery.data?.manifest_url !== undefined) {
-      setManifestUrl(infoQuery.data.manifest_url)
-    }
+    const manifest = infoQuery.data?.manifest_url
+    if (manifest === undefined) return
+    const t = setTimeout(() => setManifestUrl(manifest), 0)
+    return () => clearTimeout(t)
   }, [infoQuery.data])
 
   const saveManifest = useMutation({

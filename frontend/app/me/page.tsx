@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
@@ -12,7 +12,6 @@ import {
   Lock,
   MessageSquare,
   Trash2,
-  User,
   UserRoundCog,
 } from 'lucide-react'
 import {
@@ -20,7 +19,6 @@ import {
   deleteComment,
   fetchArticles,
   fetchMyComments,
-  fetchReactions,
   updateProfile,
   ApiError,
 } from '@/lib/api'
@@ -43,7 +41,10 @@ function AccountTab() {
   const [newPw, setNewPw] = useState('')
 
   useEffect(() => {
-    if (user?.username) setUsername(user.username)
+    if (user?.username) {
+      const t = setTimeout(() => setUsername(user.username), 0)
+      return () => clearTimeout(t)
+    }
   }, [user?.username])
 
   const rename = useMutation({
@@ -178,8 +179,6 @@ function AccountTab() {
 
 function MyArticlesTab() {
   const { user } = useAuth()
-  const notify = useNotify()
-  const queryClient = useQueryClient()
 
   const draftsQuery = useQuery({
     queryKey: ['me', 'articles', 'draft'],

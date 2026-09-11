@@ -4,7 +4,7 @@ import { use } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { SearchX } from 'lucide-react'
+import { ArrowLeft, SearchX } from 'lucide-react'
 import { fetchPageBySlug } from '@/lib/api'
 import { PageTransition } from '@/components/motion'
 import { useSiteConfig } from '@/components/site-config-context'
@@ -127,7 +127,7 @@ export default function StaticPage({ params }: { params: Promise<{ slug: string 
             href="/"
             className="group inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-accent"
           >
-            <span className="transition-transform group-hover:-translate-x-1">←</span> 返回首页
+            <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" /> 返回首页
           </Link>
         </motion.footer>
       </div>

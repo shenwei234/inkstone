@@ -27,6 +27,7 @@ import {
   Quote,
   Trash2,
   Type,
+  X,
 } from 'lucide-react'
 
 interface RichEditorProps {
@@ -746,7 +747,7 @@ export function RichEditor({ content, onChange, variant = 'card' }: RichEditorPr
                   onClick={() => closeDialog(null)}
                   className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
-                  ×
+                  <X className="h-4 w-4" />
                 </button>
               </div>
               <div className="space-y-2 px-5 py-5">

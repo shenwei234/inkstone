@@ -96,9 +96,13 @@ export function SiteConfigProvider({ children }: { children: ReactNode }) {
           siteFavicon: cfg.site_favicon || '',
           siteIcp: cfg.site_icp || '',
           navMenu: parseItems(cfg.nav_menu, (item) => {
-            const m = item as { label?: string; url?: string }
+            const m = item as { label?: string; url?: string; icon?: string }
             if (m && typeof m.label === 'string' && typeof m.url === 'string') {
-              return { label: m.label, url: m.url }
+              return {
+                label: m.label,
+                url: m.url,
+                icon: typeof m.icon === 'string' ? m.icon : undefined,
+              }
             }
             return null
           }),
