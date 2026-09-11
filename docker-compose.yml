@@ -1,0 +1,66 @@
+# Blog Platform — 生产部署编排
+# 用法：cp .env.example .env && 编辑 .env && docker compose up -d
+# 详细教程见 README.md「Docker 一键部署」章节
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: blog-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-blog}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-blog_password}
+      POSTGRES_DB: ${DB_NAME:-blog_platform}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-blog} -d ${DB_NAME:-blog_platform}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    # 如需从宿主机直连数据库，取消下面注释（不建议暴露到公网）
+    # ports:
+    #   - "127.0.0.1:5432:5432"
+
+  backend:
+    build: ./backend
+    container_name: blog-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      PORT: 8080
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-blog}
+      DB_PASSWORD: ${DB_PASSWORD:-blog_password}
+      DB_NAME: ${DB_NAME:-blog_platform}
+      # 必改：生产环境请换成 64 位随机字符串
+      JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-secret}
+      # 前端地址（CORS 白名单）
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      # 上传文件的对外访问前缀（与前端访问后端的方式一致）
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8080}
+    volumes:
+      - uploads_data:/app/data
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      # 构建期注入 API 地址（浏览器直接访问后端，需公网可达）
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080/api/v1}
+    container_name: blog-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
+  uploads_data:
