@@ -5,7 +5,7 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: blog-postgres
+    container_name: inkstone-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-blog}
@@ -24,7 +24,7 @@ services:
 
   backend:
     build: ./backend
-    container_name: blog-backend
+    container_name: inkstone-backend
     restart: unless-stopped
     depends_on:
       postgres:
@@ -54,7 +54,7 @@ services:
       # 构建期注入 API 地址（浏览器直接访问后端，需公网可达）
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080/api/v1}
-    container_name: blog-frontend
+    container_name: inkstone-frontend
     restart: unless-stopped
     depends_on:
       - backend

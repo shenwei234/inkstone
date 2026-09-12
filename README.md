@@ -1,8 +1,12 @@
-# Blog Platform
+# InkStone · 砚台
 
-一套现代化的**多用户博客平台**：Go + Gin + GORM 后端，Next.js 15 前端，PostgreSQL 存储，Docker 一键部署。
+![Logo](frontend/public/logo.svg)
+
+**InkStone（砚台）** — 一方承载文字的多用户博客系统。Go + Gin + GORM 后端，Next.js 15 前端，PostgreSQL 存储，Docker 一键部署。
 
 ![Version](https://img.shields.io/badge/version-1.2.0-blue) ![Go](https://img.shields.io/badge/Go-1.27-00ADD8) ![Next.js](https://img.shields.io/badge/Next.js-15-black) ![License](https://img.shields.io/badge/license-MIT-green)
+
+> 作者：shenwei
 
 ## ✨ 功能特性
 
@@ -98,8 +102,8 @@ npm run dev
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/你的用户名/blog-platform.git
-cd blog-platform
+git clone https://github.com/shenwei/inkstone.git
+cd inkstone
 ```
 
 ### 2. 配置环境变量
@@ -170,7 +174,7 @@ sudo apt update && sudo apt install caddy
 ### 2. 部署应用
 
 ```bash
-git clone https://github.com/你的用户名/blog-platform.git && cd blog-platform
+git clone https://github.com/shenwei/inkstone.git && cd inkstone
 cp .env.example .env && nano .env
 ```
 
@@ -238,7 +242,7 @@ Caddy 自动申请并续期 Let's Encrypt 证书，直接访问 https://blog.exa
 # 备份数据库
 docker exec blog-postgres pg_dump -U blog blog_platform > backup_$(date +%F).sql
 # 备份上传文件
-docker run --rm -v blog-platform_uploads_data:/data -v $(pwd):/backup alpine \
+docker run --rm -v inkstone_uploads_data:/data -v $(pwd):/backup alpine \
   tar czf /backup/uploads_$(date +%F).tar.gz /data
 
 # 恢复数据库
@@ -248,7 +252,7 @@ cat backup_2026-01-01.sql | docker exec -i blog-postgres psql -U blog blog_platf
 ### 5. 系统升级
 
 ```bash
-cd blog-platform
+cd inkstone
 git pull
 docker compose up -d --build
 # 数据库结构变更会在后端启动时自动迁移

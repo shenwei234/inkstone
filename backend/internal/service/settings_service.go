@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/blog-platform/backend/internal/model"
+	"github.com/shenwei/inkstone/backend/internal/model"
 	"gorm.io/gorm"
 )
 
@@ -30,8 +30,8 @@ const (
 
 var settingDefaults = map[string]string{
 	SettingAllowRegistration: "true",
-	SettingSiteName:          "Blog 平台",
-	SettingSiteDescription:   "多用户博客平台",
+	SettingSiteName:          "InkStone",
+	SettingSiteDescription:   "InkStone — 现代化多用户博客系统",
 	SettingSiteLogo:          "",
 	SettingSiteFavicon:       "",
 	SettingNavMenu:           "[]",

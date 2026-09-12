@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/blog-platform/backend/internal/model"
+	"github.com/shenwei/inkstone/backend/internal/model"
 	"gorm.io/gorm"
 )
 

@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/blog-platform/backend/internal/model"
+	"github.com/shenwei/inkstone/backend/internal/model"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"

@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/blog-platform/backend/internal/middleware"
-	"github.com/blog-platform/backend/internal/model"
-	"github.com/blog-platform/backend/internal/repository"
-	"github.com/blog-platform/backend/internal/service"
+	"github.com/shenwei/inkstone/backend/internal/middleware"
+	"github.com/shenwei/inkstone/backend/internal/model"
+	"github.com/shenwei/inkstone/backend/internal/repository"
+	"github.com/shenwei/inkstone/backend/internal/service"
 	"github.com/gin-gonic/gin"
 )
 

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/blog-platform/backend/pkg/config"
+	"github.com/shenwei/inkstone/backend/pkg/config"
 	"github.com/gin-gonic/gin"
 )
 

@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/blog-platform/backend/internal/service"
+	"github.com/shenwei/inkstone/backend/internal/service"
 )
 
 // Mailer sends emails using SMTP settings stored in the site settings table.
