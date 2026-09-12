@@ -1,0 +1,7 @@
+# 统一换行符：shell 脚本必须 LF，否则 Linux 上会报 "$'\r': command not found"
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.go text eol=lf
