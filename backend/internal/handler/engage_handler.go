@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/gin-gonic/gin"
 	"github.com/shenwei/inkstone/backend/internal/middleware"
 	"github.com/shenwei/inkstone/backend/internal/model"
 	"github.com/shenwei/inkstone/backend/internal/repository"
 	"github.com/shenwei/inkstone/backend/internal/service"
-	"github.com/gin-gonic/gin"
 )
 
 type TaxonomyHandler struct {

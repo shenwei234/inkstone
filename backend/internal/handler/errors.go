@@ -4,9 +4,9 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/gin-gonic/gin"
 	"github.com/shenwei/inkstone/backend/internal/repository"
 	"github.com/shenwei/inkstone/backend/internal/service"
-	"github.com/gin-gonic/gin"
 )
 
 // errorResponse maps domain errors to HTTP responses.

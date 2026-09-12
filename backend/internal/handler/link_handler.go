@@ -1,0 +1,178 @@
+package handler
+
+import (
+	"net/http"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+	"github.com/shenwei/inkstone/backend/internal/model"
+	"github.com/shenwei/inkstone/backend/internal/service"
+)
+
+type LinkHandler struct {
+	links *service.LinkService
+}
+
+func NewLinkHandler(links *service.LinkService) *LinkHandler {
+	return &LinkHandler{links: links}
+}
+
+// publicLinkResponse hides the real URL when a link is unreachable.
+func publicLinkResponse(link *model.FriendLink) gin.H {
+	resp := gin.H{
+		"id":          link.ID,
+		"name":        link.Name,
+		"icon_url":    link.IconURL,
+		"description": link.Description,
+		"available":   link.Available,
+		"masked_url":  service.MaskURL(link.URL),
+	}
+	if link.Available {
+		resp["url"] = link.URL
+	}
+	return resp
+}
+
+func adminLinkResponse(link *model.FriendLink) gin.H {
+	return gin.H{
+		"id":              link.ID,
+		"name":            link.Name,
+		"url":             link.URL,
+		"check_url":       link.CheckURL,
+		"icon_url":        link.IconURL,
+		"description":     link.Description,
+		"sort_order":      link.SortOrder,
+		"available":       link.Available,
+		"last_checked_at": link.LastCheckedAt,
+		"created_at":      link.CreatedAt,
+	}
+}
+
+// ListPublic handles GET /links — unreachable links are masked and not clickable.
+func (h *LinkHandler) ListPublic(c *gin.Context) {
+	links, err := h.links.List()
+	if err != nil {
+		errorResponse(c, err)
+		return
+	}
+	items := make([]gin.H, 0, len(links))
+	for i := range links {
+		items = append(items, publicLinkResponse(&links[i]))
+	}
+	c.JSON(http.StatusOK, gin.H{"links": items})
+}
+
+type linkRequest struct {
+	Name        string `json:"name" binding:"required"`
+	URL         string `json:"url" binding:"required"`
+	CheckURL    string `json:"check_url"`
+	IconURL     string `json:"icon_url"`
+	Description string `json:"description"`
+	SortOrder   int    `json:"sort_order"`
+}
+
+// ListAdmin handles GET /admin/links.
+func (h *LinkHandler) ListAdmin(c *gin.Context) {
+	links, err := h.links.List()
+	if err != nil {
+		errorResponse(c, err)
+		return
+	}
+	items := make([]gin.H, 0, len(links))
+	for i := range links {
+		items = append(items, adminLinkResponse(&links[i]))
+	}
+	c.JSON(http.StatusOK, gin.H{"links": items})
+}
+
+// Create handles POST /admin/links.
+func (h *LinkHandler) Create(c *gin.Context) {
+	var req linkRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请填写网站名称与链接"})
+		return
+	}
+	link, err := h.links.Create(service.LinkInput{
+		Name:        req.Name,
+		URL:         req.URL,
+		CheckURL:    req.CheckURL,
+		IconURL:     req.IconURL,
+		Description: req.Description,
+		SortOrder:   req.SortOrder,
+	})
+	if err != nil {
+		errorResponse(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"link": adminLinkResponse(link)})
+}
+
+// Update handles PUT /admin/links/:id.
+func (h *LinkHandler) Update(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的友链 ID"})
+		return
+	}
+	var req linkRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请填写网站名称与链接"})
+		return
+	}
+	link, err := h.links.Update(uint(id), service.LinkInput{
+		Name:        req.Name,
+		URL:         req.URL,
+		CheckURL:    req.CheckURL,
+		IconURL:     req.IconURL,
+		Description: req.Description,
+		SortOrder:   req.SortOrder,
+	})
+	if err != nil {
+		errorResponse(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"link": adminLinkResponse(link)})
+}
+
+// Delete handles DELETE /admin/links/:id.
+func (h *LinkHandler) Delete(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的友链 ID"})
+		return
+	}
+	if err := h.links.Delete(uint(id)); err != nil {
+		errorResponse(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// CheckAll handles POST /admin/links/check — manual full scan.
+func (h *LinkHandler) CheckAll(c *gin.Context) {
+	links, err := h.links.CheckAll()
+	if err != nil {
+		errorResponse(c, err)
+		return
+	}
+	items := make([]gin.H, 0, len(links))
+	for i := range links {
+		items = append(items, adminLinkResponse(&links[i]))
+	}
+	c.JSON(http.StatusOK, gin.H{"links": items, "checked": len(items)})
+}
+
+// CheckOne handles POST /admin/links/:id/check.
+func (h *LinkHandler) CheckOne(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的友链 ID"})
+		return
+	}
+	available, err := h.links.CheckOne(uint(id))
+	if err != nil {
+		errorResponse(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"available": available})
+}

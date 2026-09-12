@@ -3,8 +3,8 @@ package handler
 import (
 	"net/http"
 
-	"github.com/shenwei/inkstone/backend/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/shenwei/inkstone/backend/internal/service"
 )
 
 type SystemHandler struct {

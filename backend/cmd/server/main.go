@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 
+	"github.com/gin-gonic/gin"
 	"github.com/shenwei/inkstone/backend/internal/handler"
 	"github.com/shenwei/inkstone/backend/internal/middleware"
 	"github.com/shenwei/inkstone/backend/internal/model"
@@ -10,7 +11,6 @@ import (
 	"github.com/shenwei/inkstone/backend/internal/service"
 	"github.com/shenwei/inkstone/backend/pkg/config"
 	"github.com/shenwei/inkstone/backend/pkg/mailer"
-	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -38,6 +38,10 @@ func main() {
 	pageRepo := repository.NewPageRepository(db)
 	pageSvc := service.NewPageService(pageRepo)
 
+	linkRepo := repository.NewLinkRepository(db)
+	linkSvc := service.NewLinkService(linkRepo)
+	linkSvc.StartAutoCheck()
+
 	authHandler := handler.NewAuthHandler(authSvc)
 	articleHandler := handler.NewArticleHandler(articleSvc)
 	adminHandler := handler.NewAdminHandler(adminSvc, userRepo, articleSvc, articleRepo, commentSvc)
@@ -48,6 +52,7 @@ func main() {
 	settingsHandler := handler.NewSettingsHandler(settingsSvc, mailer)
 	pageHandler := handler.NewPageHandler(pageSvc)
 	systemHandler := handler.NewSystemHandler(settingsSvc)
+	linkHandler := handler.NewLinkHandler(linkSvc)
 
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
@@ -99,6 +104,7 @@ func main() {
 		api.GET("/site-config", settingsHandler.SiteConfig)
 		api.GET("/pages", pageHandler.ListPublic)
 		api.GET("/pages/:slug", pageHandler.GetBySlug)
+		api.GET("/links", linkHandler.ListPublic)
 
 		articles := api.Group("/articles", middleware.OptionalAuth(tokens))
 		{
@@ -142,6 +148,12 @@ func main() {
 			admin.GET("/updates", systemHandler.Changelog)
 			admin.POST("/updates/check", systemHandler.CheckUpdates)
 			admin.PUT("/updates/manifest", systemHandler.SaveManifestURL)
+			admin.GET("/links", linkHandler.ListAdmin)
+			admin.POST("/links", linkHandler.Create)
+			admin.PUT("/links/:id", linkHandler.Update)
+			admin.DELETE("/links/:id", linkHandler.Delete)
+			admin.POST("/links/check", linkHandler.CheckAll)
+			admin.POST("/links/:id/check", linkHandler.CheckOne)
 			admin.GET("/pages", pageHandler.ListAll)
 			admin.POST("/pages", pageHandler.Create)
 			admin.GET("/pages/:id", pageHandler.Get)

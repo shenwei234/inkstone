@@ -9,6 +9,7 @@ import {
   Eye,
   FileStack,
   LayoutList,
+  Link2,
   PanelLeft,
   PanelTop,
   Plus,
@@ -176,6 +177,15 @@ function MenuTab() {
           className="flex items-center gap-1.5 rounded-lg border border-dashed border-border px-4 py-2 text-sm text-muted-foreground transition-colors hover:border-accent/40 hover:text-accent"
         >
           <FileStack className="h-4 w-4" /> 从页面添加
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            setItems((arr) => [...arr, { label: '友情链接', url: '/links', icon: 'link' }])
+          }
+          className="flex items-center gap-1.5 rounded-lg border border-dashed border-border px-4 py-2 text-sm text-muted-foreground transition-colors hover:border-accent/40 hover:text-accent"
+        >
+          <Link2 className="h-4 w-4" /> 添加友链页
         </button>
         <motion.button
           type="button"
