@@ -168,6 +168,6 @@ func BuildSystemInfo(siteName string) SystemInfo {
 		Version:   AppVersion,
 		GoVersion: runtime.Version(),
 		Uptime:    fmt.Sprintf("%d 天 %d 小时 %d 分钟", days, hours, minutes),
-		Author:    "Blog Platform Team",
+		Author:    "shenwei",
 	}
 }

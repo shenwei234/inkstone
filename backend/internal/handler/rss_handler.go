@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/blog-platform/backend/internal/repository"
-	"github.com/blog-platform/backend/internal/service"
+	"github.com/shenwei/inkstone/backend/internal/repository"
+	"github.com/shenwei/inkstone/backend/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -17,7 +17,7 @@ type RSSHandler struct {
 }
 
 func NewRSSHandler(articles *service.ArticleService, frontendURL string) *RSSHandler {
-	return &RSSHandler{articles: articles, frontendURL: frontendURL, siteName: "Blog 平台"}
+	return &RSSHandler{articles: articles, frontendURL: frontendURL, siteName: "InkStone"}
 }
 
 type rssItem struct {

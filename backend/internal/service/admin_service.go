@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/blog-platform/backend/internal/model"
-	"github.com/blog-platform/backend/internal/repository"
+	"github.com/shenwei/inkstone/backend/internal/model"
+	"github.com/shenwei/inkstone/backend/internal/repository"
 	"golang.org/x/crypto/bcrypt"
 )
 

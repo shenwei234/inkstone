@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/blog-platform/backend/internal/model"
-	"github.com/blog-platform/backend/internal/service"
+	"github.com/shenwei/inkstone/backend/internal/model"
+	"github.com/shenwei/inkstone/backend/internal/service"
 	"github.com/gin-gonic/gin"
 )
 

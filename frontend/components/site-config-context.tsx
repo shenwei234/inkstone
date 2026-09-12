@@ -47,8 +47,8 @@ export interface SiteConfig {
 }
 
 const DEFAULT_CONFIG: SiteConfig = {
-  siteName: 'Blog 平台',
-  siteDescription: '多用户博客平台',
+  siteName: 'InkStone',
+  siteDescription: 'InkStone — 现代化多用户博客系统',
   siteLogo: '',
   siteFavicon: '',
   siteIcp: '',

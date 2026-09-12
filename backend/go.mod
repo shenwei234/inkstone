@@ -1,4 +1,4 @@
-module github.com/blog-platform/backend
+module github.com/shenwei/inkstone/backend
 
 go 1.27.0
 

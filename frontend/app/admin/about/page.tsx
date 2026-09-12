@@ -49,9 +49,12 @@ export default function AdminAboutPage() {
       >
         <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-accent/15 blur-3xl" />
         <div className="relative flex flex-wrap items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-accent text-2xl font-black text-white shadow-lg shadow-accent/30">
-            {site.siteName.charAt(0).toUpperCase()}
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={site.siteLogo || '/logo.svg'}
+            alt="InkStone"
+            className="h-16 w-16 rounded-2xl shadow-lg shadow-accent/30"
+          />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-bold tracking-tight">{site.siteName}</h1>
@@ -60,11 +63,11 @@ export default function AdminAboutPage() {
               </span>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              {site.siteDescription} · 一套现代化的多用户博客系统
+              InkStone · 砚台 — 一方承载文字的多用户博客系统
             </p>
           </div>
           <div className="ml-auto text-right text-xs text-muted-foreground">
-            <p>作者：{info?.author ?? '—'}</p>
+            <p>作者：{info?.author ?? 'shenwei'}</p>
             <p className="mt-0.5">已稳定运行 {info?.uptime ?? '—'}</p>
           </div>
         </div>
@@ -82,10 +85,10 @@ export default function AdminAboutPage() {
           系统介绍
         </h2>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          {site.siteName} 是一套前后端分离的多用户博客平台：后端基于 Go（Gin + GORM）提供 RESTful
-          API，前端基于 Next.js 15（App Router）。支持多用户写作、评论互动、点赞收藏、独立页面、
+          InkStone（中文名「砚台」）是一套前后端分离的多用户博客平台：后端基于 Go（Gin + GORM）提供
+          RESTful API，前端基于 Next.js 15（App Router）。支持多用户写作、评论互动、点赞收藏、独立页面、
           主题外观自定义与站点配置，内置 JWT 双令牌认证与 RBAC 权限体系，
-          部署采用 Docker Compose，可运行在任何 VPS 上。
+          部署采用 Docker Compose，可运行在任何 VPS 上。由 shenwei 设计与开发。
         </p>
       </motion.section>
 

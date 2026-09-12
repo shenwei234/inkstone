@@ -3,8 +3,8 @@ package handler
 import (
 	"net/http"
 
-	"github.com/blog-platform/backend/internal/service"
-	"github.com/blog-platform/backend/pkg/mailer"
+	"github.com/shenwei/inkstone/backend/internal/service"
+	"github.com/shenwei/inkstone/backend/pkg/mailer"
 	"github.com/gin-gonic/gin"
 )
 
@@ -13,19 +13,8 @@ type SettingsHandler struct {
 	mailer   *mailer.Mailer
 }
 
-func NewSettingsHandler(settings *service.SettingsService, mailer *mailer.Mailer) *SettingsHandler {
-	return &SettingsHandler{settings: settings, mailer: mailer}
-}
-
-// SiteConfig handles GET /api/v1/site-config — non-sensitive settings for
-// the frontend (registration switch, site name, etc).
-func (h *SettingsHandler) SiteConfig(c *gin.Context) {
-	out, err := h.settings.Public()
-	if err != nil {
-		errorResponse(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, out)
+func NewSettingsHandler(settings *service.SettingsService, mailClient *mailer.Mailer) *SettingsHandler {
+	return &SettingsHandler{settings: settings, mailer: mailClient}
 }
 
 // Get handles GET /admin/settings.
@@ -36,6 +25,10 @@ func (h *SettingsHandler) Get(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"settings": out})
+}
+
+type updateSettingsRequest struct {
+	Settings map[string]any `json:"settings" binding:"required"`
 }
 
 // Update handles PUT /admin/settings with a JSON object of key/value pairs.
@@ -59,18 +52,30 @@ func (h *SettingsHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"settings": out})
 }
 
+// SiteConfig handles GET /api/v1/site-config — non-sensitive settings for
+// the frontend (registration switch, site name, etc).
+func (h *SettingsHandler) SiteConfig(c *gin.Context) {
+	out, err := h.settings.Public()
+	if err != nil {
+		errorResponse(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, out)
+}
+
 type testMailRequest struct {
 	To string `json:"to" binding:"required"`
 }
 
-// TestMail handles POST /admin/settings/test-mail — verifies SMTP settings.
+// TestMail handles POST /admin/settings/test-mail.
 func (h *SettingsHandler) TestMail(c *gin.Context) {
 	var req testMailRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请提供收件邮箱"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请填写收件邮箱"})
 		return
 	}
-	if err := h.mailer.Send(req.To, "Blog 平台测试邮件", "这是一封测试邮件，收到即说明 SMTP 配置正确。"); err != nil {
+	err := h.mailer.Send(req.To, "InkStone 测试邮件", "这是一封测试邮件，收到即说明 SMTP 配置成功。")
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

@@ -6,10 +6,10 @@ import { SiteFooter } from "@/components/site-footer";
 
 export const metadata: Metadata = {
   title: {
-    default: "Blog 平台",
-    template: "%s | Blog 平台",
+    default: "InkStone",
+    template: "%s | InkStone",
   },
-  description: "多用户博客平台",
+  description: "InkStone — 现代化多用户博客系统",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="InkStone">
+  <defs>
+    <linearGradient id="stone" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#27272a"/>
+      <stop offset="1" stop-color="#09090b"/>
+    </linearGradient>
+    <linearGradient id="pool" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#60a5fa"/>
+      <stop offset="0.55" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <radialGradient id="sheen" cx="0.35" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="0.6" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 砚台台身 -->
+  <rect x="56" y="56" width="400" height="400" rx="104" fill="url(#stone)"/>
+  <!-- 台面内边 -->
+  <rect x="86" y="86" width="340" height="340" rx="84" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="3"/>
+
+  <!-- 墨池 -->
+  <circle cx="256" cy="248" r="112" fill="url(#pool)"/>
+  <circle cx="256" cy="248" r="112" fill="url(#sheen)"/>
+  <!-- 墨池高光 -->
+  <ellipse cx="214" cy="206" rx="30" ry="16" fill="#ffffff" fill-opacity="0.35" transform="rotate(-28 214 206)"/>
+
+  <!-- 笔锋墨痕 -->
+  <path d="M164 352 Q256 404 348 352" fill="none" stroke="#ffffff" stroke-opacity="0.16" stroke-width="16" stroke-linecap="round"/>
+</svg>

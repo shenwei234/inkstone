@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/blog-platform/backend/internal/repository"
-	"github.com/blog-platform/backend/internal/service"
+	"github.com/shenwei/inkstone/backend/internal/repository"
+	"github.com/shenwei/inkstone/backend/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
