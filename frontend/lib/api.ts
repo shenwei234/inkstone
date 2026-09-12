@@ -323,6 +323,71 @@ export function deletePage(id: number) {
   return api<void>(`/admin/pages/${id}`, { method: 'DELETE', auth: true })
 }
 
+// ---------- Friend Links API ----------
+
+export interface PublicFriendLink {
+  id: number
+  name: string
+  url?: string
+  masked_url: string
+  icon_url?: string
+  description?: string
+  available: boolean
+}
+
+export interface AdminFriendLink {
+  id: number
+  name: string
+  url: string
+  check_url: string
+  icon_url: string
+  description: string
+  sort_order: number
+  available: boolean
+  last_checked_at: string | null
+  created_at: string
+}
+
+export interface FriendLinkInput {
+  name: string
+  url: string
+  check_url?: string
+  icon_url?: string
+  description?: string
+  sort_order?: number
+}
+
+export function fetchFriendLinks() {
+  return api<{ links: PublicFriendLink[] }>('/links')
+}
+
+export function fetchAdminLinks() {
+  return api<{ links: AdminFriendLink[] }>('/admin/links', { auth: true })
+}
+
+export function createFriendLink(input: FriendLinkInput) {
+  return api<{ link: AdminFriendLink }>('/admin/links', { method: 'POST', body: input, auth: true })
+}
+
+export function updateFriendLink(id: number, input: FriendLinkInput) {
+  return api<{ link: AdminFriendLink }>(`/admin/links/${id}`, { method: 'PUT', body: input, auth: true })
+}
+
+export function deleteFriendLink(id: number) {
+  return api<void>(`/admin/links/${id}`, { method: 'DELETE', auth: true })
+}
+
+export function checkAllFriendLinks() {
+  return api<{ links: AdminFriendLink[]; checked: number }>('/admin/links/check', {
+    method: 'POST',
+    auth: true,
+  })
+}
+
+export function checkFriendLink(id: number) {
+  return api<{ available: boolean }>(`/admin/links/${id}/check`, { method: 'POST', auth: true })
+}
+
 // ---------- System / Account API ----------
 
 export interface SystemInfo {

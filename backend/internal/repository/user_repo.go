@@ -4,8 +4,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/shenwei/inkstone/backend/internal/model"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/shenwei/inkstone/backend/internal/model"
 	"gorm.io/gorm"
 )
 

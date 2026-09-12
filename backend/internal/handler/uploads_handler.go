@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/shenwei/inkstone/backend/pkg/config"
 	"github.com/gin-gonic/gin"
+	"github.com/shenwei/inkstone/backend/pkg/config"
 )
 
 const maxUploadBytes = 10 << 20 // 10MB

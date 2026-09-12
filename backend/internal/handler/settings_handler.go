@@ -3,9 +3,9 @@ package handler
 import (
 	"net/http"
 
+	"github.com/gin-gonic/gin"
 	"github.com/shenwei/inkstone/backend/internal/service"
 	"github.com/shenwei/inkstone/backend/pkg/mailer"
-	"github.com/gin-gonic/gin"
 )
 
 type SettingsHandler struct {
