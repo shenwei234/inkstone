@@ -155,6 +155,11 @@ docker compose up -d --build      # 更新代码后重新部署
 
 ---
 
+## 方式二点五：宝塔面板部署（国内服务器推荐）
+
+有宝塔面板 + 域名时，见独立教程：**[docs/宝塔部署教程.md](docs/宝塔部署教程.md)**
+使用 docker-compose.baota.yml（服务仅监听 127.0.0.1，由宝塔 Nginx 反代 + SSL）。
+
 ## 方式三：VPS 生产部署（含域名 + HTTPS）
 
 以 Ubuntu 22.04 + Caddy（自动 HTTPS）为例。

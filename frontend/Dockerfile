@@ -1,6 +1,9 @@
 # ---------- 构建阶段 ----------
 FROM node:22-alpine AS builder
 
+# 国内服务器走 npmmirror（如服务器在海外可删掉本行）
+RUN npm config set registry https://registry.npmmirror.com
+
 WORKDIR /build
 
 COPY package.json package-lock.json ./
@@ -18,7 +21,8 @@ RUN npm run build
 FROM node:22-alpine AS runner
 
 WORKDIR /app
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    TZ=Asia/Shanghai
 
 COPY --from=builder /build/package.json /build/package-lock.json ./
 COPY --from=builder /build/node_modules ./node_modules

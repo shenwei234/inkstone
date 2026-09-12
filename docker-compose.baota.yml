@@ -1,0 +1,64 @@
+# InkStone — 宝塔面板专用部署编排
+# 特点：前端/后端仅监听 127.0.0.1，外网统一由宝塔 Nginx 反向代理 + SSL
+# 用法：cp .env.example .env && 编辑 .env（填域名）&& docker compose -f docker-compose.baota.yml up -d --build
+# 详细步骤见 docs/宝塔部署教程.md
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: inkstone-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-blog}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-blog_password}
+      POSTGRES_DB: ${DB_NAME:-blog_platform}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-blog} -d ${DB_NAME:-blog_platform}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    # 数据库不暴露到公网，只在 Docker 内网访问
+
+  backend:
+    build: ./backend
+    container_name: inkstone-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      PORT: 8080
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-blog}
+      DB_PASSWORD: ${DB_PASSWORD:-blog_password}
+      DB_NAME: ${DB_NAME:-blog_platform}
+      JWT_SECRET: ${JWT_SECRET:?请在 .env 中设置 JWT_SECRET}
+      FRONTEND_URL: ${FRONTEND_URL}
+      PUBLIC_API_URL: ${PUBLIC_API_URL}
+    volumes:
+      - uploads_data:/app/data
+    ports:
+      # 仅本机可访问，宝塔 Nginx 转发 /api/v1 与 /uploads 到这里
+      - "127.0.0.1:8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # 构建期注入：必须与最终访问域名一致
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    container_name: inkstone-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      # 仅本机可访问，宝塔 Nginx 转发站点根路径到这里
+      - "127.0.0.1:3000:3000"
+
+volumes:
+  postgres_data:
+  uploads_data:
