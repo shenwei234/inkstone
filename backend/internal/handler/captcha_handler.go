@@ -16,10 +16,13 @@ func NewCaptchaHandler(captcha *service.CaptchaService) *CaptchaHandler {
 }
 
 // Challenge handles GET /captcha/challenge — issues a signed arithmetic
-// challenge when the built-in provider is active.
+// challenge. It is the primary widget for the built-in provider, and also
+// serves as the graceful fallback when an external provider (GeeTest)
+// fails to load in the visitor's browser.
 func (h *CaptchaHandler) Challenge(c *gin.Context) {
-	if h.captcha.Provider() != service.CaptchaProviderBuiltin {
-		c.JSON(http.StatusOK, gin.H{"provider": h.captcha.Provider(), "enabled": false})
+	provider := h.captcha.Provider()
+	if provider == service.CaptchaProviderNone {
+		c.JSON(http.StatusOK, gin.H{"provider": provider, "enabled": false})
 		return
 	}
 	question, token, err := h.captcha.NewChallenge()
@@ -30,6 +33,7 @@ func (h *CaptchaHandler) Challenge(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"provider": service.CaptchaProviderBuiltin,
 		"enabled":  true,
+		"fallback": provider != service.CaptchaProviderBuiltin,
 		"question": question,
 		"token":    token,
 	})
