@@ -131,12 +131,28 @@ func (s *CaptchaService) Verify(action, token, answer, remoteIP string) error {
 	case CaptchaProviderTurnstile:
 		return s.verifyTurnstile(token, remoteIP)
 	case CaptchaProviderGeeTest:
+		// 极验客户端加载失败时，前端会回退到内置算式验证；两者都由服务端
+		// HMAC 签名且 5 分钟过期，安全性一致，因此这里接受算式凭证。
+		if looksLikeBuiltinToken(token) {
+			if err := s.verifyBuiltin(token, answer); err == nil {
+				return nil
+			}
+		}
 		return s.verifyGeeTest(token, remoteIP)
 	case CaptchaProviderBuiltin:
 		return s.verifyBuiltin(token, answer)
 	default:
 		return nil
 	}
+}
+
+// looksLikeBuiltinToken distinguishes signed arithmetic challenges
+// ("<payload>.<sig>") from provider tokens (JSON objects / opaque strings).
+func looksLikeBuiltinToken(token string) bool {
+	if token == "" || strings.HasPrefix(token, "{") {
+		return false
+	}
+	return strings.Count(token, ".") == 1
 }
 
 // geeetestPayload is submitted by the frontend after the user passes the

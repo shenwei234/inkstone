@@ -159,37 +159,47 @@ function GeeTestWidget({
     }
     let cancelled = false
 
+    // 极验初始化需要访问 gcaptcha4.geetest.com，若网络受限则超时降级
+    const timeout = setTimeout(() => {
+      if (!cancelled) setFailed(true)
+    }, 12000)
+
     const init = () => {
+      clearTimeout(timeout)
       if (cancelled || !holderRef.current || !window.initGeetest4) return
-      window.initGeetest4(
-        {
-          captchaId,
-          // 弹窗样式：隐藏自带的悬浮按钮，由我们自己的按钮触发 showCaptcha()
-          product: 'float',
-          language: 'zho',
-          riskType: 'bind',
-        },
-        (gt) => {
-          if (cancelled) return
-          instanceRef.current = gt
-          gt.appendTo(holderRef.current as HTMLElement)
-          gt.onSuccess(() => {
-            const result = gt.getValidate()
-            if (result) {
-              onChange({ captcha_token: JSON.stringify(result) })
-              setVerified(true)
-            }
-          })
-          gt.onError(() => setFailed(true))
-          // 用户关闭弹窗且未通过时清空 token，避免提交旧凭证
-          gt.onClose?.(() => {
-            if (!gt.getValidate()) {
-              onChange({ captcha_token: '' })
-            }
-          })
-          setReady(true)
-        },
-      )
+      try {
+        window.initGeetest4(
+          {
+            captchaId,
+            // 弹窗样式：隐藏自带的悬浮按钮，由我们自己的按钮触发 showCaptcha()
+            product: 'float',
+            language: 'zho',
+            riskType: 'bind',
+          },
+          (gt) => {
+            if (cancelled) return
+            instanceRef.current = gt
+            gt.appendTo(holderRef.current as HTMLElement)
+            gt.onSuccess(() => {
+              const result = gt.getValidate()
+              if (result) {
+                onChange({ captcha_token: JSON.stringify(result) })
+                setVerified(true)
+              }
+            })
+            gt.onError(() => setFailed(true))
+            // 用户关闭弹窗且未通过时清空 token，避免提交旧凭证
+            gt.onClose?.(() => {
+              if (!gt.getValidate()) {
+                onChange({ captcha_token: '' })
+              }
+            })
+            setReady(true)
+          },
+        )
+      } catch {
+        setFailed(true)
+      }
     }
 
     if (window.initGeetest4) {
@@ -198,6 +208,7 @@ function GeeTestWidget({
       const existing = document.querySelector<HTMLScriptElement>(`script[src="${GEETEST_SCRIPT}"]`)
       if (existing) {
         existing.addEventListener('load', init)
+        existing.addEventListener('error', () => setFailed(true))
       } else {
         const script = document.createElement('script')
         script.src = GEETEST_SCRIPT
@@ -210,6 +221,7 @@ function GeeTestWidget({
 
     return () => {
       cancelled = true
+      clearTimeout(timeout)
     }
   }, [captchaId, onChange])
 
@@ -232,9 +244,14 @@ function GeeTestWidget({
 
   if (failed) {
     return (
-      <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
-        极验人机验证加载失败，请刷新页面重试（或将验证方式改为内置算式）
-      </p>
+      <div className="space-y-2">
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
+          {captchaId
+            ? '极验加载失败（网络受限或域名未加入极验白名单），已自动切换为算式验证'
+            : '极验未配置 Captcha ID，已自动切换为算式验证'}
+        </p>
+        <BuiltinWidget onChange={onChange} />
+      </div>
     )
   }
 
