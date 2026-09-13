@@ -19,6 +19,7 @@ type Config struct {
 	FrontendURL  string
 	PublicAPIURL string
 	UploadDir    string
+	FilesDir     string
 }
 
 func Load() *Config {
@@ -36,6 +37,7 @@ func Load() *Config {
 		FrontendURL:  getEnv("FRONTEND_URL", "http://localhost:3000"),
 		PublicAPIURL: getEnv("PUBLIC_API_URL", ""),
 		UploadDir:    getEnv("UPLOAD_DIR", "./data/uploads"),
+		FilesDir:     getEnv("FILES_DIR", "./data/files"),
 	}
 }
 

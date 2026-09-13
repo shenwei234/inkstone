@@ -26,6 +26,9 @@ const (
 	SettingSMTPPass          = "smtp_pass"
 	SettingSMTPFrom          = "smtp_from" // From header, e.g. "Blog <no-reply@x.com>"
 	SettingUpdateManifest    = "update_manifest_url"
+	SettingUploadMaxMB       = "upload_max_mb"     // 文件管理：最大上传大小（MB）
+	SettingUploadSpeedKB     = "upload_speed_kb"   // 文件管理：上传限速（KB/s，0=不限）
+	SettingDownloadSpeedKB   = "download_speed_kb" // 文件管理：下载限速（KB/s，0=不限）
 )
 
 var settingDefaults = map[string]string{
@@ -44,6 +47,9 @@ var settingDefaults = map[string]string{
 	SettingSMTPPass:          "",
 	SettingSMTPFrom:          "",
 	SettingUpdateManifest:    "",
+	SettingUploadMaxMB:       "50",
+	SettingUploadSpeedKB:     "0",
+	SettingDownloadSpeedKB:   "0",
 }
 
 // jsonSettingKeys hold JSON arrays; they are decoded before leaving the API.
@@ -118,6 +124,30 @@ func (s *SettingsService) Get(key string) (string, error) {
 		return "", err
 	}
 	return all[key], nil
+}
+
+// IntValue reads a numeric setting, falling back to fallback on parse errors.
+func (s *SettingsService) IntValue(key string, fallback int) int {
+	v, err := s.Get(key)
+	if err != nil || v == "" {
+		return fallback
+	}
+	n := 0
+	neg := false
+	for i, ch := range v {
+		if i == 0 && ch == '-' {
+			neg = true
+			continue
+		}
+		if ch < '0' || ch > '9' {
+			return fallback
+		}
+		n = n*10 + int(ch-'0')
+	}
+	if neg {
+		n = -n
+	}
+	return n
 }
 
 // AllowRegistration reports whether open registration is enabled.

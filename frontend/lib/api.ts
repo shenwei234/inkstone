@@ -388,6 +388,112 @@ export function checkFriendLink(id: number) {
   return api<{ available: boolean }>(`/admin/links/${id}/check`, { method: 'POST', auth: true })
 }
 
+// ---------- File Manager API ----------
+
+export interface FileAssetItem {
+  id: number
+  stored_name: string
+  original_name: string
+  size: number
+  mime_type: string
+  url: string
+  created_at: string
+}
+
+export interface FileListResponse {
+  files: FileAssetItem[]
+  total: number
+  page: number
+  page_size: number
+  total_size: number
+  max_upload_mb: number
+}
+
+export function fetchFiles(params: { page?: number; page_size?: number; q?: string } = {}) {
+  const search = new URLSearchParams()
+  if (params.page) search.set('page', String(params.page))
+  if (params.page_size) search.set('page_size', String(params.page_size))
+  if (params.q) search.set('q', params.q)
+  const qs = search.toString()
+  return api<FileListResponse>(`/admin/files${qs ? `?${qs}` : ''}`, { auth: true })
+}
+
+export function deleteFile(id: number) {
+  return api<void>(`/admin/files/${id}`, { method: 'DELETE', auth: true })
+}
+
+export function fileDownloadUrl(id: number) {
+  return `${API_BASE}/admin/files/${id}/download`
+}
+
+/** Downloads a file through the authenticated API and triggers a browser save. */
+export async function downloadFile(id: number, filename: string): Promise<void> {
+  const token = getAccessToken()
+  const headers: Record<string, string> = {}
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  const res = await fetch(`${API_BASE}/admin/files/${id}/download`, { headers })
+  if (!res.ok) {
+    let message = `下载失败 (${res.status})`
+    try {
+      const data = await res.json()
+      if (data && typeof data.error === 'string') message = data.error
+    } catch {
+      // keep default
+    }
+    throw new ApiError(res.status, message)
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
+/** Uploads a file with progress reporting (XHR, since fetch has no upload progress). */
+export function uploadFile(
+  file: File,
+  onProgress?: (percent: number) => void,
+): Promise<{ file: FileAssetItem }> {
+  return new Promise((resolve, reject) => {
+    const token = getAccessToken()
+    const form = new FormData()
+    form.append('file', file)
+
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `${API_BASE}/admin/files`)
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100))
+      }
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText))
+        } catch {
+          reject(new ApiError(xhr.status, '响应解析失败'))
+        }
+      } else {
+        let message = `上传失败 (${xhr.status})`
+        try {
+          const data = JSON.parse(xhr.responseText)
+          if (data && typeof data.error === 'string') message = data.error
+        } catch {
+          // keep default
+        }
+        reject(new ApiError(xhr.status, message))
+      }
+    }
+    xhr.onerror = () => reject(new ApiError(0, '网络错误，上传失败'))
+    xhr.send(form)
+  })
+}
+
 // ---------- System / Account API ----------
 
 export interface SystemInfo {
