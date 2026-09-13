@@ -42,14 +42,17 @@ func (h *TaxonomyHandler) ListTags(c *gin.Context) {
 type CommentHandler struct {
 	comments *service.CommentService
 	tokens   *service.TokenManager
+	captcha  *service.CaptchaService
 }
 
-func NewCommentHandler(comments *service.CommentService, tokens *service.TokenManager) *CommentHandler {
-	return &CommentHandler{comments: comments, tokens: tokens}
+func NewCommentHandler(comments *service.CommentService, tokens *service.TokenManager, captcha *service.CaptchaService) *CommentHandler {
+	return &CommentHandler{comments: comments, tokens: tokens, captcha: captcha}
 }
 
 type createCommentRequest struct {
-	Content string `json:"content" binding:"required"`
+	Content       string `json:"content" binding:"required"`
+	CaptchaToken  string `json:"captcha_token"`
+	CaptchaAnswer string `json:"captcha_answer"`
 }
 
 // Create handles POST /articles/:id/comments.
@@ -67,6 +70,10 @@ func (h *CommentHandler) Create(c *gin.Context) {
 	var req createCommentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "评论内容不能为空"})
+		return
+	}
+	if err := h.captcha.Verify(service.CaptchaActionComment, req.CaptchaToken, req.CaptchaAnswer, middleware.ClientIP(c)); err != nil {
+		errorResponse(c, err)
 		return
 	}
 	comment, err := h.comments.Create(uint(articleID), current.ID, req.Content)

@@ -26,6 +26,8 @@ import {
 } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { useNotify } from '@/components/toast'
+import { useSiteConfig } from '@/components/site-config-context'
+import { Captcha, type CaptchaResult } from '@/components/captcha'
 import { PageTransition } from '@/components/motion'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
@@ -37,6 +39,8 @@ export default function PostPage({ params }: { params: Promise<{ slug: string }>
   const router = useRouter()
   const queryClient = useQueryClient()
   const [commentText, setCommentText] = useState('')
+  const site = useSiteConfig()
+  const [captcha, setCaptcha] = useState<CaptchaResult>({})
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['article', 'slug', slug],
@@ -64,9 +68,10 @@ export default function PostPage({ params }: { params: Promise<{ slug: string }>
   })
 
   const addComment = useMutation({
-    mutationFn: () => postComment(articleId!, commentText),
+    mutationFn: () => postComment(articleId!, commentText, captcha),
     onSuccess: () => {
       setCommentText('')
+      setCaptcha({})
       queryClient.invalidateQueries({ queryKey: ['comments', articleId] })
       notify.success('评论已发布')
     },
@@ -266,6 +271,9 @@ export default function PostPage({ params }: { params: Promise<{ slug: string }>
                 maxLength={1000}
                 className="w-full resize-y rounded-lg border border-border bg-card px-4 py-3 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20"
               />
+              <div className="mt-2">
+                <Captcha config={site.captcha} action="comment" onChange={setCaptcha} />
+              </div>
               <div className="mt-2 flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">{commentText.length}/1000</span>
                 <motion.button

@@ -15,18 +15,21 @@ import (
 
 type ArticleHandler struct {
 	articles *service.ArticleService
+	captcha  *service.CaptchaService
 }
 
-func NewArticleHandler(articles *service.ArticleService) *ArticleHandler {
-	return &ArticleHandler{articles: articles}
+func NewArticleHandler(articles *service.ArticleService, captcha *service.CaptchaService) *ArticleHandler {
+	return &ArticleHandler{articles: articles, captcha: captcha}
 }
 
 type articleRequest struct {
-	Title      string   `json:"title" binding:"required"`
-	Content    string   `json:"content" binding:"required"`
-	Status     string   `json:"status"`
-	CategoryID *uint    `json:"category_id"`
-	Tags       []string `json:"tags"`
+	Title         string   `json:"title" binding:"required"`
+	Content       string   `json:"content" binding:"required"`
+	Status        string   `json:"status"`
+	CategoryID    *uint    `json:"category_id"`
+	Tags          []string `json:"tags"`
+	CaptchaToken  string   `json:"captcha_token"`
+	CaptchaAnswer string   `json:"captcha_answer"`
 }
 
 type articleUpdateRequest struct {
@@ -109,6 +112,13 @@ func (h *ArticleHandler) Create(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请提供标题和内容"})
 		return
+	}
+
+	if req.Status != model.ArticleDraft {
+		if err := h.captcha.Verify(service.CaptchaActionArticle, req.CaptchaToken, req.CaptchaAnswer, middleware.ClientIP(c)); err != nil {
+			errorResponse(c, err)
+			return
+		}
 	}
 
 	article, err := h.articles.Create(current.ID, service.ArticleInput{

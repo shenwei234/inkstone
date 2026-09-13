@@ -11,10 +11,11 @@ import (
 type SettingsHandler struct {
 	settings *service.SettingsService
 	mailer   *mailer.Mailer
+	captcha  *service.CaptchaService
 }
 
-func NewSettingsHandler(settings *service.SettingsService, mailClient *mailer.Mailer) *SettingsHandler {
-	return &SettingsHandler{settings: settings, mailer: mailClient}
+func NewSettingsHandler(settings *service.SettingsService, mailClient *mailer.Mailer, captcha *service.CaptchaService) *SettingsHandler {
+	return &SettingsHandler{settings: settings, mailer: mailClient, captcha: captcha}
 }
 
 // Get handles GET /admin/settings.
@@ -53,12 +54,15 @@ func (h *SettingsHandler) Update(c *gin.Context) {
 }
 
 // SiteConfig handles GET /api/v1/site-config — non-sensitive settings for
-// the frontend (registration switch, site name, etc).
+// the frontend (registration switch, site name, captcha config, etc).
 func (h *SettingsHandler) SiteConfig(c *gin.Context) {
 	out, err := h.settings.Public()
 	if err != nil {
 		errorResponse(c, err)
 		return
+	}
+	if h.captcha != nil {
+		out["captcha"] = h.captcha.PublicConfig()
 	}
 	c.JSON(http.StatusOK, out)
 }
