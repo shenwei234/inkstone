@@ -29,6 +29,23 @@ const (
 	SettingUploadMaxMB       = "upload_max_mb"     // 文件管理：最大上传大小（MB）
 	SettingUploadSpeedKB     = "upload_speed_kb"   // 文件管理：上传限速（KB/s，0=不限）
 	SettingDownloadSpeedKB   = "download_speed_kb" // 文件管理：下载限速（KB/s，0=不限）
+
+	// 人机验证
+	SettingCaptchaProvider   = "captcha_provider"    // none | turnstile | builtin
+	SettingCaptchaSiteKey    = "captcha_site_key"    // Turnstile site key（公开）
+	SettingCaptchaSecretKey  = "captcha_secret_key"  // Turnstile secret key（保密）
+	SettingCaptchaOnRegister = "captcha_on_register" // 注册开启验证
+	SettingCaptchaOnLogin    = "captcha_on_login"    // 登录开启验证
+	SettingCaptchaOnComment  = "captcha_on_comment"  // 评论开启验证
+	SettingCaptchaOnArticle  = "captcha_on_article"  // 发文开启验证
+
+	// 安全防护
+	SettingSecurityEnabled      = "security_enabled"       // 主开关
+	SettingSecurityLoginMax     = "security_login_max"     // 登录失败次数上限/15 分钟
+	SettingSecurityRegisterMax  = "security_register_max"  // 注册次数上限/小时
+	SettingSecurityCommentMax   = "security_comment_max"   // 评论次数上限/10 分钟
+	SettingSecurityAPIMax       = "security_api_max"       // 单 IP API 请求上限/分钟
+	SettingSecurityBlockMinutes = "security_block_minutes" // 触发后封禁时长（分钟）
 )
 
 var settingDefaults = map[string]string{
@@ -50,6 +67,21 @@ var settingDefaults = map[string]string{
 	SettingUploadMaxMB:       "50",
 	SettingUploadSpeedKB:     "0",
 	SettingDownloadSpeedKB:   "0",
+
+	SettingCaptchaProvider:   "none",
+	SettingCaptchaSiteKey:    "",
+	SettingCaptchaSecretKey:  "",
+	SettingCaptchaOnRegister: "true",
+	SettingCaptchaOnLogin:    "false",
+	SettingCaptchaOnComment:  "true",
+	SettingCaptchaOnArticle:  "true",
+
+	SettingSecurityEnabled:      "true",
+	SettingSecurityLoginMax:     "10",
+	SettingSecurityRegisterMax:  "5",
+	SettingSecurityCommentMax:   "10",
+	SettingSecurityAPIMax:       "300",
+	SettingSecurityBlockMinutes: "15",
 }
 
 // jsonSettingKeys hold JSON arrays; they are decoded before leaving the API.
@@ -71,7 +103,8 @@ func decodeJSONSetting(value string) any {
 
 // maskKeys are never exposed through the public API.
 var maskKeys = map[string]bool{
-	SettingSMTPPass: true,
+	SettingSMTPPass:         true,
+	SettingCaptchaSecretKey: true,
 }
 
 type SettingsService struct {
@@ -148,6 +181,15 @@ func (s *SettingsService) IntValue(key string, fallback int) int {
 		n = -n
 	}
 	return n
+}
+
+// BoolValue reads a boolean setting ("true"/"false").
+func (s *SettingsService) BoolValue(key string, fallback bool) bool {
+	v, err := s.Get(key)
+	if err != nil || v == "" {
+		return fallback
+	}
+	return v == "true"
 }
 
 // AllowRegistration reports whether open registration is enabled.

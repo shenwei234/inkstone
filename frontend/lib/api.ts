@@ -119,19 +119,50 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   return res.json() as Promise<T>
 }
 
+// ---------- Captcha API ----------
+
+export interface CaptchaConfig {
+  provider: 'none' | 'turnstile' | 'builtin'
+  site_key: string
+  on_register: boolean
+  on_login: boolean
+  on_comment: boolean
+  on_article: boolean
+}
+
+export interface CaptchaChallenge {
+  provider: string
+  enabled: boolean
+  question?: string
+  token?: string
+}
+
+export function fetchCaptchaChallenge() {
+  return api<CaptchaChallenge>('/captcha/challenge')
+}
+
 // ---------- Auth API ----------
 
-export function register(email: string, username: string, password: string) {
+export function register(
+  email: string,
+  username: string,
+  password: string,
+  captcha?: { captcha_token?: string; captcha_answer?: string },
+) {
   return api<AuthResponse>('/auth/register', {
     method: 'POST',
-    body: { email, username, password },
+    body: { email, username, password, ...captcha },
   })
 }
 
-export function login(email: string, password: string) {
+export function login(
+  email: string,
+  password: string,
+  captcha?: { captcha_token?: string; captcha_answer?: string },
+) {
   return api<AuthResponse>('/auth/login', {
     method: 'POST',
-    body: { email, password },
+    body: { email, password, ...captcha },
   })
 }
 
@@ -182,6 +213,8 @@ export function createArticle(input: {
   status: string
   category_id?: number | null
   tags?: string[]
+  captcha_token?: string
+  captcha_answer?: string
 }) {
   return api<{ article: Article }>('/articles', { method: 'POST', body: input, auth: true })
 }
@@ -217,10 +250,14 @@ export function fetchComments(articleId: number | string) {
   return api<{ comments: CommentItem[] }>(`/articles/${articleId}/comments`)
 }
 
-export function postComment(articleId: number | string, content: string) {
+export function postComment(
+  articleId: number | string,
+  content: string,
+  captcha?: { captcha_token?: string; captcha_answer?: string },
+) {
   return api<{ comment: CommentItem }>(`/articles/${articleId}/comments`, {
     method: 'POST',
-    body: { content },
+    body: { content, ...captcha },
     auth: true,
   })
 }

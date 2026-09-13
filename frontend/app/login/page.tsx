@@ -6,14 +6,18 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { useAuth } from '@/lib/auth-context'
 import { ApiError } from '@/lib/api'
+import { useSiteConfig } from '@/components/site-config-context'
+import { Captcha, type CaptchaResult } from '@/components/captcha'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
 
 export default function LoginPage() {
   const { login } = useAuth()
+  const site = useSiteConfig()
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [captcha, setCaptcha] = useState<CaptchaResult>({})
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -22,7 +26,7 @@ export default function LoginPage() {
     setError(null)
     setSubmitting(true)
     try {
-      const loggedIn = await login(email, password)
+      const loggedIn = await login(email, password, captcha)
       router.push(loggedIn.role === 'admin' ? '/admin' : '/')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '登录失败，请稍后重试')
@@ -94,6 +98,8 @@ export default function LoginPage() {
                 className={inputClass}
               />
             </div>
+
+            <Captcha config={site.captcha} action="login" onChange={setCaptcha} />
 
             {error && (
               <motion.p

@@ -10,22 +10,27 @@ import (
 )
 
 type AuthHandler struct {
-	auth *service.AuthService
+	auth    *service.AuthService
+	captcha *service.CaptchaService
 }
 
-func NewAuthHandler(auth *service.AuthService) *AuthHandler {
-	return &AuthHandler{auth: auth}
+func NewAuthHandler(auth *service.AuthService, captcha *service.CaptchaService) *AuthHandler {
+	return &AuthHandler{auth: auth, captcha: captcha}
 }
 
 type registerRequest struct {
-	Email    string `json:"email" binding:"required"`
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Email         string `json:"email" binding:"required"`
+	Username      string `json:"username" binding:"required"`
+	Password      string `json:"password" binding:"required"`
+	CaptchaToken  string `json:"captcha_token"`
+	CaptchaAnswer string `json:"captcha_answer"`
 }
 
 type loginRequest struct {
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Email         string `json:"email" binding:"required"`
+	Password      string `json:"password" binding:"required"`
+	CaptchaToken  string `json:"captcha_token"`
+	CaptchaAnswer string `json:"captcha_answer"`
 }
 
 type refreshRequest struct {
@@ -43,6 +48,11 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	var req registerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请填写完整的注册信息"})
+		return
+	}
+
+	if err := h.captcha.Verify(service.CaptchaActionRegister, req.CaptchaToken, req.CaptchaAnswer, middleware.ClientIP(c)); err != nil {
+		errorResponse(c, err)
 		return
 	}
 
@@ -66,6 +76,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	var req loginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请填写邮箱和密码"})
+		return
+	}
+
+	if err := h.captcha.Verify(service.CaptchaActionLogin, req.CaptchaToken, req.CaptchaAnswer, middleware.ClientIP(c)); err != nil {
+		errorResponse(c, err)
 		return
 	}
 

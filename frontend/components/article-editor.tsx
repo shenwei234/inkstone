@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
@@ -18,6 +18,8 @@ import type { Article } from '@/lib/types'
 import { PageTransition } from '@/components/motion'
 import { RichEditor } from '@/components/rich-editor'
 import { useNotify } from '@/components/toast'
+import { useSiteConfig } from '@/components/site-config-context'
+import { Captcha, type CaptchaResult } from '@/components/captcha'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
 
@@ -40,6 +42,8 @@ function EditorShell({ mode, article }: EditorShellProps) {
   const [tags, setTags] = useState<string[]>((article?.tags ?? []).map((t) => t.name))
   const [tagInput, setTagInput] = useState('')
   const notify = useNotify()
+  const site = useSiteConfig()
+  const [captcha, setCaptcha] = useState<CaptchaResult>({})
 
   const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
 
@@ -98,7 +102,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
 
   const publish = useMutation({
     mutationFn: async () => {
-      const body = { title, content, status: 'published', category_id: categoryId, tags }
+      const body = { title, content, status: 'published', category_id: categoryId, tags, ...captcha }
       if (mode === 'edit' && article) {
         return updateArticle(article.id, body)
       }
@@ -349,6 +353,15 @@ function EditorShell({ mode, article }: EditorShellProps) {
               )}
             </div>
           </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.35 }}
+          className="mt-4 flex justify-center"
+        >
+          <Captcha config={site.captcha} action="article" onChange={setCaptcha} />
         </motion.div>
 
         <motion.p

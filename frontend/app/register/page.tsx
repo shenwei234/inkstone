@@ -8,12 +8,16 @@ import { motion } from 'framer-motion'
 import { fetchSiteConfig } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { ApiError } from '@/lib/api'
+import { useSiteConfig } from '@/components/site-config-context'
+import { Captcha, type CaptchaResult } from '@/components/captcha'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
 
 export default function RegisterPage() {
   const { register } = useAuth()
+  const site = useSiteConfig()
   const router = useRouter()
+  const [captcha, setCaptcha] = useState<CaptchaResult>({})
   const configQuery = useQuery({ queryKey: ['site-config'], queryFn: fetchSiteConfig })
   const registrationOpen = configQuery.data?.allow_registration !== false
   const [email, setEmail] = useState('')
@@ -27,7 +31,7 @@ export default function RegisterPage() {
     setError(null)
     setSubmitting(true)
     try {
-      const newUser = await register(email, username, password)
+      const newUser = await register(email, username, password, captcha)
       router.push(newUser.role === 'admin' ? '/admin' : '/')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '注册失败，请稍后重试')
@@ -123,6 +127,8 @@ export default function RegisterPage() {
                 />
               </motion.div>
             ))}
+
+            <Captcha config={site.captcha} action="register" onChange={setCaptcha} />
 
             {error && (
               <motion.p

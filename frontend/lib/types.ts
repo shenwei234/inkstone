@@ -83,6 +83,21 @@ export interface SiteSettings {
   smtp_user: string
   smtp_from: string
   smtp_pass_set?: boolean
+  upload_max_mb?: number
+  upload_speed_kb?: number
+  download_speed_kb?: number
+  security_enabled?: boolean
+  security_api_max?: number
+  security_login_max?: number
+  security_register_max?: number
+  security_comment_max?: number
+  security_block_minutes?: number
+  captcha_provider?: 'none' | 'turnstile' | 'builtin'
+  captcha_site_key?: string
+  captcha_on_register?: boolean
+  captcha_on_login?: boolean
+  captcha_on_comment?: boolean
+  captcha_on_article?: boolean
 }
 
 export interface ArticleListResponse {

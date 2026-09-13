@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shenwei/inkstone/backend/internal/handler"
@@ -45,18 +46,22 @@ func main() {
 	fileRepo := repository.NewFileRepository(db)
 	fileSvc := service.NewFileService(fileRepo, settingsSvc, cfg.FilesDir)
 
-	authHandler := handler.NewAuthHandler(authSvc)
-	articleHandler := handler.NewArticleHandler(articleSvc)
+	captchaSvc := service.NewCaptchaService(settingsSvc, cfg.JWTSecret)
+	apiLimiter := middleware.NewSlidingLimiter()
+
+	authHandler := handler.NewAuthHandler(authSvc, captchaSvc)
+	articleHandler := handler.NewArticleHandler(articleSvc, captchaSvc)
 	adminHandler := handler.NewAdminHandler(adminSvc, userRepo, articleSvc, articleRepo, commentSvc)
 	taxonomyHandler := handler.NewTaxonomyHandler(taxonomyRepo)
-	commentHandler := handler.NewCommentHandler(commentSvc, tokens)
+	commentHandler := handler.NewCommentHandler(commentSvc, tokens, captchaSvc)
 	reactionHandler := handler.NewReactionHandler(reactionSvc)
 	rssHandler := handler.NewRSSHandler(articleSvc, cfg.FrontendURL)
-	settingsHandler := handler.NewSettingsHandler(settingsSvc, mailer)
+	settingsHandler := handler.NewSettingsHandler(settingsSvc, mailer, captchaSvc)
 	pageHandler := handler.NewPageHandler(pageSvc)
 	systemHandler := handler.NewSystemHandler(settingsSvc)
 	linkHandler := handler.NewLinkHandler(linkSvc)
 	fileHandler := handler.NewFileHandler(fileSvc, cfg.PublicAPIURL)
+	captchaHandler := handler.NewCaptchaHandler(captchaSvc)
 
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
@@ -64,8 +69,68 @@ func main() {
 
 	router := gin.New()
 	router.Use(gin.Logger(), gin.Recovery())
+	router.Use(middleware.SecurityHeaders())
 	router.Use(middleware.CORS([]string{cfg.FrontendURL}))
 	router.MaxMultipartMemory = 12 << 20
+
+	securityEnabled := func() bool {
+		return settingsSvc.BoolValue(service.SettingSecurityEnabled, true)
+	}
+	rateLimitMiddle := middleware.IPRateLimit(middleware.RateLimitConfig{
+		Limiter: apiLimiter,
+		LimitFn: func() int {
+			if !securityEnabled() {
+				return 0
+			}
+			return settingsSvc.IntValue(service.SettingSecurityAPIMax, 300)
+		},
+		Window:  time.Minute,
+		Message: "api",
+	})
+	loginLimit := middleware.IPRateLimit(middleware.RateLimitConfig{
+		Limiter: apiLimiter,
+		LimitFn: func() int {
+			if !securityEnabled() {
+				return 0
+			}
+			return settingsSvc.IntValue(service.SettingSecurityLoginMax, 10)
+		},
+		Window:  15 * time.Minute,
+		Message: "login",
+	})
+	registerLimit := middleware.IPRateLimit(middleware.RateLimitConfig{
+		Limiter: apiLimiter,
+		LimitFn: func() int {
+			if !securityEnabled() {
+				return 0
+			}
+			return settingsSvc.IntValue(service.SettingSecurityRegisterMax, 5)
+		},
+		Window:  time.Hour,
+		Message: "register",
+	})
+	articleLimit := middleware.IPRateLimit(middleware.RateLimitConfig{
+		Limiter: apiLimiter,
+		LimitFn: func() int {
+			if !securityEnabled() {
+				return 0
+			}
+			return settingsSvc.IntValue(service.SettingSecurityCommentMax, 10)
+		},
+		Window:  10 * time.Minute,
+		Message: "article",
+	})
+	commentLimit := middleware.IPRateLimit(middleware.RateLimitConfig{
+		Limiter: apiLimiter,
+		LimitFn: func() int {
+			if !securityEnabled() {
+				return 0
+			}
+			return settingsSvc.IntValue(service.SettingSecurityCommentMax, 10)
+		},
+		Window:  10 * time.Minute,
+		Message: "comment",
+	})
 
 	userStatusOK := func(id uint) bool {
 		u, err := userRepo.FindByID(id)
@@ -81,7 +146,7 @@ func main() {
 
 	uploadsHandler := handler.NewUploadsHandler(cfg)
 
-	api := router.Group("/api/v1")
+	api := router.Group("/api/v1", rateLimitMiddle)
 	{
 		uploads := api.Group("/uploads", middleware.Auth(tokens, userStatusOK))
 		{
@@ -90,8 +155,8 @@ func main() {
 
 		auth := api.Group("/auth")
 		{
-			auth.POST("/register", authHandler.Register)
-			auth.POST("/login", authHandler.Login)
+			auth.POST("/register", registerLimit, authHandler.Register)
+			auth.POST("/login", loginLimit, authHandler.Login)
 			auth.POST("/refresh", authHandler.Refresh)
 			auth.GET("/me", middleware.Auth(tokens, userStatusOK), authHandler.Me)
 			authAuthed := api.Group("/auth", middleware.Auth(tokens, userStatusOK))
@@ -107,6 +172,7 @@ func main() {
 		api.GET("/categories", taxonomyHandler.ListCategories)
 		api.GET("/tags", taxonomyHandler.ListTags)
 		api.GET("/site-config", settingsHandler.SiteConfig)
+		api.GET("/captcha/challenge", captchaHandler.Challenge)
 		api.GET("/pages", pageHandler.ListPublic)
 		api.GET("/pages/:slug", pageHandler.GetBySlug)
 		api.GET("/links", linkHandler.ListPublic)
@@ -121,10 +187,10 @@ func main() {
 
 			authed := articles.Group("", middleware.Auth(tokens, userStatusOK))
 			{
-				authed.POST("", articleHandler.Create)
+				authed.POST("", articleLimit, articleHandler.Create)
 				authed.PUT("/:id", articleHandler.Update)
 				authed.DELETE("/:id", articleHandler.Delete)
-				authed.POST("/:id/comments", commentHandler.Create)
+				authed.POST("/:id/comments", commentLimit, commentHandler.Create)
 				authed.POST("/:id/reactions", reactionHandler.Toggle)
 			}
 		}

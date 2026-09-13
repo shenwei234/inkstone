@@ -17,6 +17,7 @@ import {
   Paintbrush,
   RefreshCw,
   Settings,
+  ShieldCheck,
   Users,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
@@ -30,6 +31,7 @@ const navItems = [
   { href: '/admin/files', label: '文件管理', icon: FolderOpen },
   { href: '/admin/links', label: '友情链接', icon: Link2 },
   { href: '/admin/appearance', label: '外观管理', icon: Paintbrush },
+  { href: '/admin/security', label: '安全防护', icon: ShieldCheck },
   { href: '/admin/settings', label: '网站管理', icon: Settings },
   { href: '/admin/updates', label: '系统更新', icon: RefreshCw },
   { href: '/admin/about', label: '关于系统', icon: Info },
