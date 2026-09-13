@@ -122,8 +122,9 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
 // ---------- Captcha API ----------
 
 export interface CaptchaConfig {
-  provider: 'none' | 'turnstile' | 'builtin'
+  provider: 'none' | 'turnstile' | 'geetest' | 'builtin'
   site_key: string
+  geetest_captcha_id?: string
   on_register: boolean
   on_login: boolean
   on_comment: boolean

@@ -31,9 +31,11 @@ const (
 	SettingDownloadSpeedKB   = "download_speed_kb" // 文件管理：下载限速（KB/s，0=不限）
 
 	// 人机验证
-	SettingCaptchaProvider   = "captcha_provider"    // none | turnstile | builtin
+	SettingCaptchaProvider   = "captcha_provider"    // none | turnstile | geetest | builtin
 	SettingCaptchaSiteKey    = "captcha_site_key"    // Turnstile site key（公开）
 	SettingCaptchaSecretKey  = "captcha_secret_key"  // Turnstile secret key（保密）
+	SettingGeeTestCaptchaID  = "geetest_captcha_id"  // 极验 Captcha ID（公开）
+	SettingGeeTestCaptchaKey = "geetest_captcha_key" // 极验 Captcha Key（保密）
 	SettingCaptchaOnRegister = "captcha_on_register" // 注册开启验证
 	SettingCaptchaOnLogin    = "captcha_on_login"    // 登录开启验证
 	SettingCaptchaOnComment  = "captcha_on_comment"  // 评论开启验证
@@ -71,6 +73,8 @@ var settingDefaults = map[string]string{
 	SettingCaptchaProvider:   "none",
 	SettingCaptchaSiteKey:    "",
 	SettingCaptchaSecretKey:  "",
+	SettingGeeTestCaptchaID:  "",
+	SettingGeeTestCaptchaKey: "",
 	SettingCaptchaOnRegister: "true",
 	SettingCaptchaOnLogin:    "false",
 	SettingCaptchaOnComment:  "true",
@@ -103,8 +107,9 @@ func decodeJSONSetting(value string) any {
 
 // maskKeys are never exposed through the public API.
 var maskKeys = map[string]bool{
-	SettingSMTPPass:         true,
-	SettingCaptchaSecretKey: true,
+	SettingSMTPPass:          true,
+	SettingCaptchaSecretKey:  true,
+	SettingGeeTestCaptchaKey: true,
 }
 
 type SettingsService struct {
