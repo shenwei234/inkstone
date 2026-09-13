@@ -92,8 +92,9 @@ export interface SiteSettings {
   security_register_max?: number
   security_comment_max?: number
   security_block_minutes?: number
-  captcha_provider?: 'none' | 'turnstile' | 'builtin'
+  captcha_provider?: 'none' | 'turnstile' | 'geetest' | 'builtin'
   captcha_site_key?: string
+  geetest_captcha_id?: string
   captcha_on_register?: boolean
   captcha_on_login?: boolean
   captcha_on_comment?: boolean

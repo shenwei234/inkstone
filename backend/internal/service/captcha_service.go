@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 const (
 	CaptchaProviderNone      = "none"
 	CaptchaProviderTurnstile = "turnstile"
+	CaptchaProviderGeeTest   = "geetest"
 	CaptchaProviderBuiltin   = "builtin"
 
 	// Actions that can require human verification.
@@ -46,7 +48,7 @@ func (s *CaptchaService) Provider() string {
 		return CaptchaProviderNone
 	}
 	switch v {
-	case CaptchaProviderTurnstile, CaptchaProviderBuiltin:
+	case CaptchaProviderTurnstile, CaptchaProviderBuiltin, CaptchaProviderGeeTest:
 		return v
 	default:
 		return CaptchaProviderNone
@@ -81,9 +83,11 @@ func (s *CaptchaService) Required(action string) bool {
 // PublicConfig exposes the browser-safe part of the captcha configuration.
 func (s *CaptchaService) PublicConfig() map[string]any {
 	siteKey, _ := s.settings.Get(SettingCaptchaSiteKey)
+	geetestID, _ := s.settings.Get(SettingGeeTestCaptchaID)
 	cfg := map[string]any{
-		"provider": s.Provider(),
-		"site_key": siteKey,
+		"provider":           s.Provider(),
+		"site_key":           siteKey,
+		"geetest_captcha_id": geetestID,
 	}
 	for _, action := range []string{
 		CaptchaActionRegister, CaptchaActionLogin, CaptchaActionComment, CaptchaActionArticle,
@@ -126,11 +130,75 @@ func (s *CaptchaService) Verify(action, token, answer, remoteIP string) error {
 	switch s.Provider() {
 	case CaptchaProviderTurnstile:
 		return s.verifyTurnstile(token, remoteIP)
+	case CaptchaProviderGeeTest:
+		return s.verifyGeeTest(token, remoteIP)
 	case CaptchaProviderBuiltin:
 		return s.verifyBuiltin(token, answer)
 	default:
 		return nil
 	}
+}
+
+// geeetestPayload is submitted by the frontend after the user passes the
+// GeeTest v4 challenge.
+type geetestPayload struct {
+	LotNumber  string `json:"lot_number"`
+	CaptchaOut string `json:"captcha_output"`
+	PassToken  string `json:"pass_token"`
+	GenTime    string `json:"gen_time"`
+}
+
+// verifyGeeTest validates a GeeTest v4 result. See:
+// https://docs.geetest.com/gt4/deploy/server/go
+func (s *CaptchaService) verifyGeeTest(token, remoteIP string) error {
+	if strings.TrimSpace(token) == "" {
+		return NewValidationError("请先完成人机验证")
+	}
+	var payload geetestPayload
+	if err := json.Unmarshal([]byte(token), &payload); err != nil {
+		return NewValidationError("人机验证数据异常，请重试")
+	}
+	if payload.LotNumber == "" || payload.CaptchaOut == "" || payload.PassToken == "" || payload.GenTime == "" {
+		return NewValidationError("人机验证未通过，请重试")
+	}
+
+	captchaID, _ := s.settings.Get(SettingGeeTestCaptchaID)
+	captchaKey, _ := s.settings.Get(SettingGeeTestCaptchaKey)
+	if strings.TrimSpace(captchaID) == "" || strings.TrimSpace(captchaKey) == "" {
+		return errors.New("极验人机验证未正确配置（缺少 Captcha ID / Key）")
+	}
+
+	// sign_token = HMAC-SHA256(lot_number, captcha_key)
+	mac := hmac.New(sha256.New, []byte(captchaKey))
+	mac.Write([]byte(payload.LotNumber))
+	signToken := hex.EncodeToString(mac.Sum(nil))
+
+	form := url.Values{}
+	form.Set("lot_number", payload.LotNumber)
+	form.Set("captcha_output", payload.CaptchaOut)
+	form.Set("pass_token", payload.PassToken)
+	form.Set("gen_time", payload.GenTime)
+	form.Set("sign_token", signToken)
+
+	endpoint := "https://gcaptcha4.geetest.com/validate?captcha_id=" + url.QueryEscape(captchaID)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.PostForm(endpoint, form)
+	if err != nil {
+		return errors.New("人机验证服务不可用，请稍后重试")
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Result string `json:"result"`
+		Reason string `json:"reason"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return errors.New("人机验证响应异常")
+	}
+	if result.Result != "success" {
+		return NewValidationError("人机验证未通过，请重试")
+	}
+	return nil
 }
 
 func (s *CaptchaService) verifyTurnstile(token, remoteIP string) error {

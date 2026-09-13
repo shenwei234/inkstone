@@ -23,6 +23,8 @@ interface SecurityForm {
   captcha_provider: string
   captcha_site_key: string
   captcha_secret_key: string
+  geetest_captcha_id: string
+  geetest_captcha_key: string
   captcha_on_register: boolean
   captcha_on_login: boolean
   captcha_on_comment: boolean
@@ -116,6 +118,8 @@ export default function AdminSecurityPage() {
         captcha_provider: String(s.captcha_provider ?? 'none'),
         captcha_site_key: String(s.captcha_site_key ?? ''),
         captcha_secret_key: '',
+        geetest_captcha_id: String(s.geetest_captcha_id ?? ''),
+        geetest_captcha_key: '',
         captcha_on_register: toBool(s.captcha_on_register, true),
         captcha_on_login: toBool(s.captcha_on_login, false),
         captcha_on_comment: toBool(s.captcha_on_comment, true),
@@ -128,8 +132,9 @@ export default function AdminSecurityPage() {
   const save = useMutation({
     mutationFn: () => {
       const payload: Record<string, unknown> = { ...form }
-      // 空密码表示不修改
+      // 空密钥表示不修改
       if (!form?.captcha_secret_key) delete payload.captcha_secret_key
+      if (!form?.geetest_captcha_key) delete payload.geetest_captcha_key
       return updateAdminSettings(payload as never)
     },
     onSuccess: (res) => {
@@ -260,6 +265,7 @@ export default function AdminSecurityPage() {
               >
                 <option value="none">关闭人机验证</option>
                 <option value="turnstile">Cloudflare Turnstile（推荐，无感验证）</option>
+                <option value="geetest">GeeTest 极验（国内推荐 v4）</option>
                 <option value="builtin">内置算式验证（无需第三方服务）</option>
               </select>
             </div>
@@ -286,6 +292,33 @@ export default function AdminSecurityPage() {
                   />
                   <p className="text-xs text-muted-foreground">
                     在 Cloudflare 控制台 → Turnstile 创建站点后获取
+                  </p>
+                </div>
+              </>
+            )}
+
+            {form.captcha_provider === 'geetest' && (
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">极验 Captcha ID（公开）</label>
+                  <input
+                    value={form.geetest_captcha_id}
+                    onChange={(e) => update('geetest_captcha_id', e.target.value)}
+                    placeholder="在极验后台「行为验证 4.0」应用中获取"
+                    className={inputClass}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">极验 Captcha Key（保密）</label>
+                  <input
+                    type="password"
+                    value={form.geetest_captcha_key}
+                    onChange={(e) => update('geetest_captcha_key', e.target.value)}
+                    placeholder="留空表示不修改"
+                    className={inputClass}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    在 https://console.geetest.com 创建「行为验证 4.0」后获取 ID 与 Key
                   </p>
                 </div>
               </>
