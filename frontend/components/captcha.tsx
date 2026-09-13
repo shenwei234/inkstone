@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { RefreshCw, ShieldCheck } from 'lucide-react'
+import { CheckCircle2, RefreshCw, ShieldCheck } from 'lucide-react'
 import { fetchCaptchaChallenge } from '@/lib/api'
 import type { CaptchaConfig } from '@/lib/api'
 
@@ -137,7 +137,7 @@ function TurnstileWidget({
   return <div ref={holderRef} className="min-h-[65px]" />
 }
 
-/* ---------- GeeTest v4（极验） ---------- */
+/* ---------- GeeTest v4（极验 · 弹窗样式） ---------- */
 
 function GeeTestWidget({
   captchaId,
@@ -147,8 +147,10 @@ function GeeTestWidget({
   onChange: (r: CaptchaResult) => void
 }) {
   const holderRef = useRef<HTMLDivElement>(null)
+  const instanceRef = useRef<GeeTestInstance | null>(null)
   const [failed, setFailed] = useState(false)
   const [ready, setReady] = useState(false)
+  const [verified, setVerified] = useState(false)
 
   useEffect(() => {
     if (!captchaId) {
@@ -156,28 +158,35 @@ function GeeTestWidget({
       return () => clearTimeout(t)
     }
     let cancelled = false
-    let instance: GeeTestInstance | null = null
 
     const init = () => {
       if (cancelled || !holderRef.current || !window.initGeetest4) return
       window.initGeetest4(
         {
           captchaId,
-          product: 'bind',
+          // 弹窗样式：隐藏自带的悬浮按钮，由我们自己的按钮触发 showCaptcha()
+          product: 'float',
           language: 'zho',
           riskType: 'bind',
         },
         (gt) => {
           if (cancelled) return
-          instance = gt
+          instanceRef.current = gt
           gt.appendTo(holderRef.current as HTMLElement)
           gt.onSuccess(() => {
             const result = gt.getValidate()
             if (result) {
               onChange({ captcha_token: JSON.stringify(result) })
+              setVerified(true)
             }
           })
           gt.onError(() => setFailed(true))
+          // 用户关闭弹窗且未通过时清空 token，避免提交旧凭证
+          gt.onClose?.(() => {
+            if (!gt.getValidate()) {
+              onChange({ captcha_token: '' })
+            }
+          })
           setReady(true)
         },
       )
@@ -201,9 +210,25 @@ function GeeTestWidget({
 
     return () => {
       cancelled = true
-      void instance
     }
   }, [captchaId, onChange])
+
+  const openCaptcha = () => {
+    if (!ready) return
+    const gt = instanceRef.current
+    if (!gt) return
+    if (gt.getValidate()) {
+      // 已通过，无需重复验证
+      setVerified(true)
+      return
+    }
+    try {
+      gt.showCaptcha()
+    } catch {
+      // 某些环境不支持 showCaptcha，回退为点击自带按钮
+      holderRef.current?.querySelector('div')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    }
+  }
 
   if (failed) {
     return (
@@ -214,9 +239,33 @@ function GeeTestWidget({
   }
 
   return (
-    <div className="relative">
-      <div ref={holderRef} className="min-h-[44px]" />
-      {!ready && <div className="skeleton h-11 w-full max-w-[300px] rounded-lg" />}
+    <div>
+      {/* 隐藏极验自带的悬浮按钮，仅用其弹窗能力 */}
+      <div ref={holderRef} className="hidden" aria-hidden="true" />
+      <motion.button
+        type="button"
+        onClick={openCaptcha}
+        disabled={!ready || verified}
+        whileHover={verified ? undefined : { scale: 1.02 }}
+        whileTap={verified ? undefined : { scale: 0.98 }}
+        className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-default ${
+          verified
+            ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300'
+            : 'border-border bg-background text-muted-foreground hover:border-accent/50 hover:text-accent'
+        }`}
+      >
+        {verified ? (
+          <>
+            <CheckCircle2 className="h-4 w-4" />
+            已完成人机验证
+          </>
+        ) : (
+          <>
+            <ShieldCheck className={`h-4 w-4 ${ready ? '' : 'animate-pulse'}`} />
+            {ready ? '点击进行人机验证' : '验证组件加载中...'}
+          </>
+        )}
+      </motion.button>
     </div>
   )
 }
