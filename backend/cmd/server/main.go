@@ -42,6 +42,9 @@ func main() {
 	linkSvc := service.NewLinkService(linkRepo)
 	linkSvc.StartAutoCheck()
 
+	fileRepo := repository.NewFileRepository(db)
+	fileSvc := service.NewFileService(fileRepo, settingsSvc, cfg.FilesDir)
+
 	authHandler := handler.NewAuthHandler(authSvc)
 	articleHandler := handler.NewArticleHandler(articleSvc)
 	adminHandler := handler.NewAdminHandler(adminSvc, userRepo, articleSvc, articleRepo, commentSvc)
@@ -53,6 +56,7 @@ func main() {
 	pageHandler := handler.NewPageHandler(pageSvc)
 	systemHandler := handler.NewSystemHandler(settingsSvc)
 	linkHandler := handler.NewLinkHandler(linkSvc)
+	fileHandler := handler.NewFileHandler(fileSvc, cfg.PublicAPIURL)
 
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
@@ -73,6 +77,7 @@ func main() {
 	})
 	router.GET("/feed.xml", rssHandler.Feed)
 	router.Static("/uploads", cfg.UploadDir)
+	router.Static("/files", cfg.FilesDir)
 
 	uploadsHandler := handler.NewUploadsHandler(cfg)
 
@@ -154,6 +159,10 @@ func main() {
 			admin.DELETE("/links/:id", linkHandler.Delete)
 			admin.POST("/links/check", linkHandler.CheckAll)
 			admin.POST("/links/:id/check", linkHandler.CheckOne)
+			admin.GET("/files", fileHandler.List)
+			admin.POST("/files", fileHandler.Upload)
+			admin.GET("/files/:id/download", fileHandler.Download)
+			admin.DELETE("/files/:id", fileHandler.Delete)
 			admin.GET("/pages", pageHandler.ListAll)
 			admin.POST("/pages", pageHandler.Create)
 			admin.GET("/pages/:id", pageHandler.Get)
