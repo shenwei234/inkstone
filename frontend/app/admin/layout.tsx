@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Settings,
   ShieldCheck,
+  Tag,
   Users,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
@@ -26,6 +27,7 @@ const navItems = [
   { href: '/admin', label: '概览', icon: LayoutDashboard },
   { href: '/admin/users', label: '用户管理', icon: Users },
   { href: '/admin/articles', label: '文章管理', icon: FileText },
+  { href: '/admin/tags', label: '标签管理', icon: Tag },
   { href: '/admin/pages', label: '页面管理', icon: FileStack },
   { href: '/admin/comments', label: '评论管理', icon: MessageSquare },
   { href: '/admin/files', label: '文件管理', icon: FolderOpen },

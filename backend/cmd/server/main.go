@@ -62,6 +62,7 @@ func main() {
 	linkHandler := handler.NewLinkHandler(linkSvc)
 	fileHandler := handler.NewFileHandler(fileSvc, cfg.PublicAPIURL)
 	captchaHandler := handler.NewCaptchaHandler(captchaSvc)
+	adminTagHandler := handler.NewAdminTagHandler(taxonomyRepo)
 
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
@@ -211,6 +212,9 @@ func main() {
 			admin.GET("/articles", adminHandler.ListArticles)
 			admin.PUT("/articles/:id/status", adminHandler.SetArticleStatus)
 			admin.DELETE("/articles/:id", adminHandler.DeleteArticle)
+			admin.POST("/tags", adminTagHandler.Create)
+			admin.PUT("/tags/:id", adminTagHandler.Update)
+			admin.DELETE("/tags/:id", adminTagHandler.Delete)
 			admin.GET("/comments", adminHandler.ListComments)
 			admin.DELETE("/comments/:id", adminHandler.DeleteComment)
 			admin.GET("/settings", settingsHandler.Get)

@@ -13,6 +13,7 @@ var (
 	ErrNotFound      = errors.New("record not found")
 	ErrEmailTaken    = errors.New("email already registered")
 	ErrUsernameTaken = errors.New("username already taken")
+	ErrInvalidInput  = errors.New("invalid input")
 )
 
 type UserRepository struct {

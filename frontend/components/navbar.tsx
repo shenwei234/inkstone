@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, LayoutDashboard, LogOut, User } from 'lucide-react'
+import { ChevronDown, LayoutDashboard, LogOut, Search, User } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { useSiteConfig } from '@/components/site-config-context'
 import { easeOut } from '@/components/motion'
@@ -17,6 +17,7 @@ export function Navbar() {
   const pathname = usePathname()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [search, setSearch] = useState('')
 
   const menuItems =
     site.navMenu.length > 0
@@ -83,6 +84,25 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* 顶部搜索框（最右侧，用户头像之前） */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              const value = search.trim()
+              router.push(value ? `/?q=${encodeURIComponent(value)}` : '/')
+            }}
+            className="relative hidden sm:block"
+          >
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              name="q"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="搜索文章..."
+              className="w-44 rounded-lg border border-border bg-card py-1.5 pl-9 pr-3 text-sm outline-none transition-all focus:w-56 focus:border-accent focus:ring-2 focus:ring-accent/20"
+            />
+          </form>
+
           {loading ? (
             <div className="h-8 w-20 animate-pulse rounded-md bg-muted" />
           ) : user ? (

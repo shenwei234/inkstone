@@ -11,6 +11,7 @@ import {
   deleteAdminArticle,
   fetchArticle,
   fetchCategories,
+  fetchTags,
   updateArticle,
   ApiError,
 } from '@/lib/api'
@@ -46,6 +47,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
   const [captcha, setCaptcha] = useState<CaptchaResult>({})
 
   const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
+  const tagsQuery = useQuery({ queryKey: ['tags'], queryFn: fetchTags })
 
   const addTag = () => {
     const name = tagInput.trim()
@@ -281,45 +283,69 @@ function EditorShell({ mode, article }: EditorShellProps) {
             className="w-full border-none bg-transparent text-3xl font-semibold tracking-tight outline-none placeholder:text-muted-foreground/50 sm:text-4xl"
           />
 
-          <div className="mt-5 flex flex-wrap items-center gap-2">
-            <select
-              value={categoryId ?? ''}
-              onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : null)}
-              className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs outline-none transition-colors focus:border-accent"
-            >
-              <option value="">未分类</option>
-              {(categoriesQuery.data?.categories ?? []).map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-
-            {tags.map((t) => (
-              <span
-                key={t}
-                className="flex items-center gap-1 rounded-lg border border-accent/30 bg-accent/10 px-2 py-1 text-xs text-accent"
+          <div className="mt-5 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={categoryId ?? ''}
+                onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : null)}
+                className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs outline-none transition-colors focus:border-accent"
               >
-                {t}
-                <button type="button" onClick={() => removeTag(t)}>
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            ))}
-            <input
-              type="text"
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ',') {
-                  e.preventDefault()
-                  addTag()
-                }
-              }}
-              onBlur={addTag}
-              placeholder="+ 标签，回车添加"
-              className="w-32 rounded-lg border border-dashed border-border bg-transparent px-2.5 py-1 text-xs outline-none transition-colors focus:border-accent"
-            />
+                <option value="">未分类</option>
+                {(categoriesQuery.data?.categories ?? []).map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+
+              {/* 已选标签 */}
+              {tags.map((t) => (
+                <span
+                  key={t}
+                  className="flex items-center gap-1 rounded-lg border border-accent/30 bg-accent/10 px-2 py-1 text-xs text-accent"
+                >
+                  {t}
+                  <button type="button" onClick={() => removeTag(t)} title="移除">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+              <input
+                type="text"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault()
+                    addTag()
+                  }
+                }}
+                onBlur={addTag}
+                placeholder="+ 新建标签，回车添加"
+                className="w-36 rounded-lg border border-dashed border-border bg-transparent px-2.5 py-1 text-xs outline-none transition-colors focus:border-accent"
+              />
+            </div>
+
+            {/* 从已有标签中选择 */}
+            {(tagsQuery.data?.tags ?? []).filter((t) => !tags.includes(t.name)).length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">选择已有标签：</span>
+                {(tagsQuery.data?.tags ?? [])
+                  .filter((t) => !tags.includes(t.name))
+                  .slice(0, 20)
+                  .map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setTags((arr) => [...arr, t.name])}
+                      className="rounded-lg border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:border-accent/40 hover:text-accent"
+                    >
+                      + {t.name}
+                      <span className="ml-1 opacity-60">{t.article_count}</span>
+                    </button>
+                  ))}
+              </div>
+            )}
           </div>
 
           <div className="mt-6 border-t border-border pt-2">
