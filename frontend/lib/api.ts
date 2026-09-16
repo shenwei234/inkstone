@@ -301,6 +301,36 @@ export function fetchAdminStats() {
   return api<AdminStats>('/admin/stats', { auth: true })
 }
 
+// ---------- Traffic & System Stats ----------
+
+export interface TrendPoint {
+  date: string
+  page_views: number
+  visitors: number
+  bytes_in: number
+  bytes_out: number
+}
+
+export interface SystemResource {
+  cpu_percent: number
+  mem_used_mb: number
+  mem_total_mb: number
+  mem_percent: number
+  goroutines: number
+  uptime_seconds: number
+  app_mem_mb: number
+}
+
+export function fetchTrafficTrend(days = 30) {
+  return api<{ points: TrendPoint[]; days: number }>(`/admin/stats/traffic?days=${days}`, {
+    auth: true,
+  })
+}
+
+export function fetchSystemResources() {
+  return api<SystemResource>('/admin/stats/resources', { auth: true })
+}
+
 export function fetchAdminComments(params: { page?: number; page_size?: number } = {}) {
   const search = new URLSearchParams()
   if (params.page) search.set('page', String(params.page))
