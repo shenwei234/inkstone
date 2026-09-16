@@ -46,6 +46,9 @@ func main() {
 	fileRepo := repository.NewFileRepository(db)
 	fileSvc := service.NewFileService(fileRepo, settingsSvc, cfg.FilesDir)
 
+	statRepo := repository.NewStatRepository(db)
+	statSvc := service.NewStatService(statRepo, settingsSvc)
+
 	captchaSvc := service.NewCaptchaService(settingsSvc, cfg.JWTSecret)
 	apiLimiter := middleware.NewSlidingLimiter()
 
@@ -62,6 +65,7 @@ func main() {
 	linkHandler := handler.NewLinkHandler(linkSvc)
 	fileHandler := handler.NewFileHandler(fileSvc, cfg.PublicAPIURL)
 	captchaHandler := handler.NewCaptchaHandler(captchaSvc)
+	statHandler := handler.NewStatHandler(statSvc)
 	adminTagHandler := handler.NewAdminTagHandler(taxonomyRepo)
 
 	if cfg.IsProduction() {
@@ -71,6 +75,7 @@ func main() {
 	router := gin.New()
 	router.Use(gin.Logger(), gin.Recovery())
 	router.Use(middleware.SecurityHeaders())
+	router.Use(middleware.TrafficStats(statSvc))
 	router.Use(middleware.CORS([]string{cfg.FrontendURL}))
 	router.MaxMultipartMemory = 12 << 20
 
@@ -204,6 +209,8 @@ func main() {
 		admin := api.Group("/admin", middleware.Auth(tokens, userStatusOK), middleware.RequireRole(model.RoleAdmin))
 		{
 			admin.GET("/stats", adminHandler.Stats)
+			admin.GET("/stats/traffic", statHandler.Traffic)
+			admin.GET("/stats/resources", statHandler.Resources)
 			admin.GET("/users", adminHandler.ListUsers)
 			admin.POST("/users", adminHandler.CreateUser)
 			admin.PUT("/users/:id/role", adminHandler.UpdateUserRole)
