@@ -49,11 +49,11 @@ func main() {
 	captchaSvc := service.NewCaptchaService(settingsSvc, cfg.JWTSecret)
 	apiLimiter := middleware.NewSlidingLimiter()
 
-	authHandler := handler.NewAuthHandler(authSvc, captchaSvc)
+	authHandler := handler.NewAuthHandler(authSvc, captchaSvc, apiLimiter)
 	articleHandler := handler.NewArticleHandler(articleSvc, captchaSvc)
 	adminHandler := handler.NewAdminHandler(adminSvc, userRepo, articleSvc, articleRepo, commentSvc)
 	taxonomyHandler := handler.NewTaxonomyHandler(taxonomyRepo)
-	commentHandler := handler.NewCommentHandler(commentSvc, tokens, captchaSvc)
+	commentHandler := handler.NewCommentHandler(commentSvc, tokens, captchaSvc, apiLimiter)
 	reactionHandler := handler.NewReactionHandler(reactionSvc)
 	rssHandler := handler.NewRSSHandler(articleSvc, cfg.FrontendURL)
 	settingsHandler := handler.NewSettingsHandler(settingsSvc, mailer, captchaSvc)

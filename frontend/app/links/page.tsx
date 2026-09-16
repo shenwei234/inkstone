@@ -5,9 +5,9 @@ import { motion } from 'framer-motion'
 import { AlertTriangle, ExternalLink, Link2, ShieldOff } from 'lucide-react'
 import { fetchFriendLinks } from '@/lib/api'
 import { PageTransition, StaggerList, StaggerItem, HoverLift } from '@/components/motion'
+import { easeOut } from '@/components/motion'
 import { useSiteConfig } from '@/components/site-config-context'
 
-const easeOut = [0.16, 1, 0.3, 1] as const
 
 export default function LinksPage() {
   const site = useSiteConfig()

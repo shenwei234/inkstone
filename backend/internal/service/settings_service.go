@@ -81,10 +81,10 @@ var settingDefaults = map[string]string{
 	SettingCaptchaOnArticle:  "true",
 
 	SettingSecurityEnabled:      "true",
-	SettingSecurityLoginMax:     "10",
-	SettingSecurityRegisterMax:  "5",
-	SettingSecurityCommentMax:   "10",
-	SettingSecurityAPIMax:       "300",
+	SettingSecurityLoginMax:     "30",
+	SettingSecurityRegisterMax:  "20",
+	SettingSecurityCommentMax:   "30",
+	SettingSecurityAPIMax:       "600",
 	SettingSecurityBlockMinutes: "15",
 }
 

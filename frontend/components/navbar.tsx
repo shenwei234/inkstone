@@ -7,9 +7,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, LayoutDashboard, LogOut, User } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { useSiteConfig } from '@/components/site-config-context'
+import { easeOut } from '@/components/motion'
 import { MenuIcon } from '@/components/menu-icon'
 
-const easeOut = [0.16, 1, 0.3, 1] as const
 
 export function Navbar() {
   const { user, loading, logout } = useAuth()

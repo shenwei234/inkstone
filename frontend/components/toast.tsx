@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { AnimatePresence, motion } from 'framer-motion'
+import { easeOut } from '@/components/motion'
 import {
   AlertCircle,
   CheckCircle2,
@@ -50,7 +51,6 @@ export function useNotify() {
   return ctx
 }
 
-const easeOut = [0.16, 1, 0.3, 1] as const
 
 export function NotifyProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([])

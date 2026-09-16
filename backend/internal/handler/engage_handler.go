@@ -43,10 +43,11 @@ type CommentHandler struct {
 	comments *service.CommentService
 	tokens   *service.TokenManager
 	captcha  *service.CaptchaService
+	limiter  *middleware.SlidingLimiter
 }
 
-func NewCommentHandler(comments *service.CommentService, tokens *service.TokenManager, captcha *service.CaptchaService) *CommentHandler {
-	return &CommentHandler{comments: comments, tokens: tokens, captcha: captcha}
+func NewCommentHandler(comments *service.CommentService, tokens *service.TokenManager, captcha *service.CaptchaService, limiter *middleware.SlidingLimiter) *CommentHandler {
+	return &CommentHandler{comments: comments, tokens: tokens, captcha: captcha, limiter: limiter}
 }
 
 type createCommentRequest struct {
@@ -62,9 +63,8 @@ func (h *CommentHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录后才能评论"})
 		return
 	}
-	articleID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的文章 ID"})
+	articleID, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 	var req createCommentRequest
@@ -81,14 +81,19 @@ func (h *CommentHandler) Create(c *gin.Context) {
 		errorResponse(c, err)
 		return
 	}
+	// 评论成功：重置该 IP 配额，避免正常用户被限流误伤
+	if h.limiter != nil {
+		if key := middleware.RateKey(c); key != "" {
+			h.limiter.Reset(key)
+		}
+	}
 	c.JSON(http.StatusCreated, gin.H{"comment": toCommentResponse(comment)})
 }
 
 // List handles GET /articles/:id/comments.
 func (h *CommentHandler) List(c *gin.Context) {
-	articleID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的文章 ID"})
+	articleID, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 	comments, err := h.comments.ListByArticle(uint(articleID))
@@ -110,9 +115,8 @@ func (h *CommentHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	commentID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的评论 ID"})
+	commentID, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 	if err := h.comments.Delete(uint(commentID), current.ID, current.Role == model.RoleAdmin); err != nil {
@@ -184,9 +188,8 @@ func (h *ReactionHandler) Toggle(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "登录后才能点赞"})
 		return
 	}
-	articleID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的文章 ID"})
+	articleID, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 	var req toggleReactionRequest
@@ -204,9 +207,8 @@ func (h *ReactionHandler) Toggle(c *gin.Context) {
 
 // Stats handles GET /articles/:id/reactions.
 func (h *ReactionHandler) Stats(c *gin.Context) {
-	articleID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的文章 ID"})
+	articleID, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 	current, hasUser := middleware.GetCurrentUser(c)

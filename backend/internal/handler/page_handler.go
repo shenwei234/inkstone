@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shenwei/inkstone/backend/internal/model"
@@ -65,9 +64,8 @@ func (h *PageHandler) Create(c *gin.Context) {
 
 // Update handles PUT /admin/pages/:id.
 func (h *PageHandler) Update(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的页面 ID"})
+	id, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 	var req pageRequest
@@ -92,9 +90,8 @@ func (h *PageHandler) Update(c *gin.Context) {
 
 // Delete handles DELETE /admin/pages/:id.
 func (h *PageHandler) Delete(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的页面 ID"})
+	id, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 	if err := h.pages.Delete(uint(id)); err != nil {
@@ -110,9 +107,8 @@ func (h *PageHandler) Delete(c *gin.Context) {
 
 // Get handles GET /admin/pages/:id.
 func (h *PageHandler) Get(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的页面 ID"})
+	id, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 	page, err := h.pages.GetByID(uint(id))

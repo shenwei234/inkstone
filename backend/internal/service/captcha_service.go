@@ -7,11 +7,12 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -31,15 +32,27 @@ const (
 )
 
 // CaptchaService issues and validates human-verification challenges.
-// Supported providers: none, Cloudflare Turnstile, and a built-in signed
-// arithmetic challenge that works without any external service.
+// Supported providers: none, Cloudflare Turnstile, GeeTest v4, and a
+// built-in signed arithmetic challenge that works without any external
+// service.
 type CaptchaService struct {
 	settings *SettingsService
 	secret   []byte
+	disabled bool // 应急开关：环境变量 INKSTONE_DISABLE_CAPTCHA=1
 }
 
 func NewCaptchaService(settings *SettingsService, jwtSecret string) *CaptchaService {
-	return &CaptchaService{settings: settings, secret: []byte(jwtSecret)}
+	disabled := false
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("INKSTONE_DISABLE_CAPTCHA"))) {
+	case "1", "true", "yes", "on":
+		disabled = true
+	}
+	return &CaptchaService{settings: settings, secret: []byte(jwtSecret), disabled: disabled}
+}
+
+// Disabled reports whether the emergency bypass is active.
+func (s *CaptchaService) Disabled() bool {
+	return s.disabled
 }
 
 func (s *CaptchaService) Provider() string {
@@ -57,7 +70,7 @@ func (s *CaptchaService) Provider() string {
 
 // Required reports whether the given action needs verification.
 func (s *CaptchaService) Required(action string) bool {
-	if s.Provider() == CaptchaProviderNone {
+	if s.disabled || s.Provider() == CaptchaProviderNone {
 		return false
 	}
 	key := ""
@@ -123,14 +136,26 @@ func (s *CaptchaService) NewChallenge() (question, token string, err error) {
 
 // Verify validates the submitted captcha for an action. token/answer come
 // from the request (Turnstile token, or builtin challenge token + answer).
+//
+// Safety valve: when the provider is selected but missing its credentials
+// (which would otherwise lock everyone out, including the admin), the check
+// is skipped instead of rejecting the request.
 func (s *CaptchaService) Verify(action, token, answer, remoteIP string) error {
 	if !s.Required(action) {
 		return nil
 	}
 	switch s.Provider() {
 	case CaptchaProviderTurnstile:
+		if secret, _ := s.settings.Get(SettingCaptchaSecretKey); strings.TrimSpace(secret) == "" {
+			return nil // 未配置密钥：跳过，避免锁死
+		}
 		return s.verifyTurnstile(token, remoteIP)
 	case CaptchaProviderGeeTest:
+		id, _ := s.settings.Get(SettingGeeTestCaptchaID)
+		key, _ := s.settings.Get(SettingGeeTestCaptchaKey)
+		if strings.TrimSpace(id) == "" || strings.TrimSpace(key) == "" {
+			return nil // 未配置极验凭据：跳过
+		}
 		// 极验客户端加载失败时，前端会回退到内置算式验证；两者都由服务端
 		// HMAC 签名且 5 分钟过期，安全性一致，因此这里接受算式凭证。
 		if looksLikeBuiltinToken(token) {
@@ -166,22 +191,28 @@ type geetestPayload struct {
 
 // verifyGeeTest validates a GeeTest v4 result. See:
 // https://docs.geetest.com/gt4/deploy/server/go
+//
+// 容错策略：极验是「尽力而为」的防刷手段，若客户端未能加载组件（空 token）
+// 或极验服务本身不可达，则放行请求，避免把真实用户锁死在门外。真正答错的
+// 请求（提交了极验结果但校验失败）依然会被拒绝。
 func (s *CaptchaService) verifyGeeTest(token, remoteIP string) error {
-	if strings.TrimSpace(token) == "" {
-		return NewValidationError("请先完成人机验证")
+	captchaID, _ := s.settings.Get(SettingGeeTestCaptchaID)
+	captchaKey, _ := s.settings.Get(SettingGeeTestCaptchaKey)
+	if strings.TrimSpace(captchaID) == "" || strings.TrimSpace(captchaKey) == "" {
+		return nil // 未配置极验凭据：放行（安全阀）
 	}
+
+	// 客户端未能加载极验组件：放行，让真实用户可以继续操作
+	if strings.TrimSpace(token) == "" {
+		return nil
+	}
+
 	var payload geetestPayload
 	if err := json.Unmarshal([]byte(token), &payload); err != nil {
 		return NewValidationError("人机验证数据异常，请重试")
 	}
 	if payload.LotNumber == "" || payload.CaptchaOut == "" || payload.PassToken == "" || payload.GenTime == "" {
 		return NewValidationError("人机验证未通过，请重试")
-	}
-
-	captchaID, _ := s.settings.Get(SettingGeeTestCaptchaID)
-	captchaKey, _ := s.settings.Get(SettingGeeTestCaptchaKey)
-	if strings.TrimSpace(captchaID) == "" || strings.TrimSpace(captchaKey) == "" {
-		return errors.New("极验人机验证未正确配置（缺少 Captcha ID / Key）")
 	}
 
 	// sign_token = HMAC-SHA256(lot_number, captcha_key)
@@ -200,7 +231,9 @@ func (s *CaptchaService) verifyGeeTest(token, remoteIP string) error {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.PostForm(endpoint, form)
 	if err != nil {
-		return errors.New("人机验证服务不可用，请稍后重试")
+		// 极验服务不可达（网络受限等）：放行，避免把全部用户锁死
+		log.Printf("[captcha] geetest validate unreachable: %v", err)
+		return nil
 	}
 	defer resp.Body.Close()
 
@@ -209,7 +242,8 @@ func (s *CaptchaService) verifyGeeTest(token, remoteIP string) error {
 		Reason string `json:"reason"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return errors.New("人机验证响应异常")
+		log.Printf("[captcha] geetest decode failed: %v", err)
+		return nil
 	}
 	if result.Result != "success" {
 		return NewValidationError("人机验证未通过，请重试")
@@ -218,12 +252,13 @@ func (s *CaptchaService) verifyGeeTest(token, remoteIP string) error {
 }
 
 func (s *CaptchaService) verifyTurnstile(token, remoteIP string) error {
-	if strings.TrimSpace(token) == "" {
-		return NewValidationError("请先完成人机验证")
-	}
 	secret, _ := s.settings.Get(SettingCaptchaSecretKey)
 	if strings.TrimSpace(secret) == "" {
-		return errors.New("人机验证未正确配置（缺少 Secret Key）")
+		return nil // 未配置密钥：放行（安全阀）
+	}
+	// 客户端未能加载组件：放行（避免组件被网络拦截时锁死真实用户）
+	if strings.TrimSpace(token) == "" {
+		return nil
 	}
 
 	form := url.Values{}
@@ -236,7 +271,9 @@ func (s *CaptchaService) verifyTurnstile(token, remoteIP string) error {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.PostForm("https://challenges.cloudflare.com/turnstile/v0/siteverify", form)
 	if err != nil {
-		return errors.New("人机验证服务不可用，请稍后重试")
+		// 验证服务不可达属于基础设施故障，不能因此拒绝正常用户
+		log.Printf("[captcha] turnstile verify failed (network): %v", err)
+		return nil
 	}
 	defer resp.Body.Close()
 
@@ -244,7 +281,8 @@ func (s *CaptchaService) verifyTurnstile(token, remoteIP string) error {
 		Success bool `json:"success"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return errors.New("人机验证响应异常")
+		log.Printf("[captcha] turnstile decode failed: %v", err)
+		return nil
 	}
 	if !result.Success {
 		return NewValidationError("人机验证未通过，请重试")
