@@ -10,8 +10,9 @@ import { useAuth } from '@/lib/auth-context'
 import { ApiError } from '@/lib/api'
 import { useSiteConfig } from '@/components/site-config-context'
 import { Captcha, type CaptchaResult } from '@/components/captcha'
+import { easeOut } from '@/components/motion'
+import { inputClass } from '@/lib/ui'
 
-const easeOut = [0.16, 1, 0.3, 1] as const
 
 export default function RegisterPage() {
   const { register } = useAuth()
@@ -39,10 +40,7 @@ export default function RegisterPage() {
     }
   }
 
-  const inputClass =
-    'w-full rounded-lg border border-border bg-card px-3.5 py-2.5 text-sm outline-none transition-all duration-200 placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20'
-
-  const fields = [
+    const fields = [
     { id: 'email', label: '邮箱', type: 'email', value: email, set: setEmail, placeholder: 'you@example.com', auto: 'email', min: undefined as number | undefined, max: undefined as number | undefined },
     { id: 'username', label: '用户名', type: 'text', value: username, set: setUsername, placeholder: '2-32 个字符', auto: 'username', min: 2, max: 32 },
     { id: 'password', label: '密码', type: 'password', value: password, set: setPassword, placeholder: '至少 8 个字符', auto: 'new-password', min: 8, max: 72 },

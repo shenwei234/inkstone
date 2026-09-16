@@ -102,9 +102,8 @@ type updateStatusRequest struct {
 func (h *AdminHandler) UpdateUserStatus(c *gin.Context) {
 	current, _ := middleware.GetCurrentUser(c)
 
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户 ID"})
+	id, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 
@@ -133,9 +132,8 @@ type updateRoleRequest struct {
 func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 	current, _ := middleware.GetCurrentUser(c)
 
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户 ID"})
+	id, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 
@@ -168,9 +166,8 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 func (h *AdminHandler) DeleteUser(c *gin.Context) {
 	current, _ := middleware.GetCurrentUser(c)
 
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的用户 ID"})
+	id, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 	if current.ID == uint(id) {
@@ -215,9 +212,8 @@ func (h *AdminHandler) ListArticles(c *gin.Context) {
 
 // SetArticleStatus handles PUT /admin/articles/:id/status.
 func (h *AdminHandler) SetArticleStatus(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的文章 ID"})
+	id, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 
@@ -255,9 +251,8 @@ func (h *AdminHandler) ListComments(c *gin.Context) {
 
 // DeleteComment handles DELETE /admin/comments/:id.
 func (h *AdminHandler) DeleteComment(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的评论 ID"})
+	id, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 	if err := h.comments.DeleteAny(uint(id)); err != nil {
@@ -273,9 +268,8 @@ func (h *AdminHandler) DeleteComment(c *gin.Context) {
 
 // DeleteArticle handles DELETE /admin/articles/:id (any article).
 func (h *AdminHandler) DeleteArticle(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的文章 ID"})
+	id, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 	if err := h.articleRepo.DeleteAny(uint(id)); err != nil {

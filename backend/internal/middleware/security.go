@@ -10,6 +10,12 @@ import (
 
 // ---------- 滑动窗口限流器 ----------
 
+// Context keys set by the rate-limit middleware.
+const (
+	ContextRateKey   = "rateLimitKey"
+	ContextRateLimit = "rateLimitMax"
+)
+
 type windowEntry struct {
 	hits []time.Time
 }
@@ -157,6 +163,9 @@ func IPRateLimit(cfg RateLimitConfig) gin.HandlerFunc {
 			return
 		}
 		key := cfg.Message + ":" + ClientIP(c)
+		// 暴露 key，便于处理成功后重置计数（例如登录成功）
+		c.Set(ContextRateKey, key)
+		c.Set(ContextRateLimit, limit)
 		if !cfg.Limiter.Allow(key, limit, cfg.Window) {
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
 				"error": "操作过于频繁，请稍后再试",
@@ -165,6 +174,16 @@ func IPRateLimit(cfg RateLimitConfig) gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+// RateKey returns the rate-limit key stored by IPRateLimit, if any.
+func RateKey(c *gin.Context) string {
+	if v, ok := c.Get(ContextRateKey); ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
 }
 
 // SecurityHeaders adds baseline hardening headers to every response.

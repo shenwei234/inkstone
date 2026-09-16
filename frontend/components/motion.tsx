@@ -3,7 +3,8 @@
 import { motion, type Variants } from 'framer-motion'
 import type { ReactNode } from 'react'
 
-const easeOut = [0.16, 1, 0.3, 1] as const
+/** 全站统一的缓动曲线（ease-out-expo，观感自然） */
+export const easeOut = [0.16, 1, 0.3, 1] as const
 
 export const stagger: Variants = {
   hidden: {},

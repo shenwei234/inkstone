@@ -143,9 +143,8 @@ func (h *ArticleHandler) Update(c *gin.Context) {
 		return
 	}
 
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的文章 ID"})
+	id, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 
@@ -181,9 +180,8 @@ func (h *ArticleHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的文章 ID"})
+	id, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 
@@ -200,9 +198,8 @@ func (h *ArticleHandler) Delete(c *gin.Context) {
 
 // Get handles GET /articles/:id.
 func (h *ArticleHandler) Get(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的文章 ID"})
+	id, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 	article, err := h.articles.GetByID(uint(id))

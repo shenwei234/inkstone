@@ -16,12 +16,12 @@ import {
 } from '@/lib/api'
 import type { Article } from '@/lib/types'
 import { PageTransition } from '@/components/motion'
+import { easeOut } from '@/components/motion'
 import { RichEditor } from '@/components/rich-editor'
 import { useNotify } from '@/components/toast'
 import { useSiteConfig } from '@/components/site-config-context'
 import { Captcha, type CaptchaResult } from '@/components/captcha'
 
-const easeOut = [0.16, 1, 0.3, 1] as const
 
 function htmlToText(html: string): string {
   return html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ')

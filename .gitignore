@@ -1,23 +1,35 @@
-# Backend
+# ===== 后端 =====
+backend/server
 backend/server.exe
+backend/server.exe~
 backend/tmp/
+backend/data/
 *.exe
 
-# Frontend
+# ===== 前端 =====
 frontend/node_modules/
 frontend/.next/
 frontend/out/
 frontend/.env*.local
+frontend/tsconfig.tsbuildinfo
+frontend/next-env.d.ts
+frontend/AGENTS.md
+frontend/CLAUDE.md
 
-# Env
+# ===== 环境变量（含密钥，禁止提交）=====
 .env
+.env.local
+.env.*.local
 *.env
 
-# IDE / OS
+# ===== 编辑器 / 系统 =====
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
 
-# Logs
+# ===== 日志 / 临时文件 =====
 *.log
+*.tmp
+*.bak
+*~

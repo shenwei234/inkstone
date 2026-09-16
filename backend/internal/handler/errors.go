@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shenwei/inkstone/backend/internal/repository"
@@ -21,8 +22,6 @@ func errorResponse(c *gin.Context, err error) {
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 	case errors.Is(err, service.ErrRegistrationClosed):
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
-	case errors.Is(err, service.ErrRegistrationClosed):
-		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 	case errors.Is(err, service.ErrForbidden):
 		c.JSON(http.StatusForbidden, gin.H{"error": "没有权限执行此操作"})
 	case errors.Is(err, repository.ErrNotFound):
@@ -30,4 +29,29 @@ func errorResponse(c *gin.Context, err error) {
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 	}
+}
+
+// parseUintParam reads a positive integer route parameter. It writes a 400
+// response and returns false when the value is missing or malformed.
+func parseUintParam(c *gin.Context, name, message string) (uint, bool) {
+	raw := c.Param(name)
+	id, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil || id == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": message})
+		return 0, false
+	}
+	return uint(id), true
+}
+
+// parseIntQuery reads an integer query parameter with a fallback default.
+func parseIntQuery(c *gin.Context, name string, fallback int) int {
+	raw := c.Query(name)
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v < 1 {
+		return fallback
+	}
+	return v
 }

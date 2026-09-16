@@ -12,10 +12,23 @@ import (
 type AuthHandler struct {
 	auth    *service.AuthService
 	captcha *service.CaptchaService
+	limiter *middleware.SlidingLimiter
 }
 
-func NewAuthHandler(auth *service.AuthService, captcha *service.CaptchaService) *AuthHandler {
-	return &AuthHandler{auth: auth, captcha: captcha}
+func NewAuthHandler(auth *service.AuthService, captcha *service.CaptchaService, limiter *middleware.SlidingLimiter) *AuthHandler {
+	return &AuthHandler{auth: auth, captcha: captcha, limiter: limiter}
+}
+
+// resetAuthLimit clears the rate-limit budget for the caller after a
+// successful authentication so normal usage (log in / out repeatedly,
+// multiple tabs) is never throttled.
+func (h *AuthHandler) resetAuthLimit(c *gin.Context) {
+	if h.limiter == nil {
+		return
+	}
+	if key := middleware.RateKey(c); key != "" {
+		h.limiter.Reset(key)
+	}
 }
 
 type registerRequest struct {
@@ -66,6 +79,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	// 注册成功：清空该 IP 的计数，避免共享出口 IP 被误伤
+	h.resetAuthLimit(c)
+
 	c.JSON(http.StatusCreated, gin.H{
 		"user":  toUserResponse(user),
 		"token": pair,
@@ -89,6 +105,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		errorResponse(c, err)
 		return
 	}
+
+	// 登录成功：清空该 IP 的失败计数，避免正常用户被限流锁死
+	h.resetAuthLimit(c)
 
 	c.JSON(http.StatusOK, gin.H{
 		"user":  toUserResponse(user),

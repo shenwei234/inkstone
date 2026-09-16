@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shenwei/inkstone/backend/internal/model"
@@ -109,9 +108,8 @@ func (h *LinkHandler) Create(c *gin.Context) {
 
 // Update handles PUT /admin/links/:id.
 func (h *LinkHandler) Update(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的友链 ID"})
+	id, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 	var req linkRequest
@@ -136,9 +134,8 @@ func (h *LinkHandler) Update(c *gin.Context) {
 
 // Delete handles DELETE /admin/links/:id.
 func (h *LinkHandler) Delete(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的友链 ID"})
+	id, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 	if err := h.links.Delete(uint(id)); err != nil {
@@ -164,9 +161,8 @@ func (h *LinkHandler) CheckAll(c *gin.Context) {
 
 // CheckOne handles POST /admin/links/:id/check.
 func (h *LinkHandler) CheckOne(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的友链 ID"})
+	id, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 	available, err := h.links.CheckOne(uint(id))

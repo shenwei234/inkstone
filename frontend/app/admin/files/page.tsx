@@ -29,18 +29,9 @@ import {
 import type { FileAssetItem } from '@/lib/api'
 import { useNotify } from '@/components/toast'
 import { PageTransition } from '@/components/motion'
+import { formatSize, inputClass } from '@/lib/ui'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
-
-const inputClass =
-  'w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20'
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(2)} MB`
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
-}
 
 function FileTypeIcon({ mime, name }: { mime: string; name: string }) {
   const ext = name.split('.').pop()?.toLowerCase() ?? ''

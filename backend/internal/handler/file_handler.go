@@ -98,9 +98,8 @@ func (h *FileHandler) Upload(c *gin.Context) {
 
 // Download handles GET /admin/files/:id/download with optional speed limit.
 func (h *FileHandler) Download(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的文件 ID"})
+	id, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 	asset, err := h.files.Get(uint(id))
@@ -128,9 +127,8 @@ func (h *FileHandler) Download(c *gin.Context) {
 
 // Delete handles DELETE /admin/files/:id.
 func (h *FileHandler) Delete(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的文件 ID"})
+	id, ok := parseUintParam(c, "id", "无效的 ID")
+	if !ok {
 		return
 	}
 	if err := h.files.Delete(uint(id)); err != nil {

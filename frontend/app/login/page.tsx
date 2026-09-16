@@ -8,8 +8,9 @@ import { useAuth } from '@/lib/auth-context'
 import { ApiError } from '@/lib/api'
 import { useSiteConfig } from '@/components/site-config-context'
 import { Captcha, type CaptchaResult } from '@/components/captcha'
+import { easeOut } from '@/components/motion'
+import { inputClass } from '@/lib/ui'
 
-const easeOut = [0.16, 1, 0.3, 1] as const
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -34,10 +35,7 @@ export default function LoginPage() {
     }
   }
 
-  const inputClass =
-    'w-full rounded-lg border border-border bg-card px-3.5 py-2.5 text-sm outline-none transition-all duration-200 placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20'
-
-  return (
+    return (
     <div className="relative flex min-h-[calc(100vh-4rem-57px)] items-center justify-center overflow-hidden px-4 py-16">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(37,99,235,0.06),transparent_65%)]" />
       <motion.div
