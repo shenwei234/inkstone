@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { Eye, FolderOpen, PenLine, Search, Tag as TagIcon, X } from 'lucide-react'
+import { Eye, PenLine, Search, X } from 'lucide-react'
 import { fetchArticles, fetchCategories, fetchTags } from '@/lib/api'
 import type { Article, ArticleListResponse } from '@/lib/types'
 import { PageTransition, StaggerList, StaggerItem, HoverLift } from '@/components/motion'
@@ -105,100 +105,25 @@ function HomePage() {
   const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
   const tagsQuery = useQuery({ queryKey: ['tags'], queryFn: fetchTags })
 
-  const buildHref = (key: 'category' | 'tag' | 'q', value: string | null) => {
-    const sp = new URLSearchParams(searchParams.toString())
-    if (value) sp.set(key, value)
-    else sp.delete(key)
-    const s = sp.toString()
-    return s ? `/?${s}` : '/'
-  }
-
-  const hasFilter = Boolean(category || tag || q)
+    const hasFilter = Boolean(category || tag || q)
 
   return (
     <PageTransition>
       <div className={`mx-auto px-4 py-10 ${widgets.length > 0 ? 'max-w-6xl' : 'max-w-5xl'}`}>
-        {/* Filter bar */}
-        <div className="mb-6 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h1 className="text-2xl font-bold tracking-tight">
-              {category
-                ? `分类：${categoriesQuery.data?.categories.find((c) => c.slug === category)?.name ?? category}`
-                : tag
-                  ? `标签：${tagsQuery.data?.tags.find((t) => t.slug === tag)?.name ?? tag}`
-                  : q
-                    ? `搜索：${q}`
-                    : '最新文章'}
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                {data ? `${data.total} 篇` : ''}
-              </span>
-            </h1>
-            <form
-              action="/"
-              className="relative"
-              onSubmit={(e) => {
-                e.preventDefault()
-                const input = (e.currentTarget.elements.namedItem('q') as HTMLInputElement) ?? null
-                if (input) {
-                  window.location.href = input.value.trim() ? `/?q=${encodeURIComponent(input.value.trim())}` : '/'
-                }
-              }}
-            >
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                name="q"
-                defaultValue={q}
-                placeholder="搜索文章..."
-                className="w-56 rounded-lg border border-border bg-card py-2 pl-9 pr-3 text-sm outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20"
-              />
-            </form>
-          </div>
-
-          {/* Category chips */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
-            <Link
-              href={buildHref('category', null)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                !category ? 'bg-accent text-white' : 'border border-border text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              全部
-            </Link>
-            {(categoriesQuery.data?.categories ?? []).map((cat) => (
-              <Link
-                key={cat.id}
-                href={buildHref('category', cat.slug)}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                  category === cat.slug
-                    ? 'bg-accent text-white'
-                    : 'border border-border text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {cat.name}
-                <span className="ml-1 opacity-60">{cat.article_count}</span>
-              </Link>
-            ))}
-          </div>
-
-          {/* Tag chips */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <TagIcon className="h-3.5 w-3.5 text-muted-foreground" />
-            {(tagsQuery.data?.tags ?? []).slice(0, 12).map((t) => (
-              <Link
-                key={t.id}
-                href={buildHref('tag', t.slug)}
-                className={`rounded-full px-3 py-1 text-xs transition-colors ${
-                  tag === t.slug
-                    ? 'bg-foreground text-background'
-                    : 'border border-border text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {t.name}
-                <span className="ml-1 opacity-60">{t.article_count}</span>
-              </Link>
-            ))}
-          </div>
+        {/* 列表标题 */}
+        <div className="mb-6 flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-bold tracking-tight">
+            {category
+              ? `分类：${categoriesQuery.data?.categories.find((c) => c.slug === category)?.name ?? category}`
+              : tag
+                ? `标签：${tagsQuery.data?.tags.find((t) => t.slug === tag)?.name ?? tag}`
+                : q
+                  ? `搜索：${q}`
+                  : '最新文章'}
+          </h1>
+          <span className="text-sm font-normal text-muted-foreground">
+            {data ? `${data.total} 篇` : ''}
+          </span>
         </div>
 
         {widgets.length > 0 ? (

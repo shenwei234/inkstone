@@ -77,6 +77,59 @@ func (r *TaxonomyRepository) FindOrCreateCategory(name string) (*model.Category,
 	return &c, nil
 }
 
+// CreateTag creates a tag (returns existing one when the slug already exists).
+func (r *TaxonomyRepository) CreateTag(name string) (*model.Tag, error) {
+	name = trimSpace(name)
+	if name == "" {
+		return nil, ErrInvalidInput
+	}
+	slug := Slugify(name)
+	var existing model.Tag
+	if err := r.db.Where("slug = ?", slug).First(&existing).Error; err == nil {
+		return &existing, nil
+	}
+	tag := model.Tag{Name: name, Slug: slug}
+	if err := r.db.Create(&tag).Error; err != nil {
+		return nil, err
+	}
+	return &tag, nil
+}
+
+// UpdateTag renames a tag and refreshes its slug.
+func (r *TaxonomyRepository) UpdateTag(id uint, name string) (*model.Tag, error) {
+	name = trimSpace(name)
+	if name == "" {
+		return nil, ErrInvalidInput
+	}
+	var tag model.Tag
+	if err := r.db.First(&tag, id).Error; err != nil {
+		return nil, ErrNotFound
+	}
+	tag.Name = name
+	tag.Slug = Slugify(name)
+	if err := r.db.Save(&tag).Error; err != nil {
+		return nil, err
+	}
+	return &tag, nil
+}
+
+// DeleteTag removes a tag and its article associations.
+func (r *TaxonomyRepository) DeleteTag(id uint) error {
+	var tag model.Tag
+	if err := r.db.First(&tag, id).Error; err != nil {
+		return ErrNotFound
+	}
+	if err := r.db.Model(&tag).Association("Articles").Clear(); err != nil {
+		// 关联表可能不存在于模型定义中，退化为直接清理连接表
+		r.db.Exec("DELETE FROM article_tags WHERE tag_id = ?", id)
+	}
+	if err := r.db.Delete(&tag).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+// FindOrCreateTags finds or creates the given tag names.
 func (r *TaxonomyRepository) FindOrCreateTags(names []string) ([]model.Tag, error) {
 	tags := make([]model.Tag, 0, len(names))
 	for _, name := range names {

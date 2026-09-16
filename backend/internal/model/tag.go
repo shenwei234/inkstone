@@ -8,4 +8,5 @@ type Tag struct {
 	Slug      string    `gorm:"uniqueIndex;size:64;not null" json:"slug"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	Articles  []Article `gorm:"many2many:article_tags" json:"-"`
 }

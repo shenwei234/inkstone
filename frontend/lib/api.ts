@@ -247,6 +247,20 @@ export function fetchTags() {
   return api<{ tags: TagCount[] }>('/tags')
 }
 
+// ---------- Admin Tags API ----------
+
+export function createTag(name: string) {
+  return api<{ tag: TagCount }>('/admin/tags', { method: 'POST', body: { name }, auth: true })
+}
+
+export function updateTag(id: number, name: string) {
+  return api<{ tag: TagCount }>(`/admin/tags/${id}`, { method: 'PUT', body: { name }, auth: true })
+}
+
+export function deleteTag(id: number) {
+  return api<void>(`/admin/tags/${id}`, { method: 'DELETE', auth: true })
+}
+
 export function fetchComments(articleId: number | string) {
   return api<{ comments: CommentItem[] }>(`/articles/${articleId}/comments`)
 }
