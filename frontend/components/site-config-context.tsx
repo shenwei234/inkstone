@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { fetchSiteConfig } from '@/lib/api'
-import type { CaptchaConfig } from '@/lib/api'
+import type { CaptchaConfig, EmailCodeConfig } from '@/lib/api'
 
 export interface NavMenuItem {
   label: string
@@ -44,6 +44,11 @@ export interface SiteConfig {
   widgets: SidebarWidget[]
   sidebarPosition: 'left' | 'right'
   captcha: CaptchaConfig
+  emailCode: EmailCodeConfig
+  wallpaper: string
+  wallpaperOpacity: number
+  wallpaperBlur: number
+  articleSidebar: boolean
   allowRegistration: boolean
   loaded: boolean
 }
@@ -65,6 +70,11 @@ const DEFAULT_CONFIG: SiteConfig = {
     on_comment: false,
     on_article: false,
   },
+  emailCode: { on_register: false, on_login: false },
+  wallpaper: '',
+  wallpaperOpacity: 100,
+  wallpaperBlur: 0,
+  articleSidebar: true,
   allowRegistration: true,
   loaded: false,
 }
@@ -82,6 +92,11 @@ interface RawSiteConfig {
   sidebar_widgets?: unknown
   sidebar_position?: string
   captcha?: Partial<CaptchaConfig>
+  email_code?: Partial<EmailCodeConfig>
+  site_wallpaper?: string
+  wallpaper_opacity?: string
+  wallpaper_blur?: string
+  article_sidebar?: string
 }
 
 function parseItems<T>(raw: unknown, validate: (item: unknown) => T | null): T[] {
@@ -152,9 +167,24 @@ export function SiteConfigProvider({ children }: { children: ReactNode }) {
             on_comment: cfg.captcha?.on_comment ?? false,
             on_article: cfg.captcha?.on_article ?? false,
           },
+          emailCode: {
+            on_register: cfg.email_code?.on_register ?? false,
+            on_login: cfg.email_code?.on_login ?? false,
+          },
+          wallpaper: cfg.site_wallpaper ?? '',
+          wallpaperOpacity: Number(cfg.wallpaper_opacity ?? 100) || 100,
+          wallpaperBlur: Number(cfg.wallpaper_blur ?? 0) || 0,
+          articleSidebar: cfg.article_sidebar !== 'false',
           loaded: true,
         }
         setConfig(next)
+
+        // 有壁纸时给 body 加标记类，便于样式做半透明处理
+        if (next.wallpaper) {
+          document.body.classList.add('has-wallpaper')
+        } else {
+          document.body.classList.remove('has-wallpaper')
+        }
 
         // Apply browser tab title and favicon dynamically.
         document.title = next.siteName

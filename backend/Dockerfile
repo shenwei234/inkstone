@@ -3,12 +3,16 @@ FROM docker.m.daocloud.io/library/golang:1.27-alpine AS builder
 
 WORKDIR /build
 
-# 先复制依赖文件，利用 Docker 层缓存
+# 国内 Go 模块代理，避免依赖拉取超时
+ENV GOPROXY=https://goproxy.cn,direct
+ENV GOSUMDB=off
+ENV CGO_ENABLED=0
+
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o server ./cmd/server
+RUN go build -ldflags="-s -w" -o server ./cmd/server
 
 # ---------- 运行阶段 ----------
 FROM docker.m.daocloud.io/library/alpine:3.20
@@ -17,12 +21,9 @@ RUN apk add --no-cache tzdata ca-certificates
 
 WORKDIR /app
 COPY --from=builder /build/server ./server
-
-# 上传文件目录（挂载卷持久化）
 RUN mkdir -p /app/data/uploads
 
-# 注意：数据库密码 / JWT 密钥等敏感信息由 docker-compose 或环境变量注入，
-# 此处只提供非敏感的默认值。
+# 敏感信息（DB_PASSWORD / JWT_SECRET）由 docker-compose 注入
 ENV APP_ENV=production \
     PORT=8080 \
     DB_HOST=postgres \

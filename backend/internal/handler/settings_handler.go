@@ -9,13 +9,14 @@ import (
 )
 
 type SettingsHandler struct {
-	settings *service.SettingsService
-	mailer   *mailer.Mailer
-	captcha  *service.CaptchaService
+	settings  *service.SettingsService
+	mailer    *mailer.Mailer
+	captcha   *service.CaptchaService
+	emailCode *service.EmailCodeService
 }
 
-func NewSettingsHandler(settings *service.SettingsService, mailClient *mailer.Mailer, captcha *service.CaptchaService) *SettingsHandler {
-	return &SettingsHandler{settings: settings, mailer: mailClient, captcha: captcha}
+func NewSettingsHandler(settings *service.SettingsService, mailClient *mailer.Mailer, captcha *service.CaptchaService, emailCode *service.EmailCodeService) *SettingsHandler {
+	return &SettingsHandler{settings: settings, mailer: mailClient, captcha: captcha, emailCode: emailCode}
 }
 
 // Get handles GET /admin/settings.
@@ -63,6 +64,9 @@ func (h *SettingsHandler) SiteConfig(c *gin.Context) {
 	}
 	if h.captcha != nil {
 		out["captcha"] = h.captcha.PublicConfig()
+	}
+	if h.emailCode != nil {
+		out["email_code"] = h.emailCode.PublicConfig()
 	}
 	c.JSON(http.StatusOK, out)
 }

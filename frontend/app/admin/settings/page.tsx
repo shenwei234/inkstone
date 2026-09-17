@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Globe, ImagePlus, Mail, Send, ShieldCheck, Trash2 } from 'lucide-react'
+import { Globe, Image as ImageIcon, ImagePlus, Mail, Send, ShieldCheck, Trash2 } from 'lucide-react'
 import {
   fetchAdminSettings,
   sendTestMail,
@@ -289,6 +289,52 @@ export default function AdminSettingsPage() {
                 onChange={(e) => update('site_description', e.target.value)}
                 className={inputClass}
               />
+            </div>
+          </div>
+        </Section>
+
+        <Section icon={<ImageIcon className="h-4 w-4 text-sky-500" />} title="全站壁纸与文章页">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <ImageField
+              label="全站壁纸"
+              desc="显示在页面背景，留空则使用纯色背景"
+              value={(form as unknown as Record<string, string>).site_wallpaper ?? ''}
+              onChange={(url) => update('site_wallpaper' as never, url as never)}
+            />
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">壁纸不透明度（%）</label>
+              <input
+                type="number"
+                min={5}
+                max={100}
+                value={(form as unknown as Record<string, string>).wallpaper_opacity ?? '100'}
+                onChange={(e) => update('wallpaper_opacity' as never, e.target.value as never)}
+                className={inputClass}
+              />
+              <p className="text-xs text-muted-foreground">建议 20-60，过高会影响文字可读性</p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">壁纸模糊（px）</label>
+              <input
+                type="number"
+                min={0}
+                max={20}
+                value={(form as unknown as Record<string, string>).wallpaper_blur ?? '0'}
+                onChange={(e) => update('wallpaper_blur' as never, e.target.value as never)}
+                className={inputClass}
+              />
+              <p className="text-xs text-muted-foreground">0 表示不模糊，2-8 效果较自然</p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">文章页侧边栏</label>
+              <select
+                value={(form as unknown as Record<string, string>).article_sidebar ?? 'true'}
+                onChange={(e) => update('article_sidebar' as never, e.target.value as never)}
+                className={inputClass}
+              >
+                <option value="true">显示（右侧小工具）</option>
+                <option value="false">隐藏（通栏阅读）</option>
+              </select>
             </div>
           </div>
         </Section>

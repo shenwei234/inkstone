@@ -24,13 +24,13 @@ interface AuthContextValue {
   login: (
     email: string,
     password: string,
-    captcha?: { captcha_token?: string; captcha_answer?: string },
+    extra?: { captcha_token?: string; captcha_answer?: string; email_code?: string },
   ) => Promise<User>
   register: (
     email: string,
     username: string,
     password: string,
-    captcha?: { captcha_token?: string; captcha_answer?: string },
+    extra?: { captcha_token?: string; captcha_answer?: string; email_code?: string },
   ) => Promise<User>
   logout: () => void
   applyTokens: (token: TokenPair, user: User) => void
@@ -76,9 +76,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (
       email: string,
       password: string,
-      captcha?: { captcha_token?: string; captcha_answer?: string },
+      extra?: { captcha_token?: string; captcha_answer?: string; email_code?: string },
     ) => {
-      const res = await apiLogin(email, password, captcha)
+      const res = await apiLogin(email, password, extra)
       applyTokens(res.token, res.user)
       return res.user
     },
@@ -90,9 +90,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: string,
       username: string,
       password: string,
-      captcha?: { captcha_token?: string; captcha_answer?: string },
+      extra?: { captcha_token?: string; captcha_answer?: string; email_code?: string },
     ) => {
-      const res = await apiRegister(email, username, password, captcha)
+      const res = await apiRegister(email, username, password, extra)
       applyTokens(res.token, res.user)
       return res.user
     },

@@ -3,12 +3,15 @@ FROM docker.m.daocloud.io/library/node:22-alpine AS builder
 
 WORKDIR /build
 
+# 国内 npm 源，避免依赖拉取超时
+RUN npm config set registry https://registry.npmmirror.com
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
 
-# API 地址在构建期注入（浏览器端会使用该地址）
+# API 地址在构建期注入（浏览器端使用该地址）
 ARG NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 

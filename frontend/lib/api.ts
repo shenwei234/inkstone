@@ -119,7 +119,20 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   return res.json() as Promise<T>
 }
 
-// ---------- Captcha API ----------
+// ---------- Captcha / Email Code API ----------
+
+export interface EmailCodeConfig {
+  on_register: boolean
+  on_login: boolean
+}
+
+/** 发送邮箱验证码 */
+export function sendEmailCode(email: string, purpose: 'register' | 'login') {
+  return api<{ message: string }>('/auth/email-code', {
+    method: 'POST',
+    body: { email, purpose },
+  })
+}
 
 export interface CaptchaConfig {
   provider: 'none' | 'turnstile' | 'geetest' | 'builtin'
@@ -148,22 +161,22 @@ export function register(
   email: string,
   username: string,
   password: string,
-  captcha?: { captcha_token?: string; captcha_answer?: string },
+  extra?: { captcha_token?: string; captcha_answer?: string; email_code?: string },
 ) {
   return api<AuthResponse>('/auth/register', {
     method: 'POST',
-    body: { email, username, password, ...captcha },
+    body: { email, username, password, ...extra },
   })
 }
 
 export function login(
   email: string,
   password: string,
-  captcha?: { captcha_token?: string; captcha_answer?: string },
+  extra?: { captcha_token?: string; captcha_answer?: string; email_code?: string },
 ) {
   return api<AuthResponse>('/auth/login', {
     method: 'POST',
-    body: { email, password, ...captcha },
+    body: { email, password, ...extra },
   })
 }
 

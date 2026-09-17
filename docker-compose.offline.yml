@@ -1,0 +1,62 @@
+# InkStone — 离线镜像部署（无需在服务器上编译，适合小内存 VPS）
+#
+# 用法：
+#   1. docker load -i inkstone-images.tar
+#   2. cp .env.example .env && 编辑 .env
+#   3. docker compose -f docker-compose.offline.yml up -d
+#
+# 说明：镜像已内置前端 API 地址（构建时注入），如需更换域名请重新构建前端镜像。
+
+services:
+  postgres:
+    image: docker.m.daocloud.io/library/postgres:16-alpine
+    container_name: inkstone-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-blog}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?请在 .env 中设置 DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-blog_platform}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-blog} -d ${DB_NAME:-blog_platform}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: inkstone-backend:latest
+    container_name: inkstone-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      PORT: 8080
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-blog}
+      DB_PASSWORD: ${DB_PASSWORD:?请在 .env 中设置 DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-blog_platform}
+      JWT_SECRET: ${JWT_SECRET:?请在 .env 中设置 JWT_SECRET}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8080}
+      UPLOAD_DIR: /app/data/uploads
+    volumes:
+      - uploads_data:/app/data
+    ports:
+      - "${BACKEND_BIND:-127.0.0.1}:8080:8080"
+
+  frontend:
+    image: inkstone-frontend:latest
+    container_name: inkstone-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_BIND:-127.0.0.1}:3000:3000"
+
+volumes:
+  postgres_data:
+  uploads_data:

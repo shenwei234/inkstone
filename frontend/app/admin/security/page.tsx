@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Gauge, KeyRound, ShieldCheck, UserCheck } from 'lucide-react'
+import { Gauge, KeyRound, Mail, ShieldCheck, UserCheck } from 'lucide-react'
 import { fetchAdminSettings, updateAdminSettings, ApiError } from '@/lib/api'
 import { useNotify } from '@/components/toast'
 import { PageTransition } from '@/components/motion'
@@ -29,6 +29,8 @@ interface SecurityForm {
   captcha_on_login: boolean
   captcha_on_comment: boolean
   captcha_on_article: boolean
+  email_code_on_register: boolean
+  email_code_on_login: boolean
 }
 
 function Toggle({
@@ -124,6 +126,8 @@ export default function AdminSecurityPage() {
         captcha_on_login: toBool(s.captcha_on_login, false),
         captcha_on_comment: toBool(s.captcha_on_comment, true),
         captcha_on_article: toBool(s.captcha_on_article, true),
+        email_code_on_register: toBool(s.email_code_on_register, false),
+        email_code_on_login: toBool(s.email_code_on_login, false),
       })
     }, 0)
     return () => clearTimeout(t)
@@ -359,6 +363,26 @@ export default function AdminSecurityPage() {
               onChange={(v) => update('captcha_on_article', v)}
               label="发布文章"
               desc="仅发布时校验，保存草稿不受影响"
+            />
+          </div>
+        </Section>
+
+        <Section icon={<Mail className="h-4 w-4 text-sky-500" />} title="邮箱验证码">
+          <p className="text-xs text-muted-foreground">
+            开启后，注册/登录需先获取发送到邮箱的 6 位验证码（需先在「网站管理」配置 SMTP）
+          </p>
+          <div className="mt-2 divide-y divide-border border-t border-border">
+            <Toggle
+              checked={form.email_code_on_register}
+              onChange={(v) => update('email_code_on_register', v)}
+              label="注册需要邮箱验证码"
+              desc="防止批量注册"
+            />
+            <Toggle
+              checked={form.email_code_on_login}
+              onChange={(v) => update('email_code_on_login', v)}
+              label="登录需要邮箱验证码"
+              desc="更安全，但用户每次登录需查收邮件"
             />
           </div>
         </Section>

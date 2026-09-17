@@ -147,7 +147,7 @@ function ProfileWidget({ widget }: { widget: SidebarWidget }) {
     <motion.div
       whileHover={{ y: -3 }}
       transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-      className="relative overflow-hidden rounded-xl border border-border bg-gradient-to-br from-accent/10 via-card to-purple-500/10 p-5"
+      className="relative overflow-hidden rounded-xl border border-border bg-card p-5"
     >
       <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-accent/15 blur-2xl" />
       <div className="relative flex items-center gap-3">
@@ -282,7 +282,7 @@ function WeatherWidget({ widget }: { widget: SidebarWidget }) {
   const info = weather ? WEATHER_CODES[weather.code] ?? WEATHER_CODES[0] : null
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-border bg-gradient-to-br from-sky-500/10 via-card to-blue-500/10 p-5">
+    <div className="relative overflow-hidden rounded-xl border border-border bg-card p-5">
       <div className="pointer-events-none absolute -left-8 -top-8 h-24 w-24 rounded-full bg-sky-400/15 blur-2xl" />
       <h3 className="relative mb-3 text-sm font-semibold tracking-wide">{widget.title}</h3>
       {failed ? (
@@ -370,7 +370,7 @@ function CountdownWidget({ widget }: { widget: SidebarWidget }) {
   ]
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-border bg-gradient-to-br from-red-500/15 via-card to-orange-500/10 p-5">
+    <div className="relative overflow-hidden rounded-xl border border-border bg-card p-5">
       <motion.div
         animate={{ rotate: 360 }}
         transition={{ repeat: Infinity, duration: 24, ease: 'linear' }}
@@ -428,7 +428,7 @@ function ClockWidget({ widget }: { widget: SidebarWidget }) {
   const week = ['日', '一', '二', '三', '四', '五', '六'][now.getDay()]
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-border bg-gradient-to-br from-indigo-500/10 via-card to-cyan-500/10 p-5">
+    <div className="relative overflow-hidden rounded-xl border border-border bg-card p-5">
       <div className="pointer-events-none absolute -right-8 -bottom-8 h-24 w-24 rounded-full bg-indigo-400/15 blur-2xl" />
       <h3 className="relative mb-2 text-sm font-semibold tracking-wide">{widget.title}</h3>
       <p className="relative text-4xl font-bold tabular-nums tracking-tight">
