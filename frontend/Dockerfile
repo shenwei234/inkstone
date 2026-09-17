@@ -1,8 +1,5 @@
 # ---------- 构建阶段 ----------
-FROM node:22-alpine AS builder
-
-# 国内服务器走 npmmirror（如服务器在海外可删掉本行）
-RUN npm config set registry https://registry.npmmirror.com
+FROM docker.m.daocloud.io/library/node:22-alpine AS builder
 
 WORKDIR /build
 
@@ -18,11 +15,10 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN npm run build
 
 # ---------- 运行阶段 ----------
-FROM node:22-alpine AS runner
+FROM docker.m.daocloud.io/library/node:22-alpine AS runner
 
 WORKDIR /app
-ENV NODE_ENV=production \
-    TZ=Asia/Shanghai
+ENV NODE_ENV=production
 
 COPY --from=builder /build/package.json /build/package-lock.json ./
 COPY --from=builder /build/node_modules ./node_modules

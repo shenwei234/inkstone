@@ -1,15 +1,19 @@
-# Blog Platform — 生产部署编排
-# 用法：cp .env.example .env && 编辑 .env && docker compose up -d
-# 详细教程见 README.md「Docker 一键部署」章节
+# Blog Platform (InkStone) — 生产部署编排
+#
+# 用法：
+#   1. cp .env.example .env && 编辑 .env（改 DB_PASSWORD / JWT_SECRET / 域名）
+#   2. docker compose up -d --build
+#
+# 详细教程见 README.md
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: docker.m.daocloud.io/library/postgres:16-alpine
     container_name: inkstone-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-blog}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-blog_password}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?请在 .env 中设置 DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME:-blog_platform}
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -18,9 +22,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    # 如需从宿主机直连数据库，取消下面注释（不建议暴露到公网）
-    # ports:
-    #   - "127.0.0.1:5432:5432"
 
   backend:
     build: ./backend
@@ -35,23 +36,21 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: ${DB_USER:-blog}
-      DB_PASSWORD: ${DB_PASSWORD:-blog_password}
+      DB_PASSWORD: ${DB_PASSWORD:?请在 .env 中设置 DB_PASSWORD}
       DB_NAME: ${DB_NAME:-blog_platform}
-      # 必改：生产环境请换成 64 位随机字符串
-      JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-secret}
-      # 前端地址（CORS 白名单）
+      JWT_SECRET: ${JWT_SECRET:?请在 .env 中设置 JWT_SECRET}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
-      # 上传文件的对外访问前缀（与前端访问后端的方式一致）
       PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8080}
+      UPLOAD_DIR: /app/data/uploads
     volumes:
       - uploads_data:/app/data
     ports:
-      - "8080:8080"
+      # 如已在前面挂 Nginx/Caddy 反向代理，建议改为 "127.0.0.1:8080:8080"
+      - "${BACKEND_BIND:-0.0.0.0}:8080:8080"
 
   frontend:
     build:
       context: ./frontend
-      # 构建期注入 API 地址（浏览器直接访问后端，需公网可达）
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080/api/v1}
     container_name: inkstone-frontend
@@ -59,7 +58,8 @@ services:
     depends_on:
       - backend
     ports:
-      - "3000:3000"
+      # 如已在前面挂 Nginx/Caddy 反向代理，建议改为 "127.0.0.1:3000:3000"
+      - "${FRONTEND_BIND:-0.0.0.0}:3000:3000"
 
 volumes:
   postgres_data:
