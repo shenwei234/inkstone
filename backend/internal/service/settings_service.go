@@ -48,6 +48,17 @@ const (
 	SettingSecurityCommentMax   = "security_comment_max"   // 评论次数上限/10 分钟
 	SettingSecurityAPIMax       = "security_api_max"       // 单 IP API 请求上限/分钟
 	SettingSecurityBlockMinutes = "security_block_minutes" // 触发后封禁时长（分钟）
+
+	// 邮箱验证码
+	SettingEmailCodeOnRegister = "email_code_on_register" // 注册需邮箱验证码
+	SettingEmailCodeOnLogin    = "email_code_on_login"    // 登录需邮箱验证码
+	SettingEmailCodeTTLMinutes = "email_code_ttl_minutes" // 验证码有效期（分钟）
+
+	// 站点外观
+	SettingSiteWallpaper    = "site_wallpaper"    // 全站壁纸图片地址
+	SettingWallpaperOpacity = "wallpaper_opacity" // 壁纸不透明度（0-100）
+	SettingWallpaperBlur    = "wallpaper_blur"    // 壁纸模糊（px）
+	SettingArticleSidebar   = "article_sidebar"   // 文章页是否显示侧边栏："true"/"false"
 )
 
 var settingDefaults = map[string]string{
@@ -86,6 +97,15 @@ var settingDefaults = map[string]string{
 	SettingSecurityCommentMax:   "30",
 	SettingSecurityAPIMax:       "600",
 	SettingSecurityBlockMinutes: "15",
+
+	SettingEmailCodeOnRegister: "false",
+	SettingEmailCodeOnLogin:    "false",
+	SettingEmailCodeTTLMinutes: "10",
+
+	SettingSiteWallpaper:    "",
+	SettingWallpaperOpacity: "100",
+	SettingWallpaperBlur:    "0",
+	SettingArticleSidebar:   "true",
 }
 
 // jsonSettingKeys hold JSON arrays; they are decoded before leaving the API.

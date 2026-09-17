@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth-context'
 import { ApiError } from '@/lib/api'
 import { useSiteConfig } from '@/components/site-config-context'
 import { Captcha, type CaptchaResult } from '@/components/captcha'
+import { EmailCodeInput } from '@/components/email-code-input'
 import { easeOut } from '@/components/motion'
 import { inputClass } from '@/lib/ui'
 
@@ -19,6 +20,7 @@ export default function RegisterPage() {
   const site = useSiteConfig()
   const router = useRouter()
   const [captcha, setCaptcha] = useState<CaptchaResult>({})
+  const [emailCode, setEmailCode] = useState('')
   const configQuery = useQuery({ queryKey: ['site-config'], queryFn: fetchSiteConfig })
   const registrationOpen = configQuery.data?.allow_registration !== false
   const [email, setEmail] = useState('')
@@ -32,7 +34,7 @@ export default function RegisterPage() {
     setError(null)
     setSubmitting(true)
     try {
-      const newUser = await register(email, username, password, captcha)
+      const newUser = await register(email, username, password, { ...captcha, email_code: emailCode })
       router.push(newUser.role === 'admin' ? '/admin' : '/')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '注册失败，请稍后重试')
@@ -125,6 +127,15 @@ export default function RegisterPage() {
                 />
               </motion.div>
             ))}
+
+            {site.emailCode.on_register && (
+              <EmailCodeInput
+                email={email}
+                purpose="register"
+                value={emailCode}
+                onChange={setEmailCode}
+              />
+            )}
 
             <Captcha config={site.captcha} action="register" onChange={setCaptcha} />
 

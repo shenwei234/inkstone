@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth-context'
 import { ApiError } from '@/lib/api'
 import { useSiteConfig } from '@/components/site-config-context'
 import { Captcha, type CaptchaResult } from '@/components/captcha'
+import { EmailCodeInput } from '@/components/email-code-input'
 import { easeOut } from '@/components/motion'
 import { inputClass } from '@/lib/ui'
 
@@ -19,6 +20,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [captcha, setCaptcha] = useState<CaptchaResult>({})
+  const [emailCode, setEmailCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -27,7 +29,7 @@ export default function LoginPage() {
     setError(null)
     setSubmitting(true)
     try {
-      const loggedIn = await login(email, password, captcha)
+      const loggedIn = await login(email, password, { ...captcha, email_code: emailCode })
       router.push(loggedIn.role === 'admin' ? '/admin' : '/')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '登录失败，请稍后重试')
@@ -96,6 +98,15 @@ export default function LoginPage() {
                 className={inputClass}
               />
             </div>
+
+            {site.emailCode.on_login && (
+              <EmailCodeInput
+                email={email}
+                purpose="login"
+                value={emailCode}
+                onChange={setEmailCode}
+              />
+            )}
 
             <Captcha config={site.captcha} action="login" onChange={setCaptcha} />
 

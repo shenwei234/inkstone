@@ -50,22 +50,24 @@ func main() {
 	statSvc := service.NewStatService(statRepo, settingsSvc)
 
 	captchaSvc := service.NewCaptchaService(settingsSvc, cfg.JWTSecret)
+	emailCodeSvc := service.NewEmailCodeService(settingsSvc, mailer)
 	apiLimiter := middleware.NewSlidingLimiter()
 
-	authHandler := handler.NewAuthHandler(authSvc, captchaSvc, apiLimiter)
+	authHandler := handler.NewAuthHandler(authSvc, captchaSvc, emailCodeSvc, apiLimiter)
 	articleHandler := handler.NewArticleHandler(articleSvc, captchaSvc)
 	adminHandler := handler.NewAdminHandler(adminSvc, userRepo, articleSvc, articleRepo, commentSvc)
 	taxonomyHandler := handler.NewTaxonomyHandler(taxonomyRepo)
 	commentHandler := handler.NewCommentHandler(commentSvc, tokens, captchaSvc, apiLimiter)
 	reactionHandler := handler.NewReactionHandler(reactionSvc)
 	rssHandler := handler.NewRSSHandler(articleSvc, cfg.FrontendURL)
-	settingsHandler := handler.NewSettingsHandler(settingsSvc, mailer, captchaSvc)
+	settingsHandler := handler.NewSettingsHandler(settingsSvc, mailer, captchaSvc, emailCodeSvc)
 	pageHandler := handler.NewPageHandler(pageSvc)
 	systemHandler := handler.NewSystemHandler(settingsSvc)
 	linkHandler := handler.NewLinkHandler(linkSvc)
 	fileHandler := handler.NewFileHandler(fileSvc, cfg.PublicAPIURL)
 	captchaHandler := handler.NewCaptchaHandler(captchaSvc)
 	statHandler := handler.NewStatHandler(statSvc)
+	emailCodeHandler := handler.NewEmailCodeHandler(emailCodeSvc)
 	adminTagHandler := handler.NewAdminTagHandler(taxonomyRepo)
 
 	if cfg.IsProduction() {
@@ -162,6 +164,7 @@ func main() {
 		auth := api.Group("/auth")
 		{
 			auth.POST("/register", registerLimit, authHandler.Register)
+			auth.POST("/email-code", registerLimit, emailCodeHandler.Send)
 			auth.POST("/login", loginLimit, authHandler.Login)
 			auth.POST("/refresh", authHandler.Refresh)
 			auth.GET("/me", middleware.Auth(tokens, userStatusOK), authHandler.Me)

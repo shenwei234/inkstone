@@ -10,13 +10,14 @@ import (
 )
 
 type AuthHandler struct {
-	auth    *service.AuthService
-	captcha *service.CaptchaService
-	limiter *middleware.SlidingLimiter
+	auth      *service.AuthService
+	captcha   *service.CaptchaService
+	emailCode *service.EmailCodeService
+	limiter   *middleware.SlidingLimiter
 }
 
-func NewAuthHandler(auth *service.AuthService, captcha *service.CaptchaService, limiter *middleware.SlidingLimiter) *AuthHandler {
-	return &AuthHandler{auth: auth, captcha: captcha, limiter: limiter}
+func NewAuthHandler(auth *service.AuthService, captcha *service.CaptchaService, emailCode *service.EmailCodeService, limiter *middleware.SlidingLimiter) *AuthHandler {
+	return &AuthHandler{auth: auth, captcha: captcha, emailCode: emailCode, limiter: limiter}
 }
 
 // resetAuthLimit clears the rate-limit budget for the caller after a
@@ -37,6 +38,7 @@ type registerRequest struct {
 	Password      string `json:"password" binding:"required"`
 	CaptchaToken  string `json:"captcha_token"`
 	CaptchaAnswer string `json:"captcha_answer"`
+	EmailCode     string `json:"email_code"`
 }
 
 type loginRequest struct {
@@ -44,6 +46,7 @@ type loginRequest struct {
 	Password      string `json:"password" binding:"required"`
 	CaptchaToken  string `json:"captcha_token"`
 	CaptchaAnswer string `json:"captcha_answer"`
+	EmailCode     string `json:"email_code"`
 }
 
 type refreshRequest struct {
@@ -64,6 +67,10 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	if err := h.emailCode.Verify(req.Email, req.EmailCode); err != nil {
+		errorResponse(c, err)
+		return
+	}
 	if err := h.captcha.Verify(service.CaptchaActionRegister, req.CaptchaToken, req.CaptchaAnswer, middleware.ClientIP(c)); err != nil {
 		errorResponse(c, err)
 		return
@@ -95,6 +102,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	if err := h.emailCode.Verify(req.Email, req.EmailCode); err != nil {
+		errorResponse(c, err)
+		return
+	}
 	if err := h.captcha.Verify(service.CaptchaActionLogin, req.CaptchaToken, req.CaptchaAnswer, middleware.ClientIP(c)); err != nil {
 		errorResponse(c, err)
 		return

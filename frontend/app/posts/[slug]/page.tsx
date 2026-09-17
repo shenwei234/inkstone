@@ -29,6 +29,7 @@ import { useNotify } from '@/components/toast'
 import { useSiteConfig } from '@/components/site-config-context'
 import { Captcha, type CaptchaResult } from '@/components/captcha'
 import { PageTransition } from '@/components/motion'
+import { WidgetRenderer } from '@/components/sidebar-widgets'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
 
@@ -142,9 +143,29 @@ export default function PostPage({ params }: { params: Promise<{ slug: string }>
     return false
   }
 
+  const widgets = site.widgets.filter((w) => w.type && w.title)
+  const showSidebar = site.articleSidebar && widgets.length > 0
+
   return (
     <PageTransition>
-      <div className="mx-auto max-w-3xl px-4 py-12">
+      <div
+        className={`mx-auto px-4 py-12 ${
+          showSidebar
+            ? site.sidebarPosition === 'left'
+              ? 'max-w-6xl lg:grid lg:grid-cols-[280px_1fr] lg:gap-8'
+              : 'max-w-6xl lg:grid lg:grid-cols-[1fr_280px] lg:gap-8'
+            : 'max-w-3xl'
+        }`}
+      >
+      {showSidebar && site.sidebarPosition === 'left' && (
+        <aside className="mb-8 h-fit space-y-4 lg:sticky lg:top-24 lg:order-first lg:mb-0">
+          {widgets.map((w, i) => (
+            <WidgetRenderer key={`${w.type}-${i}`} widget={w} />
+          ))}
+        </aside>
+      )}
+      <div className="min-w-0">
+
         <motion.header
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
@@ -354,6 +375,14 @@ export default function PostPage({ params }: { params: Promise<{ slug: string }>
             )}
           </div>
         </section>
+      </div>
+      {showSidebar && site.sidebarPosition !== 'left' && (
+        <aside className="mt-8 h-fit space-y-4 lg:sticky lg:top-24 lg:mt-0">
+          {widgets.map((w, i) => (
+            <WidgetRenderer key={`${w.type}-${i}`} widget={w} />
+          ))}
+        </aside>
+      )}
       </div>
     </PageTransition>
   )

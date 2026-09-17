@@ -142,6 +142,20 @@ body {
   pointer-events: none;
 }
 
+/* 自定义壁纸模式：卡片与导航栏半透明，保证壁纸可见且内容可读 */
+body.has-wallpaper {
+  background: transparent;
+}
+
+body.has-wallpaper .bg-card {
+  background-color: color-mix(in srgb, var(--card) 82%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+body.has-wallpaper header {
+  background-color: color-mix(in srgb, var(--background) 65%, transparent);
+}
+
 /* Markdown prose */
 .prose {
   --tw-prose-body: color-mix(in srgb, var(--foreground) 88%, transparent);

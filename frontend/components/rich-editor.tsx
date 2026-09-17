@@ -650,9 +650,16 @@ export function RichEditor({ content, onChange, variant = 'card' }: RichEditorPr
       className={plain ? 'relative overflow-visible' : 'overflow-hidden rounded-lg border border-border bg-card transition-colors focus-within:border-accent/50'}
     >
       {plain ? (
-        <div className="rounded-t-lg border-b border-border bg-card px-3 py-1">
-          <p className="py-1 text-xs text-muted-foreground">
-            输入 <kbd className="rounded border border-border bg-muted px-1">/</kbd> 插入区块，点击区块可编辑
+        <div className="rounded-t-lg border-b border-border bg-muted/40 px-4 py-3">
+          <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">✍️ 写作很简单：</span>
+            <span>
+              1️⃣ 直接打字，<span className="text-foreground">选中文字</span>会浮出加粗/标题按钮
+            </span>
+            <span>
+              2️⃣ 换行输入 <kbd className="rounded border border-border bg-card px-1.5 py-0.5 font-mono">/</kbd> 可插入图片、列表、引用等
+            </span>
+            <span>3️⃣ 写完点右上角「发布」</span>
           </p>
         </div>
       ) : null}
