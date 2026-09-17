@@ -33,10 +33,10 @@ export function SiteFooter() {
       {/* 顶部渐变装饰线 */}
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
 
-      <div className="mx-auto max-w-3xl px-4 py-6">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+      <div className="mx-auto max-w-2xl px-4 py-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           {/* 品牌区 */}
-          <div className="max-w-[15rem]">
+          <div className="max-w-[13rem]">
             <Link href="/" className="group inline-flex items-center gap-2.5">
               {site.siteLogo ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
@@ -98,7 +98,7 @@ export function SiteFooter() {
         </div>
 
         {/* 底部分隔线 */}
-        <div className="mt-5 flex flex-col items-center justify-between gap-2 border-t border-border pt-4 text-[11px] text-muted-foreground sm:flex-row">
+        <div className="mt-4 flex flex-col items-center justify-between gap-2 border-t border-border pt-3 text-[11px] text-muted-foreground sm:flex-row">
           <p className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1">
             <span>© {year} {site.siteName}</span>
             <span className="opacity-40">·</span>
