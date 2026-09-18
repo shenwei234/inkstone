@@ -141,7 +141,7 @@ export default function AdminSecurityPage() {
   const save = useMutation({
     mutationFn: () => {
       const payload: Record<string, unknown> = { ...form }
-      // 空密钥表示不修改
+      // 空值表示不修改密钥（后端会保留原值）
       if (!form?.captcha_secret_key) delete payload.captcha_secret_key
       if (!form?.geetest_captcha_key) delete payload.geetest_captcha_key
       return updateAdminSettings(payload as never)
@@ -150,8 +150,13 @@ export default function AdminSecurityPage() {
       queryClient.invalidateQueries({ queryKey: ['admin', 'settings'] })
       queryClient.invalidateQueries({ queryKey: ['site-config'] })
       const s = res.settings as unknown as Record<string, unknown>
-      setForm((f) => (f ? { ...f, captcha_secret_key: '' } : f))
-      notify.success('安全设置已保存' + (s.captcha_secret_key === undefined ? '' : ''))
+      // 保存后清空输入框，并根据后端返回刷新「已配置」状态
+      setForm((f) =>
+        f ? { ...f, captcha_secret_key: '', geetest_captcha_key: '' } : f,
+      )
+      setCaptchaSecretSet(s.captcha_secret_key_set === true)
+      setGeetestKeySet(s.geetest_captcha_key_set === true)
+      notify.success('安全设置已保存')
     },
     onError: (e) => notify.error(e instanceof ApiError ? e.message : '保存失败'),
   })
