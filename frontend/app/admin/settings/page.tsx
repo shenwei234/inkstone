@@ -12,6 +12,7 @@ import {
   ApiError,
 } from '@/lib/api'
 import { useNotify } from '@/components/toast'
+import { SecretInput } from '@/components/secret-input'
 import type { SiteSettings } from '@/lib/types'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
@@ -397,11 +398,11 @@ export default function AdminSettingsPage() {
                   </span>
                 )}
               </label>
-              <input
-                type="password"
+              <SecretInput
                 value={smtpPass}
-                onChange={(e) => setSmtpPass(e.target.value)}
-                placeholder={form.smtp_pass_set ? '••••••••' : '未设置'}
+                onChange={setSmtpPass}
+                isSet={form.smtp_pass_set}
+                placeholder={form.smtp_pass_set ? '已保存，重新输入可覆盖' : '未设置'}
                 className={inputClass}
               />
             </div>

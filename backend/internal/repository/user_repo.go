@@ -65,6 +65,25 @@ func (r *UserRepository) FindByEmail(email string) (*model.User, error) {
 	return &user, nil
 }
 
+// FindByLogin looks a user up by email or username (email是唯一的，用户名也唯一).
+func (r *UserRepository) FindByLogin(identifier string) (*model.User, error) {
+	identifier = strings.TrimSpace(identifier)
+	if identifier == "" {
+		return nil, ErrNotFound
+	}
+	var user model.User
+	err := r.db.
+		Where("LOWER(email) = ? OR LOWER(username) = ?", strings.ToLower(identifier), strings.ToLower(identifier)).
+		First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 func (r *UserRepository) FindByID(id uint) (*model.User, error) {
 	var user model.User
 	err := r.db.First(&user, id).Error
@@ -143,6 +162,17 @@ func (r *UserRepository) UpdateUsername(id uint, username string) error {
 	if err != nil {
 		if uniqueField, ok := uniqueViolationField(err); ok && uniqueField == "username" {
 			return ErrUsernameTaken
+		}
+		return err
+	}
+	return nil
+}
+
+func (r *UserRepository) UpdateEmail(id uint, email string) error {
+	err := r.db.Model(&model.User{}).Where("id = ?", id).Update("email", email).Error
+	if err != nil {
+		if uniqueField, ok := uniqueViolationField(err); ok && uniqueField == "email" {
+			return ErrEmailTaken
 		}
 		return err
 	}

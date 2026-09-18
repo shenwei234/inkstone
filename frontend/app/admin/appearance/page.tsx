@@ -126,7 +126,6 @@ function MenuTab() {
       {items.map((item, i) => (
         <motion.div
           key={`${item.label}-${i}`}
-          layout
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-3"
@@ -296,7 +295,6 @@ function WidgetsTab() {
       {widgets.map((w, i) => (
         <motion.div
           key={`${w.type}-${i}`}
-          layout
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           className="rounded-xl border border-border bg-card p-4"

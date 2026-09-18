@@ -10,10 +10,13 @@ import {
   fetchAdminUsers,
   setUserStatus,
   updateAdminUserRole,
+  updateAdminUser,
   ApiError,
 } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { useNotify } from '@/components/toast'
+import { SecretInput } from '@/components/secret-input'
+import type { AdminUser } from '@/lib/types'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
 
@@ -182,12 +185,145 @@ function AddUserDialog({
   )
 }
 
+function EditUserDialog({
+  target,
+  onClose,
+  onSaved,
+}: {
+  target: AdminUser
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const notify = useNotify()
+  const [email, setEmail] = useState(target.email)
+  const [username, setUsername] = useState(target.username)
+  const [password, setPassword] = useState('')
+
+  const save = useMutation({
+    mutationFn: () =>
+      updateAdminUser(target.id, {
+        email,
+        username,
+        ...(password ? { password } : {}),
+      }),
+    onSuccess: () => {
+      onSaved()
+      notify.success('用户资料已更新')
+      onClose()
+    },
+    onError: (e) => notify.error(e instanceof ApiError ? e.message : '保存失败'),
+  })
+
+  const inputClass =
+    'w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20'
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
+      className="fixed inset-0 z-[130] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 8 }}
+        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+        className="w-[440px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/25"
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+          <p className="text-sm font-semibold">编辑用户 · {target.username}</p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            ×
+          </button>
+        </div>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!email.trim() || !username.trim()) {
+              notify.error('邮箱和用户名不能为空')
+              return
+            }
+            save.mutate()
+          }}
+          className="space-y-4 px-5 py-5"
+        >
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">邮箱</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">用户名</label>
+            <input
+              type="text"
+              required
+              minLength={2}
+              maxLength={32}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">重置密码（可选）</label>
+            <SecretInput
+              value={password}
+              onChange={setPassword}
+              placeholder="留空表示不修改密码"
+              className={inputClass}
+            />
+            <p className="text-xs text-muted-foreground">
+              填写后该用户密码将立即变更，请告知本人
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+            >
+              取消
+            </button>
+            <motion.button
+              type="submit"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+              disabled={save.isPending}
+              className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
+            >
+              {save.isPending ? '保存中...' : '保存修改'}
+            </motion.button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 export default function AdminUsersPage() {
   const { user: me } = useAuth()
   const notify = useNotify()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [addOpen, setAddOpen] = useState(false)
+  const [editTarget, setEditTarget] = useState<AdminUser | null>(null)
   const debouncedSearch = useDebounce(search, 400)
 
   const { data, isLoading } = useQuery({
@@ -367,6 +503,12 @@ export default function AdminUsersPage() {
                           </button>
                         )}
                         <button
+                          onClick={() => setEditTarget(u)}
+                          className="rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        >
+                          编辑
+                        </button>
+                        <button
                           onClick={async () => {
                             const ok = await notify.confirm({
                               title: `删除用户「${u.username}」？`,
@@ -396,6 +538,14 @@ export default function AdminUsersPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {editTarget && (
+        <EditUserDialog
+          target={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSaved={invalidate}
+        />
       )}
 
       {addOpen && (

@@ -51,7 +51,6 @@ export default function AdminCommentsPage() {
           {(data?.comments ?? []).map((comment: CommentItem, i: number) => (
             <motion.div
               key={comment.id}
-              layout
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, x: -24 }}

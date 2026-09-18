@@ -297,7 +297,6 @@ export default function AdminFilesPage() {
           {files.map((file, i) => (
             <motion.div
               key={file.id}
-              layout
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.03, duration: 0.25, ease: easeOut }}
