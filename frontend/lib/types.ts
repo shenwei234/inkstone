@@ -33,6 +33,7 @@ export interface Article {
   slug: string
   content: string
   status: 'draft' | 'published'
+  cover?: string
   views: number
   category?: TaxonomyItem | null
   tags?: TaxonomyItem[]

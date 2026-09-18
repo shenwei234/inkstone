@@ -1,6 +1,7 @@
 package service
 
 import (
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -16,7 +17,7 @@ import (
 const (
 	checkInterval  = 6 * time.Hour
 	checkThreshold = 24 * time.Hour
-	checkTimeout   = 10 * time.Second
+	checkTimeout   = 15 * time.Second
 )
 
 type LinkService struct {
@@ -190,21 +191,42 @@ var probeClient = &http.Client{Timeout: checkTimeout}
 // probeURL returns whether the target responds. 2xx/3xx/4xx all count as
 // "site exists" (many sites reject bots with 403); 5xx, timeouts and network
 // errors are treated as unreachable.
+// probeURL returns whether the target responds. HEAD is tried first (fast,
+// low bandwidth); some servers reject HEAD, so it falls back to a ranged GET.
+// 2xx/3xx/4xx all count as "site exists" (many sites reject bots with 403);
+// 5xx, timeouts and network errors are treated as unreachable.
 func probeURL(target string) bool {
 	if target == "" {
 		return true
 	}
-	req, err := http.NewRequest(http.MethodGet, target, nil)
-	if err != nil {
-		return false
+
+	if ok, err := probeOnce(http.MethodHead, target); err == nil {
+		return ok
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; InkStoneBot/1.2)")
+	// HEAD 失败（部分服务器不支持）→ 用 GET 重试
+	if ok, err := probeOnce(http.MethodGet, target); err == nil {
+		return ok
+	}
+	return false
+}
+
+func probeOnce(method, target string) (bool, error) {
+	req, err := http.NewRequest(method, target, nil)
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("User-Agent",
+		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,*/*;q=0.8")
+
 	resp, err := probeClient.Do(req)
 	if err != nil {
-		return false
+		return false, err
 	}
 	defer resp.Body.Close()
-	return resp.StatusCode < 500
+	// 只读少量 body 即可判定，避免下载整页
+	_, _ = io.CopyN(io.Discard, resp.Body, 2048)
+	return resp.StatusCode < 500, nil
 }
 
 // MaskURL desensitizes a URL for display: the host's middle characters are

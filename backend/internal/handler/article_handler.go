@@ -28,6 +28,7 @@ type articleRequest struct {
 	Status        string   `json:"status"`
 	CategoryID    *uint    `json:"category_id"`
 	Tags          []string `json:"tags"`
+	Cover         string   `json:"cover"`
 	CaptchaToken  string   `json:"captcha_token"`
 	CaptchaAnswer string   `json:"captcha_answer"`
 }
@@ -38,6 +39,7 @@ type articleUpdateRequest struct {
 	Status     *string   `json:"status"`
 	CategoryID **uint    `json:"category_id"`
 	Tags       *[]string `json:"tags"`
+	Cover      *string   `json:"cover"`
 }
 
 type articleResponse struct {
@@ -46,6 +48,7 @@ type articleResponse struct {
 	Slug        string        `json:"slug"`
 	Content     string        `json:"content"`
 	Status      string        `json:"status"`
+	Cover       string        `json:"cover"`
 	Views       int64         `json:"views"`
 	Category    *categoryInfo `json:"category,omitempty"`
 	Tags        []tagInfo     `json:"tags,omitempty"`
@@ -79,6 +82,7 @@ func toArticleResponse(a *model.Article) articleResponse {
 		Slug:        a.Slug,
 		Content:     a.Content,
 		Status:      a.Status,
+		Cover:       a.Cover,
 		Views:       a.Views,
 		PublishedAt: a.PublishedAt,
 		CreatedAt:   a.CreatedAt,
@@ -127,6 +131,7 @@ func (h *ArticleHandler) Create(c *gin.Context) {
 		Status:     req.Status,
 		CategoryID: req.CategoryID,
 		TagNames:   req.Tags,
+		Cover:      req.Cover,
 	})
 	if err != nil {
 		errorResponse(c, err)
@@ -160,6 +165,7 @@ func (h *ArticleHandler) Update(c *gin.Context) {
 		Status:     req.Status,
 		CategoryID: req.CategoryID,
 		TagNames:   req.Tags,
+		Cover:      req.Cover,
 	})
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {

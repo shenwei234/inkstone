@@ -185,6 +185,7 @@ export default function AdminSettingsPage() {
 
   const save = useMutation({
     mutationFn: () => {
+      const extra = form as unknown as Record<string, unknown>
       const payload: Record<string, unknown> = {
         allow_registration: form!.allow_registration,
         site_name: form!.site_name,
@@ -196,6 +197,11 @@ export default function AdminSettingsPage() {
         smtp_port: form!.smtp_port,
         smtp_user: form!.smtp_user,
         smtp_from: form!.smtp_from,
+        // 壁纸与文章页（这些 key 不在 SiteSettings 强类型里，单独透传）
+        site_wallpaper: extra.site_wallpaper ?? '',
+        wallpaper_opacity: extra.wallpaper_opacity ?? '100',
+        wallpaper_blur: extra.wallpaper_blur ?? '0',
+        article_sidebar: extra.article_sidebar ?? 'true',
       }
       if (smtpPass) payload.smtp_pass = smtpPass
       return updateAdminSettings(payload)
