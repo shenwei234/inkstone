@@ -718,6 +718,14 @@ export function updateAdminUserRole(id: number, role: 'admin' | 'user') {
   })
 }
 
+/** 管理员修改用户资料（邮箱/用户名/密码，仅传需要修改的字段） */
+export function updateAdminUser(
+  id: number,
+  input: { email?: string; username?: string; password?: string },
+) {
+  return api<{ user: User }>(`/admin/users/${id}`, { method: 'PUT', body: input, auth: true })
+}
+
 export function createAdminUser(input: {
   email: string
   username: string

@@ -217,6 +217,7 @@ func main() {
 			admin.GET("/users", adminHandler.ListUsers)
 			admin.POST("/users", adminHandler.CreateUser)
 			admin.PUT("/users/:id/role", adminHandler.UpdateUserRole)
+			admin.PUT("/users/:id", adminHandler.UpdateUser)
 			admin.PUT("/users/:id/status", adminHandler.UpdateUserStatus)
 			admin.DELETE("/users/:id", adminHandler.DeleteUser)
 			admin.GET("/articles", adminHandler.ListArticles)

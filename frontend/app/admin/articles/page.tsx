@@ -115,7 +115,6 @@ export default function AdminArticlesPage() {
           {(data?.articles ?? []).map((a, i) => (
             <motion.div
               key={a.id}
-              layout
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, x: -24 }}

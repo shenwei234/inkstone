@@ -78,6 +78,7 @@ function TrafficCharts() {
     queryKey: ['admin', 'traffic', days],
     queryFn: () => fetchTrafficTrend(days),
     refetchInterval: 60000,
+    refetchOnWindowFocus: false,
   })
 
   const points = data?.points ?? []
@@ -283,6 +284,7 @@ function ResourceMonitor() {
     queryKey: ['admin', 'resources'],
     queryFn: fetchSystemResources,
     refetchInterval: 5000,
+    refetchOnWindowFocus: false,
   })
 
   const cpu = data?.cpu_percent ?? 0

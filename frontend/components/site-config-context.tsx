@@ -162,6 +162,7 @@ export function SiteConfigProvider({ children }: { children: ReactNode }) {
           captcha: {
             provider: (cfg.captcha?.provider ?? 'none') as CaptchaConfig['provider'],
             site_key: cfg.captcha?.site_key ?? '',
+            geetest_captcha_id: cfg.captcha?.geetest_captcha_id ?? '',
             on_register: cfg.captcha?.on_register ?? false,
             on_login: cfg.captcha?.on_login ?? false,
             on_comment: cfg.captcha?.on_comment ?? false,

@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Gauge, KeyRound, Mail, ShieldCheck, UserCheck } from 'lucide-react'
 import { fetchAdminSettings, updateAdminSettings, ApiError } from '@/lib/api'
 import { useNotify } from '@/components/toast'
+import { SecretInput } from '@/components/secret-input'
 import { PageTransition } from '@/components/motion'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
@@ -98,6 +99,8 @@ export default function AdminSecurityPage() {
   const notify = useNotify()
   const queryClient = useQueryClient()
   const [form, setForm] = useState<SecurityForm | null>(null)
+  const [captchaSecretSet, setCaptchaSecretSet] = useState(false)
+  const [geetestKeySet, setGeetestKeySet] = useState(false)
 
   const settingsQuery = useQuery({ queryKey: ['admin', 'settings'], queryFn: fetchAdminSettings })
 
@@ -110,6 +113,8 @@ export default function AdminSecurityPage() {
       return Number.isFinite(n) ? n : d
     }
     const t = setTimeout(() => {
+      setCaptchaSecretSet(s.captcha_secret_key_set === true)
+      setGeetestKeySet(s.geetest_captcha_key_set === true)
       setForm({
         security_enabled: toBool(s.security_enabled, true),
         security_api_max: toNum(s.security_api_max, 300),
@@ -287,10 +292,10 @@ export default function AdminSecurityPage() {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Turnstile Secret Key（保密）</label>
-                  <input
-                    type="password"
+                  <SecretInput
                     value={form.captcha_secret_key}
-                    onChange={(e) => update('captcha_secret_key', e.target.value)}
+                    onChange={(v) => update('captcha_secret_key', v)}
+                    isSet={captchaSecretSet}
                     placeholder="留空表示不修改"
                     className={inputClass}
                   />
@@ -314,10 +319,10 @@ export default function AdminSecurityPage() {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">极验 Captcha Key（保密）</label>
-                  <input
-                    type="password"
+                  <SecretInput
                     value={form.geetest_captcha_key}
-                    onChange={(e) => update('geetest_captcha_key', e.target.value)}
+                    onChange={(v) => update('geetest_captcha_key', v)}
+                    isSet={geetestKeySet}
                     placeholder="留空表示不修改"
                     className={inputClass}
                   />

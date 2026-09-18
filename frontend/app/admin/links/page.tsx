@@ -341,7 +341,6 @@ export default function AdminLinksPage() {
           {links.map((link: AdminFriendLink, i: number) => (
             <motion.div
               key={link.id}
-              layout
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.04, duration: 0.3 }}

@@ -96,6 +96,39 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 
 type updateStatusRequest struct {
 	Status string `json:"status" binding:"required"`
+} // UpdateUser handles PUT /admin/users/:id — 修改邮箱/用户名/密码。
+func (h *AdminHandler) UpdateUser(c *gin.Context) {
+	id, ok := parseUintParam(c, "id", "无效的用户 ID")
+	if !ok {
+		return
+	}
+	var req struct {
+		Email    *string `json:"email"`
+		Username *string `json:"username"`
+		Password *string `json:"password"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误"})
+		return
+	}
+	user, err := h.admin.UpdateUser(id, service.UpdateUserInput{
+		Email:    req.Email,
+		Username: req.Username,
+		Password: req.Password,
+	})
+	if err != nil {
+		errorResponse(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"user": gin.H{
+			"id":       user.ID,
+			"email":    user.Email,
+			"username": user.Username,
+			"role":     user.Role,
+			"status":   user.Status,
+		},
+	})
 }
 
 // UpdateUserStatus handles PUT /admin/users/:id/status (ban/unban).

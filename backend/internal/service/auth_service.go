@@ -91,8 +91,9 @@ func (s *AuthService) Register(input RegisterInput) (*model.User, *TokenPair, er
 	return user, pair, nil
 }
 
-func (s *AuthService) Login(email, password string) (*model.User, *TokenPair, error) {
-	user, err := s.users.FindByEmail(strings.ToLower(strings.TrimSpace(email)))
+// Login accepts either the account email or the username as identifier.
+func (s *AuthService) Login(identifier, password string) (*model.User, *TokenPair, error) {
+	user, err := s.users.FindByLogin(identifier)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return nil, nil, ErrInvalidCredentials

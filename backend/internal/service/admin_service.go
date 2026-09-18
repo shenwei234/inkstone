@@ -125,3 +125,64 @@ func (s *AdminService) SetUserStatus(id uint, status string) error {
 	}
 	return s.users.UpdateStatus(id, status)
 }
+
+type UpdateUserInput struct {
+	Email    *string
+	Username *string
+	Password *string
+}
+
+// UpdateUser lets an administrator change a user's email, username and/or
+// password. Empty pointer fields are left untouched.
+func (s *AdminService) UpdateUser(id uint, input UpdateUserInput) (*model.User, error) {
+	user, err := s.users.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if input.Email != nil {
+		email := strings.ToLower(strings.TrimSpace(*input.Email))
+		if !emailRegex.MatchString(email) {
+			return nil, NewValidationError("邮箱格式不正确")
+		}
+		if email != user.Email {
+			if err := s.users.UpdateEmail(id, email); err != nil {
+				if errors.Is(err, repository.ErrEmailTaken) {
+					return nil, NewValidationError("该邮箱已被注册")
+				}
+				return nil, err
+			}
+		}
+	}
+
+	if input.Username != nil {
+		username := strings.TrimSpace(*input.Username)
+		if l := len([]rune(username)); l < 2 || l > 32 {
+			return nil, NewValidationError("用户名长度需在 2-32 个字符之间")
+		}
+		if username != user.Username {
+			if err := s.users.UpdateUsername(id, username); err != nil {
+				if errors.Is(err, repository.ErrUsernameTaken) {
+					return nil, NewValidationError("该用户名已被占用")
+				}
+				return nil, err
+			}
+		}
+	}
+
+	if input.Password != nil && *input.Password != "" {
+		pw := *input.Password
+		if l := len(pw); l < 8 || l > 72 {
+			return nil, NewValidationError("密码长度需在 8-72 个字符之间")
+		}
+		hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.users.UpdatePasswordHash(id, string(hash)); err != nil {
+			return nil, err
+		}
+	}
+
+	return s.users.FindByID(id)
+}

@@ -284,12 +284,9 @@ func (s *SettingsService) AdminView() (map[string]any, error) {
 	}
 	out := make(map[string]any, len(all))
 	for k, v := range all {
-		if k == SettingSMTPPass {
-			if v != "" {
-				out["smtp_pass_set"] = true
-			} else {
-				out["smtp_pass_set"] = false
-			}
+		// 敏感字段（SMTP 密码 / 各类密钥）不下发原值，只告知是否已设置
+		if maskKeys[k] {
+			out[k+"_set"] = v != ""
 			continue
 		}
 		if jsonSettingKeys[k] {
