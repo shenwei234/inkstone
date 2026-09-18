@@ -17,90 +17,69 @@ function ArticleCard({ article }: { article: Article }) {
     ? new Date(article.published_at).toLocaleDateString('zh-CN')
     : new Date(article.created_at).toLocaleDateString('zh-CN')
 
+  // 封面：优先使用后台设置的封面，否则取正文中第一张图片
   const cover =
     article.cover ||
     (article.content.match(/<img[^>]+src="([^"]+)"/)?.[1] ?? '')
 
-  const excerpt = article.content
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 180)
+  const excerpt = article.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200)
 
   return (
     <StaggerItem>
       <HoverLift>
-        <Link href={`/posts/${article.slug}`} className="block h-full">
-          <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-accent/10">
-            {/* 封面大图 */}
-            <div className="relative aspect-[16/9] w-full overflow-hidden bg-gradient-to-br from-accent/15 via-muted to-purple-500/15">
-              {cover ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
+        <Link href={`/posts/${article.slug}`} className="block">
+          <article className="group relative flex gap-5 overflow-hidden rounded-xl border border-border bg-card p-5 shadow-sm transition-shadow duration-300 hover:shadow-lg hover:shadow-accent/5">
+            <div className="absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-gradient-to-r from-accent to-purple-500 transition-transform duration-300 group-hover:scale-x-100" />
+
+            {cover && (
+              <div className="hidden h-28 w-44 shrink-0 overflow-hidden rounded-lg bg-muted sm:block">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={cover}
                   alt={article.title}
                   loading="lazy"
-                  className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                   onError={(e) => {
-                    ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                    ;(e.currentTarget.parentElement as HTMLElement).style.display = 'none'
                   }}
                 />
-              ) : (
-                <div className="flex h-full items-center justify-center">
-                  <span className="text-4xl font-black text-accent/30">
-                    {article.title.charAt(0).toUpperCase()}
+              </div>
+            )}
+
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-3">
+                <h2 className="text-lg font-semibold tracking-tight transition-colors group-hover:text-accent">
+                  {article.title}
+                </h2>
+                {article.category && (
+                  <span className="shrink-0 rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">
+                    {article.category.name}
                   </span>
-                </div>
-              )}
-
-              {/* 分类角标 */}
-              {article.category && (
-                <span className="absolute left-4 top-4 rounded-full bg-background/85 px-3 py-1 text-xs font-medium text-accent shadow-sm backdrop-blur">
-                  {article.category.name}
-                </span>
-              )}
-
-              {/* 底部渐变遮罩，提升标题可读性 */}
-              {cover && (
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/40 to-transparent" />
-              )}
-            </div>
-
-            {/* 内容区 */}
-            <div className="flex flex-1 flex-col p-6">
-              <h2 className="text-xl font-bold leading-snug tracking-tight transition-colors group-hover:text-accent">
-                {article.title}
-              </h2>
-
-              <p className="mt-3 line-clamp-3 flex-1 text-sm leading-relaxed text-muted-foreground">
+                )}
+              </div>
+              <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
                 {excerpt}
               </p>
-
+              <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/10 text-[10px] font-bold text-accent">
+                {article.author.username.charAt(0).toUpperCase()}
+              </span>
+              <span className="font-medium text-foreground">{article.author.username}</span>
+              <span>·</span>
+              <time dateTime={article.published_at ?? article.created_at}>{date}</time>
+              <span className="flex items-center gap-1">
+                <Eye className="h-3 w-3" />
+                {article.views}
+              </span>
               {article.tags && article.tags.length > 0 && (
-                <div className="mt-4 flex flex-wrap gap-1.5">
+                <span className="ml-auto hidden items-center gap-1.5 sm:flex">
                   {article.tags.slice(0, 3).map((tag) => (
-                    <span
-                      key={tag.id}
-                      className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground"
-                    >
+                    <span key={tag.id} className="rounded border border-border px-1.5 py-0.5">
                       {tag.name}
                     </span>
                   ))}
-                </div>
+                </span>
               )}
-
-              {/* 底部元信息 */}
-              <div className="mt-5 flex items-center gap-3 border-t border-border pt-4 text-xs text-muted-foreground">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/10 text-[11px] font-bold text-accent">
-                  {article.author.username.charAt(0).toUpperCase()}
-                </span>
-                <span className="font-medium text-foreground">{article.author.username}</span>
-                <span className="opacity-40">·</span>
-                <time dateTime={article.published_at ?? article.created_at}>{date}</time>
-                <span className="ml-auto flex items-center gap-1">
-                  <Eye className="h-3.5 w-3.5" />
-                  {article.views}
-                </span>
               </div>
             </div>
           </article>
@@ -109,6 +88,7 @@ function ArticleCard({ article }: { article: Article }) {
     </StaggerItem>
   )
 }
+
 export default function HomePageWrapper() {
   return (
     <Suspense
@@ -262,7 +242,7 @@ function ArticleListSection({
       </p>
     </motion.div>
   ) : data && data.articles.length > 0 ? (
-    <StaggerList className="grid gap-6 sm:grid-cols-2">
+    <StaggerList className="grid gap-4">
       {data.articles.map((article: Article) => (
         <ArticleCard key={article.id} article={article} />
       ))}
