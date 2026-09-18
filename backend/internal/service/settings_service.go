@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"strings"
 	"sync"
 	"time"
 
@@ -237,7 +238,9 @@ func (s *SettingsService) Update(payload map[string]any) error {
 		if err != nil {
 			return NewValidationError("设置项 " + key + " 值无效")
 		}
-		if key == SettingSMTPPass && value == "" {
+		// 敏感字段（SMTP 密码 / 各类密钥）的空白值表示「保持原值不变」，
+		// 避免用户在后台清空输入框时误删已保存的密钥。
+		if maskKeys[key] && strings.TrimSpace(value) == "" {
 			continue
 		}
 		setting := model.Setting{Key: key, Value: value, UpdatedAt: time.Now()}
