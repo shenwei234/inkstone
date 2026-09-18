@@ -12,6 +12,7 @@ import {
   fetchArticle,
   fetchCategories,
   fetchTags,
+  uploadImage,
   updateArticle,
   ApiError,
 } from '@/lib/api'
@@ -42,6 +43,9 @@ function EditorShell({ mode, article }: EditorShellProps) {
   const [categoryId, setCategoryId] = useState<number | null>(article?.category?.id ?? null)
   const [tags, setTags] = useState<string[]>((article?.tags ?? []).map((t) => t.name))
   const [tagInput, setTagInput] = useState('')
+  const [cover, setCover] = useState(article?.cover ?? '')
+  const [showCover, setShowCover] = useState(Boolean(article?.cover))
+  const uploadCoverRef = useRef<HTMLInputElement>(null)
   const notify = useNotify()
   const site = useSiteConfig()
   const [captcha, setCaptcha] = useState<CaptchaResult>({})
@@ -104,7 +108,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
 
   const publish = useMutation({
     mutationFn: async () => {
-      const body = { title, content, status: 'published', category_id: categoryId, tags, ...captcha }
+      const body = { title, content, status: 'published', category_id: categoryId, tags, cover, ...captcha }
       if (mode === 'edit' && article) {
         return updateArticle(article.id, body)
       }
@@ -139,7 +143,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
   useEffect(() => {
     if (!autoSaveEnabled) return
     if (mode !== 'edit' || article?.status !== 'draft') return
-    const snapshot = JSON.stringify({ t: title, c: content, g: categoryId, s: tags.join(',') })
+    const snapshot = JSON.stringify({ t: title, c: content, g: categoryId, s: tags.join(','), v: cover })
     if (snapshot === baseline.current) return
     if (!title.trim() || !htmlToText(content).trim()) return
 
@@ -152,6 +156,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
           status: 'draft',
           category_id: categoryId,
           tags,
+          cover,
         })
         baseline.current = snapshot
         setAutoSavedAt(new Date())
@@ -162,7 +167,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
       }
     }, 2000)
     return () => clearTimeout(timer)
-  }, [title, content, categoryId, tags, mode, article, autoSaveEnabled])
+  }, [title, content, categoryId, tags, cover, mode, article, autoSaveEnabled])
 
   const wordCount = htmlToText(content).replace(/\s+/g, '').length
   const readMinutes = Math.max(1, Math.round(wordCount / 400))
@@ -323,6 +328,75 @@ function EditorShell({ mode, article }: EditorShellProps) {
                 onBlur={addTag}
                 placeholder="+ 新建标签，回车添加"
                 className="w-36 rounded-lg border border-dashed border-border bg-transparent px-2.5 py-1 text-xs outline-none transition-colors focus:border-accent"
+              />
+            </div>
+
+            {/* 文章封面 */}
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed border-border px-3 py-2">
+              <span className="text-xs font-medium text-muted-foreground">文章封面</span>
+              {showCover ? (
+                <>
+                  <div className="h-12 w-20 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
+                    {cover ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={cover} alt="封面" className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="flex h-full items-center justify-center text-[10px] text-muted-foreground">
+                        无
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    value={cover}
+                    onChange={(e) => setCover(e.target.value)}
+                    placeholder="图片地址，留空则自动使用正文第一张图"
+                    className="min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs outline-none focus:border-accent"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => uploadCoverRef.current?.click()}
+                    className="shrink-0 rounded-md border border-border px-2.5 py-1.5 text-xs transition-colors hover:border-accent/40 hover:text-accent"
+                  >
+                    上传
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCover('')
+                      setShowCover(false)
+                    }}
+                    className="shrink-0 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:text-red-500"
+                  >
+                    移除
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowCover(true)}
+                  className="rounded-md border border-border px-3 py-1.5 text-xs transition-colors hover:border-accent/40 hover:text-accent"
+                >
+                  + 设置封面
+                </button>
+              )}
+              <input
+                ref={uploadCoverRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  e.target.value = ''
+                  if (!file) return
+                  try {
+                    const url = await uploadImage(file)
+                    setCover(url)
+                    setShowCover(true)
+                    notify.success('封面已上传，记得保存')
+                  } catch (err) {
+                    notify.error(err instanceof ApiError ? err.message : '上传失败')
+                  }
+                }}
               />
             </div>
 

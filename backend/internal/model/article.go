@@ -17,6 +17,7 @@ type Article struct {
 	Slug        string     `gorm:"uniqueIndex;size:255;not null" json:"slug"`
 	Content     string     `gorm:"type:text;not null" json:"content"`
 	Status      string     `gorm:"size:20;not null;default:draft;index" json:"status"`
+	Cover       string     `gorm:"size:500" json:"cover"` // 封面图（留空则前端取正文首图）
 	Views       int64      `gorm:"not null;default:0" json:"views"`
 	PublishedAt *time.Time `json:"published_at"`
 	CreatedAt   time.Time  `json:"created_at"`

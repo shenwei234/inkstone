@@ -227,6 +227,7 @@ export function createArticle(input: {
   status: string
   category_id?: number | null
   tags?: string[]
+  cover?: string
   captcha_token?: string
   captcha_answer?: string
 }) {
@@ -241,6 +242,7 @@ export function updateArticle(
     status: string
     category_id: number | null
     tags: string[]
+    cover: string
   }>,
 ) {
   return api<{ article: Article }>(`/articles/${id}`, { method: 'PUT', body: input, auth: true })

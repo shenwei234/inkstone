@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 	"time"
 
@@ -26,6 +27,7 @@ type ArticleInput struct {
 	Status     string
 	CategoryID *uint
 	TagNames   []string
+	Cover      string
 }
 
 type ArticleUpdate struct {
@@ -34,6 +36,7 @@ type ArticleUpdate struct {
 	Status     *string
 	CategoryID **uint
 	TagNames   *[]string
+	Cover      *string
 }
 
 func (s *ArticleService) Create(authorID uint, input ArticleInput) (*model.Article, error) {
@@ -66,6 +69,7 @@ func (s *ArticleService) Create(authorID uint, input ArticleInput) (*model.Artic
 		Slug:       repository.Slugify(title),
 		Content:    input.Content,
 		Status:     status,
+		Cover:      resolveCover(input.Cover, input.Content),
 	}
 	if status == model.ArticlePublished {
 		now := time.Now()
@@ -109,6 +113,9 @@ func (s *ArticleService) Update(articleID, authorID uint, update ArticleUpdate) 
 			return nil, NewValidationError("内容不能为空")
 		}
 		article.Content = *update.Content
+	}
+	if update.Cover != nil {
+		article.Cover = resolveCover(*update.Cover, article.Content)
 	}
 	if update.Status != nil {
 		status := *update.Status
@@ -170,4 +177,24 @@ func (s *ArticleService) List(q repository.ArticleQuery) ([]model.Article, int64
 		q.Status = ""
 	}
 	return s.articles.List(q)
+}
+
+// resolveCover returns the explicit cover, falling back to the first image
+// found in the article body so cards always have a thumbnail when possible.
+func resolveCover(explicit, content string) string {
+	if cover := strings.TrimSpace(explicit); cover != "" {
+		return cover
+	}
+	return firstImageURL(content)
+}
+
+var imgSrcRegex = regexp.MustCompile(`<img[^>]+src="([^"]+)"`)
+
+// firstImageURL extracts the first <img src="..."> from HTML content.
+func firstImageURL(content string) string {
+	m := imgSrcRegex.FindStringSubmatch(content)
+	if len(m) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(m[1])
 }

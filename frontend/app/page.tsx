@@ -17,26 +17,50 @@ function ArticleCard({ article }: { article: Article }) {
     ? new Date(article.published_at).toLocaleDateString('zh-CN')
     : new Date(article.created_at).toLocaleDateString('zh-CN')
 
+  // 封面：优先使用后台设置的封面，否则取正文中第一张图片
+  const cover =
+    article.cover ||
+    (article.content.match(/<img[^>]+src="([^"]+)"/)?.[1] ?? '')
+
+  const excerpt = article.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200)
+
   return (
     <StaggerItem>
       <HoverLift>
         <Link href={`/posts/${article.slug}`} className="block">
-          <article className="group relative overflow-hidden rounded-xl border border-border bg-card p-6 shadow-sm transition-shadow duration-300 hover:shadow-lg hover:shadow-accent/5">
+          <article className="group relative flex gap-5 overflow-hidden rounded-xl border border-border bg-card p-5 shadow-sm transition-shadow duration-300 hover:shadow-lg hover:shadow-accent/5">
             <div className="absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-gradient-to-r from-accent to-purple-500 transition-transform duration-300 group-hover:scale-x-100" />
-            <div className="flex items-start justify-between gap-4">
-              <h2 className="text-lg font-semibold tracking-tight transition-colors group-hover:text-accent">
-                {article.title}
-              </h2>
-              {article.category && (
-                <span className="shrink-0 rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">
-                  {article.category.name}
-                </span>
-              )}
-            </div>
-            <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-              {article.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)}
-            </p>
-            <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+
+            {cover && (
+              <div className="hidden h-28 w-44 shrink-0 overflow-hidden rounded-lg bg-muted sm:block">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={cover}
+                  alt={article.title}
+                  loading="lazy"
+                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                  onError={(e) => {
+                    ;(e.currentTarget.parentElement as HTMLElement).style.display = 'none'
+                  }}
+                />
+              </div>
+            )}
+
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-3">
+                <h2 className="text-lg font-semibold tracking-tight transition-colors group-hover:text-accent">
+                  {article.title}
+                </h2>
+                {article.category && (
+                  <span className="shrink-0 rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">
+                    {article.category.name}
+                  </span>
+                )}
+              </div>
+              <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+                {excerpt}
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent/10 text-[10px] font-bold text-accent">
                 {article.author.username.charAt(0).toUpperCase()}
               </span>
@@ -56,6 +80,7 @@ function ArticleCard({ article }: { article: Article }) {
                   ))}
                 </span>
               )}
+              </div>
             </div>
           </article>
         </Link>
@@ -109,7 +134,7 @@ function HomePage() {
 
   return (
     <PageTransition>
-      <div className={`mx-auto px-4 py-10 ${widgets.length > 0 ? 'max-w-6xl' : 'max-w-5xl'}`}>
+      <div className={`mx-auto px-4 py-10 ${widgets.length > 0 ? 'max-w-7xl' : 'max-w-5xl'}`}>
         {/* 列表标题 */}
         <div className="mb-6 flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-bold tracking-tight">

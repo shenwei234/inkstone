@@ -152,9 +152,9 @@ export default function PostPage({ params }: { params: Promise<{ slug: string }>
         className={`mx-auto px-4 py-12 ${
           showSidebar
             ? site.sidebarPosition === 'left'
-              ? 'max-w-6xl lg:grid lg:grid-cols-[280px_1fr] lg:gap-8'
-              : 'max-w-6xl lg:grid lg:grid-cols-[1fr_280px] lg:gap-8'
-            : 'max-w-3xl'
+              ? 'max-w-7xl lg:grid lg:grid-cols-[280px_1fr] lg:gap-10'
+              : 'max-w-7xl lg:grid lg:grid-cols-[1fr_280px] lg:gap-10'
+            : 'max-w-4xl'
         }`}
       >
       {showSidebar && site.sidebarPosition === 'left' && (
