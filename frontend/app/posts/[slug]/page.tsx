@@ -165,60 +165,66 @@ export default function PostPage({ params }: { params: Promise<{ slug: string }>
         </aside>
       )}
       <div className="min-w-0">
-
-        <motion.header
+        <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, ease: easeOut }}
-          className="mb-8 border-b border-border pb-6"
+          className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-10"
         >
-          {article.category && (
-            <Link
-              href={`/?category=${article.category.slug}`}
-              className="inline-block rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent/20"
-            >
-              {article.category.name}
-            </Link>
-          )}
-          <h1 className="mt-3 text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
-            {article.title}
-          </h1>
-          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
-            <Link href="/" className="font-medium text-foreground hover:text-accent transition-colors">
-              {article.author.username}
-            </Link>
-            <span className="flex items-center gap-1">
-              <CalendarDays className="h-3.5 w-3.5" />
-              <time dateTime={article.published_at ?? article.created_at}>{date}</time>
-            </span>
-            <span className="flex items-center gap-1">
-              <Eye className="h-3.5 w-3.5" />
-              {article.views} 次阅读
-            </span>
-          </div>
-          {article.tags && article.tags.length > 0 && (
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              <TagIcon className="h-3.5 w-3.5 text-muted-foreground" />
-              {article.tags.map((tag) => (
-                <Link
-                  key={tag.id}
-                  href={`/?tag=${tag.slug}`}
-                  className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:border-accent/40 hover:text-accent"
-                >
-                  {tag.name}
-                </Link>
-              ))}
+          <motion.header
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: easeOut }}
+            className="mb-8 border-b border-border pb-6"
+          >
+            {article.category && (
+              <Link
+                href={`/?category=${article.category.slug}`}
+                className="inline-block rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent/20"
+              >
+                {article.category.name}
+              </Link>
+            )}
+            <h1 className="mt-3 text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
+              {article.title}
+            </h1>
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
+              <Link href="/" className="font-medium text-foreground hover:text-accent transition-colors">
+                {article.author.username}
+              </Link>
+              <span className="flex items-center gap-1">
+                <CalendarDays className="h-3.5 w-3.5" />
+                <time dateTime={article.published_at ?? article.created_at}>{date}</time>
+              </span>
+              <span className="flex items-center gap-1">
+                <Eye className="h-3.5 w-3.5" />
+                {article.views} 次阅读
+              </span>
             </div>
-          )}
-        </motion.header>
+            {article.tags && article.tags.length > 0 && (
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <TagIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                {article.tags.map((tag) => (
+                  <Link
+                    key={tag.id}
+                    href={`/?tag=${tag.slug}`}
+                    className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:border-accent/40 hover:text-accent"
+                  >
+                    {tag.name}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </motion.header>
 
-        <motion.article
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55, delay: 0.12, ease: easeOut }}
-          className="prose prose-neutral dark:prose-invert max-w-none prose-headings:font-semibold prose-a:text-accent prose-pre:bg-muted prose-code:bg-muted prose-code:rounded prose-code:px-1.5 prose-code:py-0.5 prose-code:text-[0.9em] prose-code:before:content-none prose-code:after:content-none prose-img:rounded-xl prose-blockquote:border-l-accent"
-          dangerouslySetInnerHTML={{ __html: article.content }}
-        />
+          <motion.article
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1, ease: easeOut }}
+            className="prose prose-neutral dark:prose-invert max-w-none prose-headings:font-semibold prose-a:text-accent prose-pre:bg-muted prose-code:bg-muted prose-code:rounded prose-code:px-1.5 prose-code:py-0.5 prose-code:text-[0.9em] prose-code:before:content-none prose-code:after:content-none prose-img:rounded-xl prose-blockquote:border-l-accent"
+            dangerouslySetInnerHTML={{ __html: article.content }}
+          />
+        </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 16 }}
