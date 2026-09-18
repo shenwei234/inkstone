@@ -230,7 +230,7 @@ export default function PostPage({ params }: { params: Promise<{ slug: string }>
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25, duration: 0.45, ease: easeOut }}
-          className="mt-10 flex items-center gap-3 border-y border-border py-4"
+          className="mt-6 flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm"
         >
           <button
             type="button"
@@ -271,7 +271,7 @@ export default function PostPage({ params }: { params: Promise<{ slug: string }>
         </motion.div>
 
         {/* Comments */}
-        <section className="mt-10">
+        <section className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
           <h2 className="flex items-center gap-2 text-lg font-bold tracking-tight">
             <MessageSquare className="h-5 w-5" />
             评论
@@ -296,7 +296,7 @@ export default function PostPage({ params }: { params: Promise<{ slug: string }>
                 placeholder="写下你的评论..."
                 rows={3}
                 maxLength={1000}
-                className="w-full resize-y rounded-lg border border-border bg-card px-4 py-3 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20"
+                className="w-full resize-y rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20"
               />
               <div className="mt-2">
                 <Captcha config={site.captcha} action="comment" onChange={setCaptcha} />
@@ -326,7 +326,7 @@ export default function PostPage({ params }: { params: Promise<{ slug: string }>
             </div>
           )}
 
-          <div className="mt-8 space-y-4">
+          <div className="mt-6 space-y-3">
             {commentsQuery.isLoading ? (
               [...Array(2)].map((_, i) => <div key={i} className="skeleton h-20 rounded-xl" />)
             ) : comments.length === 0 ? (
@@ -340,7 +340,7 @@ export default function PostPage({ params }: { params: Promise<{ slug: string }>
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.05, duration: 0.3 }}
-                  className="flex gap-3 rounded-xl border border-border bg-card p-4"
+                  className="flex gap-3 rounded-xl border border-border bg-muted/40 p-4"
                 >
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-sm font-bold text-accent">
                     {comment.author.username.charAt(0).toUpperCase()}
