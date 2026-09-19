@@ -84,9 +84,14 @@ func (s *LogService) Stats() (map[string]int64, error) {
 	return s.repo.CountByCategory()
 }
 
+// truncate 按「字符」截断，避免切断 UTF-8 多字节序列产生非法 rune。
 func truncate(s string, max int) string {
-	if len(s) <= max {
+	if max <= 0 {
+		return ""
+	}
+	r := []rune(s)
+	if len(r) <= max {
 		return s
 	}
-	return s[:max]
+	return string(r[:max])
 }

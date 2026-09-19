@@ -67,7 +67,7 @@ func (s *ArticleService) Create(authorID uint, input ArticleInput) (*model.Artic
 		CategoryID: input.CategoryID,
 		Title:      title,
 		Slug:       repository.Slugify(title),
-		Content:    input.Content,
+		Content:    SanitizeHTML(input.Content),
 		Status:     status,
 		Cover:      resolveCover(input.Cover, input.Content),
 	}
@@ -112,7 +112,7 @@ func (s *ArticleService) Update(articleID, authorID uint, update ArticleUpdate) 
 		if strings.TrimSpace(*update.Content) == "" {
 			return nil, NewValidationError("内容不能为空")
 		}
-		article.Content = *update.Content
+		article.Content = SanitizeHTML(*update.Content)
 	}
 	if update.Cover != nil {
 		article.Cover = resolveCover(*update.Cover, article.Content)

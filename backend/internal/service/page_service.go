@@ -54,7 +54,7 @@ func (s *PageService) Create(input PageInput) (*model.Page, error) {
 	page := &model.Page{
 		Title:     input.Title,
 		Slug:      s.pages.NormalizePageSlug(input.Title, "page"),
-		Content:   input.Content,
+		Content:   SanitizeHTML(input.Content),
 		Template:  input.Template,
 		Status:    input.Status,
 		SortOrder: input.SortOrder,
@@ -75,7 +75,7 @@ func (s *PageService) Update(id uint, input PageInput) (*model.Page, error) {
 		return nil, err
 	}
 	page.Title = input.Title
-	page.Content = input.Content
+	page.Content = SanitizeHTML(input.Content)
 	page.Template = input.Template
 	page.Status = input.Status
 	page.SortOrder = input.SortOrder
