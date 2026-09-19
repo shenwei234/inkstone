@@ -74,7 +74,7 @@ export default function AdminTagsPage() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: easeOut }}
-        className="mt-6 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-4"
+        className="mt-6 flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card p-4"
       >
         <input
           value={newName}
@@ -121,7 +121,6 @@ export default function AdminTagsPage() {
           {tags.map((tag: TagCount, i) => (
             <motion.div
               key={tag.id}
-              layout
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.03, duration: 0.25, ease: easeOut }}

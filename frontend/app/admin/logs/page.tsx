@@ -149,7 +149,7 @@ export default function AdminLogsPage() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: Math.min(i * 0.02, 0.3), duration: 0.25, ease: easeOut }}
-                className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:border-accent/30"
+                className="flex items-start gap-3 rounded-2xl border border-border bg-card px-4 py-3 transition-colors hover:border-accent/30"
               >
                 <span
                   className={`mt-0.5 shrink-0 ${

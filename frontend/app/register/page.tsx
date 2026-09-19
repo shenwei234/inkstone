@@ -108,7 +108,7 @@ export default function RegisterPage() {
                 className="space-y-1.5"
                 initial={{ opacity: 0, x: -12 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 + i * 0.08, duration: 0.35, ease: easeOut }}
+                transition={{ delay: 0.2 + i * 0.05, duration: 0.3, ease: easeOut }}
               >
                 <label htmlFor={f.id} className="text-sm font-medium">
                   {f.label}

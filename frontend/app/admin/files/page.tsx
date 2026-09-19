@@ -80,7 +80,7 @@ function TransferSettings() {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className="rounded-2xl border border-border bg-card p-5">
       <h2 className="flex items-center gap-2 text-sm font-semibold">
         <Gauge className="h-4 w-4 text-accent" />
         传输设置
@@ -300,7 +300,7 @@ export default function AdminFilesPage() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.03, duration: 0.25, ease: easeOut }}
-              className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3.5 transition-colors hover:border-accent/30"
+              className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-3.5 transition-colors hover:border-accent/30"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
                 <FileTypeIcon mime={file.mime_type} name={file.original_name} />

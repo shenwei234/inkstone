@@ -55,7 +55,7 @@ export default function AdminCommentsPage() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, x: -24 }}
               transition={{ delay: i * 0.04, duration: 0.3 }}
-              className="group flex items-start gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-accent/30"
+              className="group flex items-start gap-3 rounded-2xl border border-border bg-card p-4 transition-colors hover:border-accent/30"
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-sm font-bold text-accent">
                 {comment.author.username.charAt(0).toUpperCase()}

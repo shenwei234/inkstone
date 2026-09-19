@@ -93,7 +93,7 @@ function TrafficCharts() {
       transition={{ delay: 0.2, duration: 0.45 }}
       className="mt-4 space-y-4"
     >
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="rounded-2xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="flex items-center gap-2 text-sm font-semibold">
@@ -175,7 +175,7 @@ function TrafficCharts() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="rounded-2xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="flex items-center gap-2 text-sm font-semibold">
@@ -298,7 +298,7 @@ function ResourceMonitor() {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.3, duration: 0.45 }}
-      className="mt-4 rounded-xl border border-border bg-card p-5"
+      className="mt-4 rounded-2xl border border-border bg-card p-5"
     >
       <div className="flex items-center justify-between">
         <div>
@@ -404,7 +404,7 @@ export default function AdminOverviewPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.08, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
             whileHover={{ y: -4 }}
-            className="rounded-xl border border-border bg-card p-5 shadow-sm"
+            className="rounded-2xl border border-border bg-card p-5 shadow-sm"
           >
             <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${card.color}`}>
               <card.icon className="h-5 w-5" />
