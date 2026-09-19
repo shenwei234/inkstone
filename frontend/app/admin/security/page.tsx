@@ -298,6 +298,7 @@ export default function AdminSecurityPage() {
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Turnstile Secret Key（保密）</label>
                   <SecretInput
+                    key={`turnstile-secret-${captchaSecretSet ? 'set' : 'unset'}`}
                     value={form.captcha_secret_key}
                     onChange={(v) => update('captcha_secret_key', v)}
                     isSet={captchaSecretSet}
@@ -325,6 +326,7 @@ export default function AdminSecurityPage() {
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">极验 Captcha Key（保密）</label>
                   <SecretInput
+                    key={`geetest-key-${geetestKeySet ? 'set' : 'unset'}`}
                     value={form.geetest_captcha_key}
                     onChange={(v) => update('geetest_captcha_key', v)}
                     isSet={geetestKeySet}
