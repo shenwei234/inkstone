@@ -211,7 +211,6 @@ function MyArticlesTab() {
         mine.map((article: Article, i) => (
           <motion.div
             key={article.id}
-            layout
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.04, duration: 0.3 }}
@@ -298,7 +297,6 @@ function MyCommentsTab() {
       {comments.map((c, i) => (
         <motion.div
           key={c.id}
-          layout
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, x: -24 }}

@@ -119,7 +119,7 @@ export default function AdminArticlesPage() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, x: -24 }}
               transition={{ delay: i * 0.04, duration: 0.3 }}
-              className="group flex items-center justify-between rounded-xl border border-border bg-card px-5 py-4 transition-colors hover:border-accent/30"
+              className="group flex items-center justify-between rounded-2xl border border-border bg-card px-5 py-4 transition-colors hover:border-accent/30"
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-2.5">

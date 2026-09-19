@@ -206,7 +206,6 @@ export function PageList() {
           {(data?.pages ?? []).map((page, i) => (
             <motion.div
               key={page.id}
-              layout
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, x: -24 }}

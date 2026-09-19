@@ -78,7 +78,7 @@ export default function AdminAboutPage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1, duration: 0.45, ease: easeOut }}
-        className="mt-4 rounded-xl border border-border bg-card p-5"
+        className="mt-4 rounded-2xl border border-border bg-card p-5"
       >
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <Info className="h-4 w-4 text-accent" />
@@ -97,7 +97,7 @@ export default function AdminAboutPage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.18, duration: 0.45, ease: easeOut }}
-        className="mt-4 rounded-xl border border-border bg-card p-5"
+        className="mt-4 rounded-2xl border border-border bg-card p-5"
       >
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <Code2 className="h-4 w-4 text-accent" />
@@ -129,7 +129,7 @@ export default function AdminAboutPage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.26, duration: 0.45, ease: easeOut }}
-        className="mt-4 rounded-xl border border-border bg-card p-5"
+        className="mt-4 rounded-2xl border border-border bg-card p-5"
       >
         <h2 className="text-sm font-semibold">功能特性</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">

@@ -128,7 +128,7 @@ function MenuTab() {
           key={`${item.label}-${i}`}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-3"
+          className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card p-3"
         >
           <IconPicker
             value={item.icon}
@@ -202,7 +202,7 @@ function MenuTab() {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border border-border bg-card p-3"
+          className="rounded-2xl border border-border bg-card p-3"
         >
           <p className="mb-2 text-xs text-muted-foreground">
             选择已发布的页面（在页面管理中创建），将自动添加为菜单项
@@ -297,7 +297,7 @@ function WidgetsTab() {
           key={`${w.type}-${i}`}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border border-border bg-card p-4"
+          className="rounded-2xl border border-border bg-card p-4"
         >
           <div className="flex items-center gap-2">
             <span className="rounded-md bg-accent/10 px-2 py-1 text-xs font-medium text-accent">
@@ -578,7 +578,7 @@ export default function AdminAppearancePage() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: easeOut }}
-        className="mt-6 rounded-xl border border-border bg-card p-5"
+        className="mt-6 rounded-2xl border border-border bg-card p-5"
       >
         {tab === 'menu' ? <MenuTab /> : tab === 'widgets' ? <WidgetsTab /> : <SidebarPositionTab />}
       </motion.div>
