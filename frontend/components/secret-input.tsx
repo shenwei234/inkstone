@@ -14,9 +14,12 @@ interface Props {
 }
 
 /**
- * 密钥/密码输入框：
- * - 右侧「小眼睛」切换明文/密文
- * - 已保存过且未重新输入时，显示为 ***（不暴露真实值）
+ * 密钥/密码输入框
+ *
+ * 两种状态：
+ * 1. 已保存且未重新输入：显示 `********`，**不显示小眼睛**（真实值不可查看）。
+ *    聚焦/开始输入即清空占位，进入「编辑」状态。
+ * 2. 编辑状态（未保存过，或已开始输入）：正常输入，右侧小眼睛可切换明文/密文。
  */
 export function SecretInput({
   value,
@@ -27,32 +30,45 @@ export function SecretInput({
   autoComplete = 'new-password',
 }: Props) {
   const [visible, setVisible] = useState(false)
-  // 已保存且用户未输入新值时，展示占位星号
-  const showingSaved = isSet && value === ''
+  // 用户是否已开始编辑（聚焦或输入过）
+  const [editing, setEditing] = useState(false)
+
+  // 已保存 + 未开始编辑 = 只读占位态
+  const locked = isSet && !editing
+  // 编辑状态下才显示小眼睛
+  const showEye = !locked
 
   return (
     <div className="relative">
       <input
-        type={visible ? 'text' : 'password'}
-        value={showingSaved ? '••••••••••••' : value}
-        onChange={(e) => onChange(e.target.value)}
-        onFocus={() => {
-          // 聚焦时清空占位，开始输入新密钥
-          if (showingSaved) onChange('')
+        type={visible && showEye ? 'text' : 'password'}
+        value={locked ? '••••••••••••' : value}
+        onChange={(e) => {
+          if (!editing) setEditing(true)
+          onChange(e.target.value)
         }}
-        placeholder={placeholder ?? (isSet ? '已保存，留空表示不修改' : '未设置')}
+        onFocus={() => {
+          // 聚焦即进入编辑态并清空占位，允许直接输入新密钥
+          if (locked) {
+            setEditing(true)
+            onChange('')
+          }
+        }}
+        readOnly={locked}
+        placeholder={placeholder ?? (locked ? '已保存' : '请输入新密钥')}
         autoComplete={autoComplete}
-        readOnly={showingSaved && !visible}
-        className={`${className} pr-10`}
+        className={`${className}${showEye ? ' pr-10' : ''}`}
       />
-      <button
-        type="button"
-        onClick={() => setVisible((v) => !v)}
-        title={visible ? '隐藏' : '显示'}
-        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-      >
-        {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-      </button>
+      {showEye && (
+        <button
+          type="button"
+          onClick={() => setVisible((v) => !v)}
+          title={visible ? '隐藏' : '显示'}
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      )}
     </div>
   )
 }

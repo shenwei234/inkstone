@@ -399,6 +399,7 @@ export default function AdminSettingsPage() {
                 )}
               </label>
               <SecretInput
+                key={`smtp-pass-${form.smtp_pass_set ? 'set' : 'unset'}`}
                 value={smtpPass}
                 onChange={setSmtpPass}
                 isSet={form.smtp_pass_set}
