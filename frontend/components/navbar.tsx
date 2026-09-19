@@ -55,7 +55,12 @@ export function Navbar() {
           <nav className="flex items-center gap-1">
             {menuItems.map((item) => {
               const external = item.href.startsWith('http')
-              const active = !external && (pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href)))
+              const active =
+                !external &&
+                (pathname === item.href ||
+                  (item.href !== '/' &&
+                    (pathname === `${item.href}/` ||
+                      pathname.startsWith(`${item.href}/`))))
               return (
                 <Link
                   key={item.label + item.href}

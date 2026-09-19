@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { Suspense } from 'react'
+import { Suspense, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { Eye, PenLine, Search, X } from 'lucide-react'
@@ -17,12 +17,18 @@ function ArticleCard({ article }: { article: Article }) {
     ? new Date(article.published_at).toLocaleDateString('zh-CN')
     : new Date(article.created_at).toLocaleDateString('zh-CN')
 
-  // 封面：优先使用后台设置的封面，否则取正文中第一张图片
-  const cover =
-    article.cover ||
-    (article.content.match(/<img[^>]+src="([^"]+)"/)?.[1] ?? '')
-
-  const excerpt = article.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200)
+  // 封面：优先使用后台设置的封面，否则取正文中第一张图片；摘要由正文纯文本生成。
+  // 用 useMemo 缓存，避免列表每次渲染都做多段正则。
+  const { cover, excerpt } = useMemo(() => {
+    const c =
+      article.cover || (article.content.match(/<img[^>]+src="([^"]+)"/)?.[1] ?? '')
+    const e = article.content
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 200)
+    return { cover: c, excerpt: e }
+  }, [article])
 
   return (
     <StaggerItem>
@@ -110,9 +116,9 @@ export default function HomePageWrapper() {
 function HomePage() {
   const searchParams = useSearchParams()
   const site = useSiteConfig()
-  const category = searchParams.get('category') ?? ''
-  const tag = searchParams.get('tag') ?? ''
-  const q = searchParams.get('q') ?? ''
+  const category = searchParams.get('category') ?? null
+  const tag = searchParams.get('tag') ?? null
+  const q = searchParams.get('q') ?? null
   const widgets = site.widgets.filter((w) => w.type && w.title)
 
   const { data, isLoading, isError, error } = useQuery({
@@ -121,16 +127,16 @@ function HomePage() {
       fetchArticles({
         page: 1,
         page_size: 20,
-        category: category || undefined,
-        tag: tag || undefined,
-        q: q || undefined,
+        category: category ?? undefined,
+        tag: tag ?? undefined,
+        q: q ?? undefined,
       }),
   })
 
   const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
   const tagsQuery = useQuery({ queryKey: ['tags'], queryFn: fetchTags })
 
-    const hasFilter = Boolean(category || tag || q)
+  const hasFilter = Boolean(category || tag || q)
 
   return (
     <PageTransition>

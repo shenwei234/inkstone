@@ -28,10 +28,8 @@ import { useAuth } from '@/lib/auth-context'
 import { useNotify } from '@/components/toast'
 import { useSiteConfig } from '@/components/site-config-context'
 import { Captcha, type CaptchaResult } from '@/components/captcha'
-import { PageTransition } from '@/components/motion'
+import { PageTransition, easeOut } from '@/components/motion'
 import { WidgetRenderer } from '@/components/sidebar-widgets'
-
-const easeOut = [0.16, 1, 0.3, 1] as const
 
 export default function PostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params)

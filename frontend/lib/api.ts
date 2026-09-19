@@ -586,7 +586,8 @@ export async function downloadFile(id: number, filename: string): Promise<void> 
   document.body.appendChild(a)
   a.click()
   a.remove()
-  URL.revokeObjectURL(url)
+  // 延迟撤销，避免浏览器尚未开始下载时就失效导致空文件
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 /** Uploads a file with progress reporting (XHR, since fetch has no upload progress). */

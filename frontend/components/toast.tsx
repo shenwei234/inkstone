@@ -55,10 +55,19 @@ export function useNotify() {
 export function NotifyProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([])
   const idRef = useRef(0)
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([])
   const [confirmState, setConfirmState] = useState<
     (ConfirmOptions & { resolve: (v: boolean) => void }) | null
   >(null)
   const confirmBtnRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(
+    () => () => {
+      timersRef.current.forEach(clearTimeout)
+      timersRef.current = []
+    },
+    [],
+  )
 
   const dismiss = useCallback((id: number) => {
     setToasts((t) => t.filter((x) => x.id !== id))
@@ -67,7 +76,11 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
   const push = useCallback((type: ToastItem['type'], message: string, slug?: string) => {
     const id = ++idRef.current
     setToasts((t) => [...t.slice(-3), { id, type, message, slug }])
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000)
+    const timer = setTimeout(() => {
+      setToasts((t) => t.filter((x) => x.id !== id))
+      timersRef.current = timersRef.current.filter((t) => t !== timer)
+    }, 4000)
+    timersRef.current.push(timer)
   }, [])
 
   const confirm = useCallback(

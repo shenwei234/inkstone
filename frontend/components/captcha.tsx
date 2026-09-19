@@ -299,22 +299,30 @@ function BuiltinWidget({ onChange }: { onChange: (r: CaptchaResult) => void }) {
   const [token, setToken] = useState('')
   const [answer, setAnswer] = useState('')
   const [loading, setLoading] = useState(true)
+  const aliveRef = useRef(true)
 
   const refresh = useCallback(() => {
     setLoading(true)
     setAnswer('')
     fetchCaptchaChallenge()
       .then((res) => {
+        if (!aliveRef.current) return
         setQuestion(res.question ?? '')
         setToken(res.token ?? '')
         onChange({ captcha_token: res.token ?? '', captcha_answer: '' })
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (aliveRef.current) setLoading(false)
+      })
   }, [onChange])
 
   useEffect(() => {
+    aliveRef.current = true
     const t = setTimeout(refresh, 0)
-    return () => clearTimeout(t)
+    return () => {
+      aliveRef.current = false
+      clearTimeout(t)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

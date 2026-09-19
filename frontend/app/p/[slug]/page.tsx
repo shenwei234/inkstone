@@ -6,10 +6,8 @@ import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { ArrowLeft, SearchX } from 'lucide-react'
 import { fetchPageBySlug } from '@/lib/api'
-import { PageTransition } from '@/components/motion'
+import { PageTransition, easeOut } from '@/components/motion'
 import { useSiteConfig } from '@/components/site-config-context'
-
-const easeOut = [0.16, 1, 0.3, 1] as const
 
 export default function StaticPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params)

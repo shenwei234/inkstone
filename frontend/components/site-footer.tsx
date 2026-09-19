@@ -5,8 +5,7 @@ import { motion } from 'framer-motion'
 import { GitBranch, Heart, Rss } from 'lucide-react'
 import { useSiteConfig } from '@/components/site-config-context'
 import { MenuIcon } from '@/components/menu-icon'
-
-const easeOut = [0.16, 1, 0.3, 1] as const
+import { easeOut } from '@/components/motion'
 
 export function SiteFooter() {
   const site = useSiteConfig()
