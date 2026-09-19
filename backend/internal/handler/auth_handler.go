@@ -14,10 +14,11 @@ type AuthHandler struct {
 	captcha   *service.CaptchaService
 	emailCode *service.EmailCodeService
 	limiter   *middleware.SlidingLimiter
+	logs      *service.LogService
 }
 
-func NewAuthHandler(auth *service.AuthService, captcha *service.CaptchaService, emailCode *service.EmailCodeService, limiter *middleware.SlidingLimiter) *AuthHandler {
-	return &AuthHandler{auth: auth, captcha: captcha, emailCode: emailCode, limiter: limiter}
+func NewAuthHandler(auth *service.AuthService, captcha *service.CaptchaService, emailCode *service.EmailCodeService, limiter *middleware.SlidingLimiter, logs *service.LogService) *AuthHandler {
+	return &AuthHandler{auth: auth, captcha: captcha, emailCode: emailCode, limiter: limiter, logs: logs}
 }
 
 // resetAuthLimit clears the rate-limit budget for the caller after a
@@ -67,7 +68,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	if err := h.emailCode.Verify(req.Email, req.EmailCode); err != nil {
+	if err := h.emailCode.Verify("register", req.Email, req.EmailCode); err != nil {
 		errorResponse(c, err)
 		return
 	}
@@ -89,6 +90,17 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	// 注册成功：清空该 IP 的计数，避免共享出口 IP 被误伤
 	h.resetAuthLimit(c)
 
+	h.logs.Record(service.Entry{
+		UserID:    user.ID,
+		Username:  user.Username,
+		Category:  model.LogCategoryAuth,
+		Action:    "新用户注册",
+		Detail:    req.Email,
+		IP:        middleware.ClientIP(c),
+		UserAgent: c.Request.UserAgent(),
+		Success:   true,
+	})
+
 	c.JSON(http.StatusCreated, gin.H{
 		"user":  toUserResponse(user),
 		"token": pair,
@@ -102,7 +114,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	if err := h.emailCode.Verify(req.Email, req.EmailCode); err != nil {
+	if err := h.emailCode.Verify("login", req.Email, req.EmailCode); err != nil {
 		errorResponse(c, err)
 		return
 	}
@@ -113,12 +125,31 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	user, pair, err := h.auth.Login(req.Email, req.Password)
 	if err != nil {
+		h.logs.Record(service.Entry{
+			Category:  model.LogCategoryAuth,
+			Action:    "登录失败",
+			Detail:    req.Email,
+			IP:        middleware.ClientIP(c),
+			UserAgent: c.Request.UserAgent(),
+			Success:   false,
+		})
 		errorResponse(c, err)
 		return
 	}
 
 	// 登录成功：清空该 IP 的失败计数，避免正常用户被限流锁死
 	h.resetAuthLimit(c)
+
+	h.logs.Record(service.Entry{
+		UserID:    user.ID,
+		Username:  user.Username,
+		Category:  model.LogCategoryAuth,
+		Action:    "登录成功",
+		Detail:    "角色：" + user.Role,
+		IP:        middleware.ClientIP(c),
+		UserAgent: c.Request.UserAgent(),
+		Success:   true,
+	})
 
 	c.JSON(http.StatusOK, gin.H{
 		"user":  toUserResponse(user),

@@ -48,12 +48,14 @@ func main() {
 
 	statRepo := repository.NewStatRepository(db)
 	statSvc := service.NewStatService(statRepo, settingsSvc)
+	logRepo := repository.NewOperationLogRepository(db)
+	logSvc := service.NewLogService(logRepo)
 
 	captchaSvc := service.NewCaptchaService(settingsSvc, cfg.JWTSecret)
 	emailCodeSvc := service.NewEmailCodeService(settingsSvc, mailer)
 	apiLimiter := middleware.NewSlidingLimiter()
 
-	authHandler := handler.NewAuthHandler(authSvc, captchaSvc, emailCodeSvc, apiLimiter)
+	authHandler := handler.NewAuthHandler(authSvc, captchaSvc, emailCodeSvc, apiLimiter, logSvc)
 	articleHandler := handler.NewArticleHandler(articleSvc, captchaSvc)
 	adminHandler := handler.NewAdminHandler(adminSvc, userRepo, articleSvc, articleRepo, commentSvc)
 	taxonomyHandler := handler.NewTaxonomyHandler(taxonomyRepo)
@@ -67,6 +69,7 @@ func main() {
 	fileHandler := handler.NewFileHandler(fileSvc, cfg.PublicAPIURL)
 	captchaHandler := handler.NewCaptchaHandler(captchaSvc)
 	statHandler := handler.NewStatHandler(statSvc)
+	logHandler := handler.NewLogHandler(logSvc)
 	emailCodeHandler := handler.NewEmailCodeHandler(emailCodeSvc)
 	adminTagHandler := handler.NewAdminTagHandler(taxonomyRepo)
 
@@ -214,6 +217,8 @@ func main() {
 			admin.GET("/stats", adminHandler.Stats)
 			admin.GET("/stats/traffic", statHandler.Traffic)
 			admin.GET("/stats/resources", statHandler.Resources)
+			admin.GET("/logs", logHandler.List)
+			admin.GET("/logs/stats", logHandler.Stats)
 			admin.GET("/users", adminHandler.ListUsers)
 			admin.POST("/users", adminHandler.CreateUser)
 			admin.PUT("/users/:id/role", adminHandler.UpdateUserRole)

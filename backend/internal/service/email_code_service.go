@@ -86,14 +86,20 @@ func (s *EmailCodeService) Send(email, purpose string) error {
 
 	if err := s.mailer.Send(email, subject, body); err != nil {
 		log.Printf("[emailcode] send to %s failed: %v", email, err)
-		return err
+		// 验证码已写入内存，但邮件没发出去 —— 清零并返回可读错误（400 而非 500）
+		s.mu.Lock()
+		delete(s.codes, email)
+		s.mu.Unlock()
+		return NewValidationError("验证码发送失败：" + err.Error())
 	}
+	log.Printf("[emailcode] code sent to %s (purpose=%s)", email, purpose)
 	return nil
 }
 
-// Verify checks the submitted code for an email (consumed on success).
-func (s *EmailCodeService) Verify(email, code string) error {
-	if !s.Enabled() {
+// Verify checks the submitted code for an email and action (consumed on success).
+// action: "register" | "login"
+func (s *EmailCodeService) Verify(action, email, code string) error {
+	if !s.Required(action) {
 		return nil
 	}
 	email = strings.ToLower(strings.TrimSpace(email))

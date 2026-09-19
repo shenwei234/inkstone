@@ -346,6 +346,45 @@ export function fetchSystemResources() {
   return api<SystemResource>('/admin/stats/resources', { auth: true })
 }
 
+// ---------- Operation Logs API ----------
+
+export interface OperationLog {
+  id: number
+  user_id: number
+  username: string
+  category: string
+  action: string
+  detail: string
+  ip: string
+  user_agent: string
+  success: boolean
+  created_at: string
+}
+
+export interface LogListResponse {
+  logs: OperationLog[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export function fetchLogs(
+  params: { page?: number; page_size?: number; category?: string; username?: string; q?: string } = {},
+) {
+  const search = new URLSearchParams()
+  if (params.page) search.set('page', String(params.page))
+  if (params.page_size) search.set('page_size', String(params.page_size))
+  if (params.category) search.set('category', params.category)
+  if (params.username) search.set('username', params.username)
+  if (params.q) search.set('q', params.q)
+  const qs = search.toString()
+  return api<LogListResponse>(`/admin/logs${qs ? `?${qs}` : ''}`, { auth: true })
+}
+
+export function fetchLogStats() {
+  return api<{ stats: Record<string, number> }>('/admin/logs/stats', { auth: true })
+}
+
 export function fetchAdminComments(params: { page?: number; page_size?: number } = {}) {
   const search = new URLSearchParams()
   if (params.page) search.set('page', String(params.page))
