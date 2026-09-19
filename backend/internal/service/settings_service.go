@@ -27,9 +27,11 @@ const (
 	SettingSMTPPass          = "smtp_pass"
 	SettingSMTPFrom          = "smtp_from" // From header, e.g. "Blog <no-reply@x.com>"
 	SettingUpdateManifest    = "update_manifest_url"
-	SettingUploadMaxMB       = "upload_max_mb"     // 文件管理：最大上传大小（MB）
-	SettingUploadSpeedKB     = "upload_speed_kb"   // 文件管理：上传限速（KB/s，0=不限）
-	SettingDownloadSpeedKB   = "download_speed_kb" // 文件管理：下载限速（KB/s，0=不限）
+	SettingUpdateScriptPath  = "update_script_path"  // 服务器上一键更新脚本的绝对路径
+	SettingUpdateAutoRestart = "update_auto_restart" // "true"/"false" 更新后是否自动重启服务
+	SettingUploadMaxMB       = "upload_max_mb"       // 文件管理：最大上传大小（MB）
+	SettingUploadSpeedKB     = "upload_speed_kb"     // 文件管理：上传限速（KB/s，0=不限）
+	SettingDownloadSpeedKB   = "download_speed_kb"   // 文件管理：下载限速（KB/s，0=不限）
 
 	// 人机验证
 	SettingCaptchaProvider   = "captcha_provider"    // none | turnstile | geetest | builtin
@@ -78,6 +80,8 @@ var settingDefaults = map[string]string{
 	SettingSMTPPass:          "",
 	SettingSMTPFrom:          "",
 	SettingUpdateManifest:    "",
+	SettingUpdateScriptPath:  "/usr/local/bin/inkstone-update.sh",
+	SettingUpdateAutoRestart: "true",
 	SettingUploadMaxMB:       "50",
 	SettingUploadSpeedKB:     "0",
 	SettingDownloadSpeedKB:   "0",

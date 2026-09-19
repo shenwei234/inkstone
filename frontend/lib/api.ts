@@ -679,6 +679,44 @@ export function saveUpdateManifest(url: string) {
   })
 }
 
+export type UpdatePhase = 'idle' | 'running' | 'success' | 'failed'
+
+export interface UpdateStatus {
+  phase: UpdatePhase
+  running: boolean
+  script_path: string
+  auto_restart: boolean
+  script_exists: boolean
+  message: string
+  logs: string[]
+  started_at?: string
+  finished_at?: string
+  exit_code?: number
+}
+
+export function fetchUpdateStatus() {
+  return api<{ status: UpdateStatus }>('/admin/updates/status', { auth: true })
+}
+
+export function applySystemUpdate() {
+  return api<{ status: UpdateStatus; message: string }>('/admin/updates/apply', {
+    method: 'POST',
+    auth: true,
+  })
+}
+
+export function fetchUpdateScript() {
+  return api<{ script: string; path: string }>('/admin/updates/script', { auth: true })
+}
+
+export function saveUpdateConfig(payload: { script_path?: string; auto_restart?: boolean }) {
+  return api<{ status: UpdateStatus; message: string }>('/admin/updates/config', {
+    method: 'PUT',
+    body: payload,
+    auth: true,
+  })
+}
+
 export function changePassword(currentPassword: string, newPassword: string) {
   return api<{ message: string }>('/auth/password', {
     method: 'PUT',

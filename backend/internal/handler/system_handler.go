@@ -9,10 +9,11 @@ import (
 
 type SystemHandler struct {
 	settings *service.SettingsService
+	updates  *service.UpdateRunner
 }
 
-func NewSystemHandler(settings *service.SettingsService) *SystemHandler {
-	return &SystemHandler{settings: settings}
+func NewSystemHandler(settings *service.SettingsService, updates *service.UpdateRunner) *SystemHandler {
+	return &SystemHandler{settings: settings, updates: updates}
 }
 
 // Info handles GET /api/v1/system/info.
@@ -31,6 +32,7 @@ func (h *SystemHandler) Changelog(c *gin.Context) {
 		"current":      service.AppVersion,
 		"changelog":    service.ChangelogList(),
 		"manifest_url": manifestURL,
+		"version":      service.AppVersion,
 	})
 }
 
@@ -63,4 +65,60 @@ func (h *SystemHandler) SaveManifestURL(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "更新源已保存"})
+}
+
+// ———— 一键更新 ————
+
+// UpdateStatus handles GET /admin/updates/status — current update state & live logs.
+func (h *SystemHandler) UpdateStatus(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"status": h.updates.Status()})
+}
+
+// ApplyUpdate handles POST /admin/updates/apply — trigger the server update script.
+func (h *SystemHandler) ApplyUpdate(c *gin.Context) {
+	if err := h.updates.Start(); err != nil {
+		errorResponse(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": h.updates.Status(), "message": "已开始更新"})
+}
+
+// UpdateScript handles GET /admin/updates/script — the recommended script template.
+func (h *SystemHandler) UpdateScript(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"script": service.UpdateScriptTemplate,
+		"path":   h.updates.Status().ScriptPath,
+	})
+}
+
+type saveUpdateConfigRequest struct {
+	ScriptPath  string `json:"script_path"`
+	AutoRestart *bool  `json:"auto_restart"`
+}
+
+// SaveUpdateConfig handles PUT /admin/updates/config — script path & auto-restart toggle.
+func (h *SystemHandler) SaveUpdateConfig(c *gin.Context) {
+	var req saveUpdateConfigRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误"})
+		return
+	}
+	payload := map[string]any{}
+	if req.ScriptPath != "" {
+		payload[service.SettingUpdateScriptPath] = req.ScriptPath
+	}
+	if req.AutoRestart != nil {
+		val := "false"
+		if *req.AutoRestart {
+			val = "true"
+		}
+		payload[service.SettingUpdateAutoRestart] = val
+	}
+	if len(payload) > 0 {
+		if err := h.settings.Update(payload); err != nil {
+			errorResponse(c, err)
+			return
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"status": h.updates.Status(), "message": "更新配置已保存"})
 }
