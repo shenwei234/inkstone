@@ -40,7 +40,7 @@ func main() {
 	pageSvc := service.NewPageService(pageRepo)
 
 	linkRepo := repository.NewLinkRepository(db)
-	linkSvc := service.NewLinkService(linkRepo)
+	linkSvc := service.NewLinkService(linkRepo, cfg.FrontendURL)
 	linkSvc.StartAutoCheck()
 
 	fileRepo := repository.NewFileRepository(db)
@@ -248,6 +248,7 @@ func main() {
 			admin.PUT("/links/:id", linkHandler.Update)
 			admin.DELETE("/links/:id", linkHandler.Delete)
 			admin.POST("/links/check", linkHandler.CheckAll)
+			admin.POST("/links/validate", linkHandler.Validate)
 			admin.POST("/links/:id/check", linkHandler.CheckOne)
 			admin.GET("/files", fileHandler.List)
 			admin.POST("/files", fileHandler.Upload)

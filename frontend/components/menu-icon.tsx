@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import {
   Archive,
@@ -97,11 +98,29 @@ export function IconPicker({
   onChange: (name: string) => void
 }) {
   const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState({ left: 0, top: 0 })
+  const wrapRef = useRef<HTMLDivElement>(null)
   const current = value && MENU_ICONS[value] ? value : null
   const CurrentIcon = current ? MENU_ICONS[current] : null
 
+  // 打开时计算触发器位置，供 Portal 定位（避免被带 transform 的祖先困住）
+  useEffect(() => {
+    if (!open) return
+    const update = () => {
+      const r = wrapRef.current?.getBoundingClientRect()
+      if (r) setPos({ left: r.left, top: r.bottom + 8 })
+    }
+    update()
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
+  }, [open])
+
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapRef}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -115,16 +134,18 @@ export function IconPicker({
         {CurrentIcon ? <CurrentIcon className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
       </button>
 
-      {open && (
-        <>
-          {/* click-away layer */}
-          <div className="fixed inset-0 z-[80]" onClick={() => setOpen(false)} />
-          <motion.div
-            initial={{ opacity: 0, y: 6, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute left-0 top-full z-[90] mt-2 w-72 rounded-xl border border-border bg-card p-2 shadow-2xl shadow-black/15"
-          >
+      {open &&
+        createPortal(
+          <>
+            {/* click-away layer */}
+            <div className="fixed inset-0 z-[80]" onClick={() => setOpen(false)} />
+            <motion.div
+              initial={{ opacity: 0, y: 6, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              style={{ position: 'fixed', left: pos.left, top: pos.top }}
+              className="z-[90] w-72 rounded-xl border border-border bg-card p-2 shadow-2xl shadow-black/15"
+            >
             <p className="px-2 pb-1.5 text-xs text-muted-foreground">选择菜单图标（可选）</p>
             <div className="grid max-h-56 grid-cols-6 gap-1 overflow-y-auto">
               <button
@@ -161,10 +182,11 @@ export function IconPicker({
                   </button>
                 )
               })}
-            </div>
-          </motion.div>
-        </>
-      )}
+              </div>
+            </motion.div>
+          </>,
+          document.body,
+        )}
     </div>
   )
 }

@@ -61,6 +61,22 @@ func (h *LinkHandler) ListPublic(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"links": items})
 }
 
+type validateLinkRequest struct {
+	URL      string `json:"url"`
+	CheckURL string `json:"check_url"`
+}
+
+// Validate handles POST /admin/links/validate — pre-flight check before adding
+// a friend link: reachability + whether the target page links back to this site.
+func (h *LinkHandler) Validate(c *gin.Context) {
+	var req validateLinkRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请提供网站链接"})
+		return
+	}
+	c.JSON(http.StatusOK, h.links.Validate(req.URL, req.CheckURL))
+}
+
 type linkRequest struct {
 	Name        string `json:"name" binding:"required"`
 	URL         string `json:"url" binding:"required"`

@@ -71,7 +71,7 @@ export default function AdminArticlesPage() {
               {data ? `共 ${data.total} 篇` : '加载中...'}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
               <Link
                 href="/admin/articles/new"

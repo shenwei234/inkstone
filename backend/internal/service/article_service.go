@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -66,7 +67,7 @@ func (s *ArticleService) Create(authorID uint, input ArticleInput) (*model.Artic
 		AuthorID:   authorID,
 		CategoryID: input.CategoryID,
 		Title:      title,
-		Slug:       repository.Slugify(title),
+		Slug:       s.uniqueSlug(repository.Slugify(title), 0),
 		Content:    SanitizeHTML(input.Content),
 		Status:     status,
 		Cover:      resolveCover(input.Cover, input.Content),
@@ -91,6 +92,23 @@ func (s *ArticleService) Create(authorID uint, input ArticleInput) (*model.Artic
 	return article, nil
 }
 
+// uniqueSlug 保证 slug 唯一：若已被其他文章占用，自动追加 -2、-3 … 后缀。
+// excludeID 为当前文章 ID（更新标题时允许保留自身 slug）。
+func (s *ArticleService) uniqueSlug(base string, excludeID uint) string {
+	if base == "" {
+		base = "article"
+	}
+	slug := base
+	for i := 2; i < 1000; i++ {
+		existing, err := s.articles.FindBySlug(slug)
+		if err != nil || existing.ID == excludeID {
+			return slug
+		}
+		slug = fmt.Sprintf("%s-%d", base, i)
+	}
+	return slug
+}
+
 func (s *ArticleService) Update(articleID, authorID uint, update ArticleUpdate) (*model.Article, error) {
 	article, err := s.articles.FindByID(articleID)
 	if err != nil {
@@ -106,7 +124,7 @@ func (s *ArticleService) Update(articleID, authorID uint, update ArticleUpdate) 
 			return nil, NewValidationError("标题不能为空")
 		}
 		article.Title = title
-		article.Slug = repository.Slugify(title)
+		article.Slug = s.uniqueSlug(repository.Slugify(title), article.ID)
 	}
 	if update.Content != nil {
 		if strings.TrimSpace(*update.Content) == "" {
@@ -162,6 +180,19 @@ func (s *ArticleService) Delete(articleID, authorID uint) error {
 
 func (s *ArticleService) GetByID(id uint) (*model.Article, error) {
 	return s.articles.FindByID(id)
+}
+
+// StatusForOwner returns the current status of an article owned by authorID.
+// 用于更新时判断是否需要人机验证（发布态需要）。
+func (s *ArticleService) StatusForOwner(articleID, authorID uint) (string, error) {
+	a, err := s.articles.FindByID(articleID)
+	if err != nil {
+		return "", err
+	}
+	if a.AuthorID != authorID {
+		return "", ErrForbidden
+	}
+	return a.Status, nil
 }
 
 func (s *ArticleService) GetBySlug(slug string) (*model.Article, error) {

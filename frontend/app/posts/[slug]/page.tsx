@@ -29,7 +29,7 @@ import { useNotify } from '@/components/toast'
 import { useSiteConfig } from '@/components/site-config-context'
 import { Captcha, type CaptchaResult } from '@/components/captcha'
 import { PageTransition, easeOut } from '@/components/motion'
-import { WidgetRenderer } from '@/components/sidebar-widgets'
+import { SiteSidebar } from '@/components/site-sidebar'
 
 export default function PostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params)
@@ -103,7 +103,7 @@ export default function PostPage({ params }: { params: Promise<{ slug: string }>
   if (isError || !data) {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 16 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: easeOut }}
         className="mx-auto max-w-3xl px-4 py-24 text-center"
@@ -156,21 +156,25 @@ export default function PostPage({ params }: { params: Promise<{ slug: string }>
         }`}
       >
       {showSidebar && site.sidebarPosition === 'left' && (
-        <aside className="mb-8 h-fit space-y-4 lg:sticky lg:top-24 lg:order-first lg:mb-0">
-          {widgets.map((w, i) => (
-            <WidgetRenderer key={`${w.type}-${i}`} widget={w} />
-          ))}
-        </aside>
+        <SiteSidebar widgets={widgets} position="left" />
       )}
       <div className="min-w-0">
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, ease: easeOut }}
           className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-10"
         >
+          {article.cover && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={article.cover}
+              alt={article.title}
+              className="mb-6 aspect-video w-full rounded-xl object-cover"
+            />
+          )}
           <motion.header
-            initial={{ opacity: 0, y: 16 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: easeOut }}
             className="mb-8 border-b border-border pb-6"
@@ -216,16 +220,16 @@ export default function PostPage({ params }: { params: Promise<{ slug: string }>
           </motion.header>
 
           <motion.article
-            initial={{ opacity: 0, y: 16 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1, ease: easeOut }}
-            className="prose prose-neutral dark:prose-invert max-w-none prose-headings:font-semibold prose-a:text-accent prose-pre:bg-muted prose-code:bg-muted prose-code:rounded prose-code:px-1.5 prose-code:py-0.5 prose-code:text-[0.9em] prose-code:before:content-none prose-code:after:content-none prose-img:rounded-xl prose-blockquote:border-l-accent"
+            className="prose prose-neutral dark:prose-invert max-w-none overflow-x-auto prose-headings:font-semibold prose-a:text-accent prose-pre:bg-muted prose-code:bg-muted prose-code:rounded prose-code:px-1.5 prose-code:py-0.5 prose-code:text-[0.9em] prose-code:before:content-none prose-code:after:content-none prose-img:rounded-xl prose-blockquote:border-l-accent"
             dangerouslySetInnerHTML={{ __html: article.content }}
           />
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25, duration: 0.45, ease: easeOut }}
           className="mt-6 flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm"
@@ -335,7 +339,7 @@ export default function PostPage({ params }: { params: Promise<{ slug: string }>
               comments.map((comment, i) => (
                 <motion.div
                   key={comment.id}
-                  initial={{ opacity: 0, y: 12 }}
+                  initial={false}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.05, duration: 0.3 }}
                   className="flex gap-3 rounded-xl border border-border bg-muted/40 p-4"
@@ -381,11 +385,7 @@ export default function PostPage({ params }: { params: Promise<{ slug: string }>
         </section>
       </div>
       {showSidebar && site.sidebarPosition !== 'left' && (
-        <aside className="mt-8 h-fit space-y-4 lg:sticky lg:top-24 lg:mt-0">
-          {widgets.map((w, i) => (
-            <WidgetRenderer key={`${w.type}-${i}`} widget={w} />
-          ))}
-        </aside>
+        <SiteSidebar widgets={widgets} position="right" />
       )}
       </div>
     </PageTransition>

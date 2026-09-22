@@ -62,6 +62,9 @@ const (
 	SettingWallpaperOpacity = "wallpaper_opacity" // 壁纸不透明度（0-100）
 	SettingWallpaperBlur    = "wallpaper_blur"    // 壁纸模糊（px）
 	SettingArticleSidebar   = "article_sidebar"   // 文章页是否显示侧边栏："true"/"false"
+
+	// 站点状态
+	SettingMaintenanceMode = "maintenance_mode" // "true"/"false" 全站维护（关闭）模式
 )
 
 var settingDefaults = map[string]string{
@@ -111,6 +114,7 @@ var settingDefaults = map[string]string{
 	SettingWallpaperOpacity: "100",
 	SettingWallpaperBlur:    "0",
 	SettingArticleSidebar:   "true",
+	SettingMaintenanceMode:  "false",
 }
 
 // jsonSettingKeys hold JSON arrays; they are decoded before leaving the API.

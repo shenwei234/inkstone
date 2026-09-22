@@ -34,7 +34,7 @@ export default function StaticPage({ params }: { params: Promise<{ slug: string 
   if (isError || !data) {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 16 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: easeOut }}
         className="mx-auto max-w-3xl px-4 py-24 text-center"
@@ -61,7 +61,7 @@ export default function StaticPage({ params }: { params: Promise<{ slug: string 
     return (
       <PageTransition>
         <div
-          className="min-h-[60vh]"
+          className="min-h-[60vh] overflow-x-auto px-4"
           dangerouslySetInnerHTML={{ __html: html }}
         />
       </PageTransition>
@@ -74,18 +74,18 @@ export default function StaticPage({ params }: { params: Promise<{ slug: string 
       <PageTransition>
         <div className="mx-auto max-w-6xl px-4 py-12">
           <motion.h1
-            initial={{ opacity: 0, y: 24 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, ease: easeOut }}
-            className="text-center text-4xl font-bold tracking-tight"
+            className="text-center text-3xl font-bold tracking-tight sm:text-4xl"
           >
             {page.title}
           </motion.h1>
           <motion.div
-            initial={{ opacity: 0, y: 24 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, delay: 0.12, ease: easeOut }}
-            className="prose prose-neutral dark:prose-invert mx-auto mt-10 max-w-none prose-headings:font-semibold prose-a:text-accent prose-img:rounded-xl"
+            className="prose prose-neutral dark:prose-invert mx-auto mt-10 max-w-none overflow-x-auto prose-headings:font-semibold prose-a:text-accent prose-img:rounded-xl"
             dangerouslySetInnerHTML={{ __html: page.content ?? "" }}
           />
         </div>
@@ -98,7 +98,7 @@ export default function StaticPage({ params }: { params: Promise<{ slug: string 
     <PageTransition>
       <div className="mx-auto max-w-3xl px-4 py-12">
         <motion.header
-          initial={{ opacity: 0, y: 24 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, ease: easeOut }}
           className="mb-8 border-b border-border pb-6"
@@ -109,14 +109,14 @@ export default function StaticPage({ params }: { params: Promise<{ slug: string 
           <p className="mt-3 text-sm text-muted-foreground">{site.siteName}</p>
         </motion.header>
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, delay: 0.12, ease: easeOut }}
-          className="prose prose-neutral dark:prose-invert max-w-none prose-headings:font-semibold prose-a:text-accent prose-pre:bg-muted prose-code:bg-muted prose-code:rounded prose-code:px-1.5 prose-code:py-0.5 prose-code:before:content-none prose-code:after:content-none prose-img:rounded-xl"
+          className="prose prose-neutral dark:prose-invert max-w-none overflow-x-auto prose-headings:font-semibold prose-a:text-accent prose-pre:bg-muted prose-code:bg-muted prose-code:rounded prose-code:px-1.5 prose-code:py-0.5 prose-code:before:content-none prose-code:after:content-none prose-img:rounded-xl"
           dangerouslySetInnerHTML={{ __html: page.content ?? "" }}
         />
         <motion.footer
-          initial={{ opacity: 0 }}
+          initial={false}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
           className="mt-16 border-t border-border pt-8"

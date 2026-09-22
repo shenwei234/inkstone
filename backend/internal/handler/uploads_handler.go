@@ -74,9 +74,16 @@ func (h *UploadsHandler) Create(c *gin.Context) {
 	}
 	defer out.Close()
 
-	if _, err := io.Copy(out, src); err != nil {
+	// 客户端声明的 file.Size 可伪造，必须限制实际写入的字节数，防止磁盘被打满
+	written, err := io.Copy(out, io.LimitReader(src, maxUploadBytes+1))
+	if err != nil {
 		_ = os.Remove(dst)
 		errorResponse(c, err)
+		return
+	}
+	if written > maxUploadBytes {
+		_ = os.Remove(dst)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "图片不能超过 10MB"})
 		return
 	}
 

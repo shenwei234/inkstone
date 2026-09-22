@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { fetchSiteConfig } from '@/lib/api'
 import type { CaptchaConfig, EmailCodeConfig } from '@/lib/api'
 
@@ -50,6 +50,7 @@ export interface SiteConfig {
   wallpaperBlur: number
   articleSidebar: boolean
   allowRegistration: boolean
+  maintenanceMode: boolean
   loaded: boolean
 }
 
@@ -76,10 +77,17 @@ const DEFAULT_CONFIG: SiteConfig = {
   wallpaperBlur: 0,
   articleSidebar: true,
   allowRegistration: true,
+  maintenanceMode: false,
   loaded: false,
 }
 
 const SiteConfigContext = createContext<SiteConfig>(DEFAULT_CONFIG)
+
+interface SiteConfigActions {
+  /** 重新拉取站点配置（如后台改动设置后刷新前台状态） */
+  refresh: () => void
+}
+const SiteConfigActionsContext = createContext<SiteConfigActions>({ refresh: () => {} })
 
 interface RawSiteConfig {
   site_name?: string
@@ -97,6 +105,7 @@ interface RawSiteConfig {
   wallpaper_opacity?: string
   wallpaper_blur?: string
   article_sidebar?: string
+  maintenance_mode?: string
 }
 
 function parseItems<T>(raw: unknown, validate: (item: unknown) => T | null): T[] {
@@ -109,11 +118,9 @@ function parseItems<T>(raw: unknown, validate: (item: unknown) => T | null): T[]
 export function SiteConfigProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<SiteConfig>(DEFAULT_CONFIG)
 
-  useEffect(() => {
-    let cancelled = false
+  const loadConfig = useCallback(() => {
     fetchSiteConfig()
       .then((raw) => {
-        if (cancelled) return
         const cfg = raw as RawSiteConfig
         const next: SiteConfig = {
           siteName: cfg.site_name || DEFAULT_CONFIG.siteName,
@@ -176,6 +183,7 @@ export function SiteConfigProvider({ children }: { children: ReactNode }) {
           wallpaperOpacity: Number(cfg.wallpaper_opacity ?? 100) || 100,
           wallpaperBlur: Number(cfg.wallpaper_blur ?? 0) || 0,
           articleSidebar: cfg.article_sidebar !== 'false',
+          maintenanceMode: cfg.maintenance_mode === 'true',
           loaded: true,
         }
         setConfig(next)
@@ -200,14 +208,25 @@ export function SiteConfigProvider({ children }: { children: ReactNode }) {
         }
       })
       .catch(() => setConfig((c) => ({ ...c, loaded: true })))
-    return () => {
-      cancelled = true
-    }
   }, [])
 
-  return <SiteConfigContext.Provider value={config}>{children}</SiteConfigContext.Provider>
+  useEffect(() => {
+    loadConfig()
+  }, [loadConfig])
+
+  const actions = useMemo<SiteConfigActions>(() => ({ refresh: loadConfig }), [loadConfig])
+
+  return (
+    <SiteConfigContext.Provider value={config}>
+      <SiteConfigActionsContext.Provider value={actions}>{children}</SiteConfigActionsContext.Provider>
+    </SiteConfigContext.Provider>
+  )
 }
 
 export function useSiteConfig() {
   return useContext(SiteConfigContext)
+}
+
+export function useSiteConfigActions() {
+  return useContext(SiteConfigActionsContext)
 }

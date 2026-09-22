@@ -211,8 +211,8 @@ export default function AdminFilesPage() {
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-full sm:w-auto">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               value={search}
@@ -221,7 +221,7 @@ export default function AdminFilesPage() {
                 if (e.key === 'Enter') setQuery(search)
               }}
               placeholder="搜索文件名，回车"
-              className="w-52 rounded-lg border border-border bg-card py-2 pl-9 pr-3 text-sm outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20"
+              className="w-full rounded-lg border border-border bg-card py-2 pl-9 pr-3 text-sm outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20 sm:w-52"
             />
           </div>
           <motion.button

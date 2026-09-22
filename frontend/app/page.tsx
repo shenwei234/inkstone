@@ -10,7 +10,7 @@ import { fetchArticles, fetchCategories, fetchTags } from '@/lib/api'
 import type { Article, ArticleListResponse } from '@/lib/types'
 import { PageTransition, StaggerList, StaggerItem, HoverLift } from '@/components/motion'
 import { useSiteConfig } from '@/components/site-config-context'
-import { WidgetRenderer } from '@/components/sidebar-widgets'
+import { SiteSidebar } from '@/components/site-sidebar'
 
 function ArticleCard({ article }: { article: Article }) {
   const date = article.published_at
@@ -34,11 +34,11 @@ function ArticleCard({ article }: { article: Article }) {
     <StaggerItem>
       <HoverLift>
         <Link href={`/posts/${article.slug}`} className="block">
-          <article className="group relative flex gap-5 overflow-hidden rounded-xl border border-border bg-card p-5 shadow-sm transition-shadow duration-300 hover:shadow-lg hover:shadow-accent/5">
-            <div className="absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-gradient-to-r from-accent to-purple-500 transition-transform duration-300 group-hover:scale-x-100" />
+          <article className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow duration-300 hover:shadow-lg hover:shadow-accent/5 sm:flex-row sm:gap-5 sm:p-5">
+            <div className="absolute inset-x-0 top-0 z-10 h-0.5 origin-left scale-x-0 bg-gradient-to-r from-accent to-purple-500 transition-transform duration-300 group-hover:scale-x-100" />
 
             {cover && (
-              <div className="hidden h-28 w-44 shrink-0 overflow-hidden rounded-lg bg-muted sm:block">
+              <div className="aspect-video w-full shrink-0 overflow-hidden bg-muted sm:aspect-auto sm:h-28 sm:w-44 sm:rounded-lg">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={cover}
@@ -52,7 +52,7 @@ function ArticleCard({ article }: { article: Article }) {
               </div>
             )}
 
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 p-5 sm:p-0">
               <div className="flex items-start justify-between gap-3">
                 <h2 className="text-lg font-semibold tracking-tight transition-colors group-hover:text-accent">
                   {article.title}
@@ -141,21 +141,23 @@ function HomePage() {
   return (
     <PageTransition>
       <div className={`mx-auto px-4 py-10 ${widgets.length > 0 ? 'max-w-7xl' : 'max-w-5xl'}`}>
-        {/* 列表标题 */}
-        <div className="mb-6 flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-bold tracking-tight">
-            {category
-              ? `分类：${categoriesQuery.data?.categories.find((c) => c.slug === category)?.name ?? category}`
-              : tag
-                ? `标签：${tagsQuery.data?.tags.find((t) => t.slug === tag)?.name ?? tag}`
-                : q
-                  ? `搜索：${q}`
-                  : '最新文章'}
-          </h1>
-          <span className="text-sm font-normal text-muted-foreground">
-            {data ? `${data.total} 篇` : ''}
-          </span>
-        </div>
+        {/* 筛选时显示标题；默认「最新文章」不显示，避免冗余 */}
+        {hasFilter && (
+          <div className="mb-6 flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight">
+              {category
+                ? `分类：${categoriesQuery.data?.categories.find((c) => c.slug === category)?.name ?? category}`
+                : tag
+                  ? `标签：${tagsQuery.data?.tags.find((t) => t.slug === tag)?.name ?? tag}`
+                  : q
+                    ? `搜索：${q}`
+                    : ''}
+            </h1>
+            <span className="text-sm font-normal text-muted-foreground">
+              {data ? `${data.total} 篇` : ''}
+            </span>
+          </div>
+        )}
 
         {widgets.length > 0 ? (
           <div
@@ -165,11 +167,7 @@ function HomePage() {
           >
             {site.sidebarPosition === 'left' ? (
               <>
-                <aside className="h-fit space-y-4 lg:sticky lg:top-24">
-                  {widgets.map((w, i) => (
-                    <WidgetRenderer key={`${w.type}-${i}`} widget={w} />
-                  ))}
-                </aside>
+                <SiteSidebar widgets={widgets} position="left" />
                 <div className="min-w-0">
                   <ArticleListSection
                     isLoading={isLoading}
@@ -191,11 +189,7 @@ function HomePage() {
                     hasFilter={hasFilter}
                   />
                 </div>
-                <aside className="h-fit space-y-4 lg:sticky lg:top-24">
-                  {widgets.map((w, i) => (
-                    <WidgetRenderer key={`${w.type}-${i}`} widget={w} />
-                  ))}
-                </aside>
+                <SiteSidebar widgets={widgets} position="right" />
               </>
             )}
           </div>

@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,11 +22,31 @@ const (
 )
 
 type LinkService struct {
-	links *repository.LinkRepository
+	links     *repository.LinkRepository
+	siteHosts []string // 本站域名（用于反链检查）
 }
 
-func NewLinkService(links *repository.LinkRepository) *LinkService {
-	return &LinkService{links: links}
+func NewLinkService(links *repository.LinkRepository, siteURL string) *LinkService {
+	return &LinkService{links: links, siteHosts: hostCandidates(siteURL)}
+}
+
+// hostCandidates 把站点地址解析为可用于反链匹配的域名候选（含根域名与 www 变体）。
+func hostCandidates(siteURL string) []string {
+	u, err := url.Parse(strings.TrimSpace(siteURL))
+	if err != nil {
+		return nil
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "" {
+		return nil
+	}
+	out := []string{host}
+	if strings.HasPrefix(host, "www.") {
+		out = append(out, strings.TrimPrefix(host, "www."))
+	} else {
+		out = append(out, "www."+host)
+	}
+	return out
 }
 
 type LinkInput struct {
@@ -73,7 +94,15 @@ func (s *LinkService) Create(input LinkInput) (*model.FriendLink, error) {
 	if err := s.links.Create(link); err != nil {
 		return nil, err
 	}
-	go s.CheckOne(link.ID)
+	go func() {
+		// 后台探测可能 panic（网络/解析异常），加 recover 避免拖垮整个进程
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[link] CheckOne(%d) panic recovered: %v", link.ID, r)
+			}
+		}()
+		s.CheckOne(link.ID)
+	}()
 	return link, nil
 }
 
@@ -95,6 +124,104 @@ func (s *LinkService) Update(id uint, input LinkInput) (*model.FriendLink, error
 		return nil, err
 	}
 	return link, nil
+}
+
+// LinkValidation 是「添加友链」前的预检结果：站点是否可达、是否已加本站反链。
+type LinkValidation struct {
+	Reachable     bool   `json:"reachable"`
+	StatusCode    int    `json:"status_code"`
+	HasBacklink   bool   `json:"has_backlink"`
+	BacklinkHost  string `json:"backlink_host"`  // 本次检测所用地址
+	ExpectedHosts string `json:"expected_hosts"` // 期望在对方页面出现的本站域名
+	Message       string `json:"message"`
+}
+
+// Validate 预检一个待添加的友链：探测可达性，并检查检测页面是否包含本站域名（反链）。
+// 检查的是「检测页面」checkURL（留空则退回 url），因为友链通常挂在对方的友链页。
+func (s *LinkService) Validate(rawURL, checkURL string) LinkValidation {
+	target := strings.TrimSpace(checkURL)
+	if target == "" {
+		target = strings.TrimSpace(rawURL)
+	}
+	res := LinkValidation{BacklinkHost: target, ExpectedHosts: strings.Join(s.siteHosts, " / ")}
+	if target == "" {
+		res.Message = "请填写网站链接"
+		return res
+	}
+
+	status, err := getStatus(target)
+	if err != nil {
+		res.Message = "无法访问该站点：" + err.Error()
+		return res
+	}
+	res.StatusCode = status
+	res.Reachable = status < 500
+	if !res.Reachable {
+		res.Message = "站点返回 " + http.StatusText(status) + "（" + strconv.Itoa(status) + "），无法访问"
+		return res
+	}
+
+	// 可达再检查反链（需要正文，单独一次 GET）
+	if len(s.siteHosts) > 0 {
+		if body, ok := fetchBody(target); ok {
+			lower := strings.ToLower(body)
+			for _, h := range s.siteHosts {
+				if strings.Contains(lower, strings.ToLower(h)) {
+					res.HasBacklink = true
+					break
+				}
+			}
+		}
+	}
+
+	switch {
+	case res.HasBacklink:
+		res.Message = "站点可达，且页面包含本站反链，可以添加"
+	case status >= 400:
+		res.Message = "站点可达（返回 " + strconv.Itoa(status) + "），但未检测到本站反链"
+	default:
+		res.Message = "站点可达，但检测页面未包含本站域名（如已交换友链请确认检测页地址）"
+	}
+	return res
+}
+
+// getStatus 请求目标并返回 HTTP 状态码。
+func getStatus(target string) (int, error) {
+	req, err := http.NewRequest(http.MethodGet, target, nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("User-Agent",
+		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,*/*;q=0.8")
+	resp, err := probeClient.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	_, _ = io.CopyN(io.Discard, resp.Body, 2048)
+	return resp.StatusCode, nil
+}
+
+// fetchBody 读取目标页面正文（限制大小，避免下载大文件）。
+func fetchBody(target string) (string, bool) {
+	req, err := http.NewRequest(http.MethodGet, target, nil)
+	if err != nil {
+		return "", false
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,*/*;q=0.8")
+	resp, err := probeClient.Do(req)
+	if err != nil {
+		return "", false
+	}
+	defer resp.Body.Close()
+	limited := io.LimitReader(resp.Body, 1<<20) // 1MB 足够包含友链列表
+	b, err := io.ReadAll(limited)
+	if err != nil {
+		return "", false
+	}
+	return string(b), true
 }
 
 func (s *LinkService) Delete(id uint) error {

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -27,6 +28,7 @@ func errorResponse(c *gin.Context, err error) {
 	case errors.Is(err, repository.ErrNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "资源不存在"})
 	default:
+		log.Printf("[error] %s %s: %v", c.Request.Method, c.Request.URL.Path, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 	}
 }

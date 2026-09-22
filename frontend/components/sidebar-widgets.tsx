@@ -352,7 +352,8 @@ function nextSpringFestival(): { date: Date; label: string } {
 
 function CountdownWidget({ widget }: { widget: SidebarWidget }) {
   const auto = nextSpringFestival()
-  const target = widget.date ? new Date(`${widget.date}T00:00:00+08:00`) : auto.date
+  const parsed = widget.date ? new Date(`${widget.date}T00:00:00+08:00`) : auto.date
+  const target = Number.isNaN(parsed.getTime()) ? auto.date : parsed
   const label = widget.eventName || auto.label
 
   const [now, setNow] = useState(() => Date.now())
@@ -398,8 +399,8 @@ function CountdownWidget({ widget }: { widget: SidebarWidget }) {
           <div key={c.unit} className="rounded-lg bg-background/70 py-2.5 text-center shadow-sm">
             <motion.p
               key={c.value}
-              initial={{ scale: 1.18, color: '#f97316' }}
-              animate={{ scale: 1, color: 'inherit' }}
+              initial={{ scale: 1.18 }}
+              animate={{ scale: 1 }}
               transition={{ duration: 0.25 }}
               className="text-xl font-bold tabular-nums"
             >

@@ -32,7 +32,7 @@ export function SiteFooter() {
       {/* 顶部渐变装饰线 */}
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent" />
 
-      <div className="mx-auto max-w-2xl px-4 py-5">
+      <div className="mx-auto max-w-5xl px-4 py-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           {/* 品牌区 */}
           <div className="max-w-[13rem]">

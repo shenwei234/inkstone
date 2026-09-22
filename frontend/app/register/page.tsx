@@ -50,7 +50,7 @@ export default function RegisterPage() {
 
   if (!registrationOpen) {
     return (
-      <div className="relative flex min-h-[calc(100vh-4rem-57px)] items-center justify-center px-4 py-16">
+      <div className="relative flex min-h-full items-center justify-center px-4 py-16">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
@@ -72,7 +72,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="relative flex min-h-[calc(100vh-4rem-57px)] items-center justify-center overflow-hidden px-4 py-16">
+    <div className="relative flex min-h-full items-center justify-center overflow-hidden px-4 py-16">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(37,99,235,0.06),transparent_65%)]" />
       <motion.div
         initial={{ opacity: 0, y: 24, scale: 0.97 }}

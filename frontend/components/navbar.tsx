@@ -1,10 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, LayoutDashboard, LogOut, Search, User } from 'lucide-react'
+import { ChevronDown, LayoutDashboard, LogOut, Menu, Search, User, X } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { useSiteConfig } from '@/components/site-config-context'
 import { easeOut } from '@/components/motion'
@@ -17,7 +17,15 @@ export function Navbar() {
   const pathname = usePathname()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [navOpen, setNavOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [lastPath, setLastPath] = useState(pathname)
+
+  // 路由切换后关闭移动端菜单（渲染期调整，避免 effect 内 setState）
+  if (pathname !== lastPath) {
+    setLastPath(pathname)
+    setNavOpen(false)
+  }
 
   const menuItems =
     site.navMenu.length > 0
@@ -52,7 +60,7 @@ export function Navbar() {
             )}
             <span className="transition-colors group-hover:text-accent">{site.siteName}</span>
           </Link>
-          <nav className="flex items-center gap-1">
+          <nav className="hidden items-center gap-1 md:flex">
             {menuItems.map((item) => {
               const external = item.href.startsWith('http')
               const active =
@@ -197,8 +205,78 @@ export function Navbar() {
               </motion.div>
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={() => setNavOpen((o) => !o)}
+            aria-label="打开菜单"
+            aria-expanded={navOpen}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:text-accent md:hidden"
+          >
+            {navOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
         </div>
       </div>
+
+      <AnimatePresence>
+        {navOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2, ease: easeOut }}
+            className="border-t border-border bg-card md:hidden"
+          >
+            <div className="mx-auto max-w-5xl space-y-3 px-4 py-4">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  const value = search.trim()
+                  setNavOpen(false)
+                  router.push(value ? `/?q=${encodeURIComponent(value)}` : '/')
+                }}
+                className="relative"
+              >
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  name="q"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="搜索文章..."
+                  className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20"
+                />
+              </form>
+              <nav className="grid gap-1">
+                {menuItems.map((item) => {
+                  const external = item.href.startsWith('http')
+                  const active =
+                    !external &&
+                    (pathname === item.href ||
+                      (item.href !== '/' &&
+                        (pathname === `${item.href}/` || pathname.startsWith(`${item.href}/`))))
+                  return (
+                    <Link
+                      key={item.label + item.href}
+                      href={item.href}
+                      target={external ? '_blank' : undefined}
+                      rel={external ? 'noreferrer' : undefined}
+                      onClick={() => setNavOpen(false)}
+                      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
+                        active
+                          ? 'bg-accent/10 font-medium text-accent'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      }`}
+                    >
+                      <MenuIcon name={item.icon} className="h-4 w-4" />
+                      {item.label}
+                    </Link>
+                  )
+                })}
+              </nav>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.header>
   )
 }

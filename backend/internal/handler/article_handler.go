@@ -34,12 +34,14 @@ type articleRequest struct {
 }
 
 type articleUpdateRequest struct {
-	Title      *string   `json:"title"`
-	Content    *string   `json:"content"`
-	Status     *string   `json:"status"`
-	CategoryID **uint    `json:"category_id"`
-	Tags       *[]string `json:"tags"`
-	Cover      *string   `json:"cover"`
+	Title         *string   `json:"title"`
+	Content       *string   `json:"content"`
+	Status        *string   `json:"status"`
+	CategoryID    **uint    `json:"category_id"`
+	Tags          *[]string `json:"tags"`
+	Cover         *string   `json:"cover"`
+	CaptchaToken  string    `json:"captcha_token"`
+	CaptchaAnswer string    `json:"captcha_answer"`
 }
 
 type articleResponse struct {
@@ -159,6 +161,20 @@ func (h *ArticleHandler) Update(c *gin.Context) {
 		return
 	}
 
+	// 发布（或取消草稿）同样需要人机验证，与新建一致
+	nextStatus := ""
+	if req.Status != nil {
+		nextStatus = *req.Status
+	} else if st, gerr := h.articles.StatusForOwner(uint(id), current.ID); gerr == nil {
+		nextStatus = st
+	}
+	if nextStatus != model.ArticleDraft {
+		if err := h.captcha.Verify(service.CaptchaActionArticle, req.CaptchaToken, req.CaptchaAnswer, middleware.ClientIP(c)); err != nil {
+			errorResponse(c, err)
+			return
+		}
+	}
+
 	article, err := h.articles.Update(uint(id), current.ID, service.ArticleUpdate{
 		Title:      req.Title,
 		Content:    req.Content,
@@ -202,6 +218,16 @@ func (h *ArticleHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// canViewArticle reports whether the current requester may read the article.
+// Published articles are public; drafts are visible only to their author or an admin.
+func canViewArticle(c *gin.Context, article *model.Article) bool {
+	if article.Status == model.ArticlePublished {
+		return true
+	}
+	current, ok := middleware.GetCurrentUser(c)
+	return ok && (current.Role == model.RoleAdmin || current.ID == article.AuthorID)
+}
+
 // Get handles GET /articles/:id.
 func (h *ArticleHandler) Get(c *gin.Context) {
 	id, ok := parseUintParam(c, "id", "无效的 ID")
@@ -211,6 +237,10 @@ func (h *ArticleHandler) Get(c *gin.Context) {
 	article, err := h.articles.GetByID(uint(id))
 	if err != nil {
 		errorResponse(c, err)
+		return
+	}
+	if !canViewArticle(c, article) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "文章不存在"})
 		return
 	}
 	_ = h.articles.IncrementViews(uint(id))
@@ -223,6 +253,10 @@ func (h *ArticleHandler) GetBySlug(c *gin.Context) {
 	article, err := h.articles.GetBySlug(c.Param("slug"))
 	if err != nil {
 		errorResponse(c, err)
+		return
+	}
+	if !canViewArticle(c, article) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "文章不存在"})
 		return
 	}
 	_ = h.articles.IncrementViews(article.ID)

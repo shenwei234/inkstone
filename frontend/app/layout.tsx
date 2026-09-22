@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import { MaintenanceGate } from "@/components/maintenance-gate";
 import { Navbar } from "@/components/navbar";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteWallpaper } from "@/components/site-wallpaper";
@@ -18,10 +19,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="zh-CN" className="h-full antialiased">
       <body className="min-h-full flex flex-col">
         <Providers>
-          <SiteWallpaper />
-          <Navbar />
-          <main className="flex-1">{children}</main>
-          <SiteFooter />
+          <MaintenanceGate>
+            <SiteWallpaper />
+            <Navbar />
+            <main className="flex-1">{children}</main>
+            <SiteFooter />
+          </MaintenanceGate>
         </Providers>
       </body>
     </html>

@@ -214,7 +214,7 @@ export function fetchArticles(params: ArticleListParams = {}) {
 }
 
 export function fetchArticle(id: number | string) {
-  return api<{ article: Article }>(`/articles/${id}`)
+  return api<{ article: Article }>(`/articles/${id}`, { auth: true })
 }
 
 export function fetchArticleBySlug(slug: string) {
@@ -243,6 +243,8 @@ export function updateArticle(
     category_id: number | null
     tags: string[]
     cover: string
+    captcha_token?: string
+    captcha_answer?: string
   }>,
 ) {
   return api<{ article: Article }>(`/articles/${id}`, { method: 'PUT', body: input, auth: true })
@@ -499,6 +501,27 @@ export function fetchFriendLinks() {
 
 export function fetchAdminLinks() {
   return api<{ links: AdminFriendLink[] }>('/admin/links', { auth: true })
+}
+
+/** 添加/编辑友链前的预检：站点可达性 + 是否含本站反链 */
+export interface LinkValidation {
+  reachable: boolean
+  status_code: number
+  has_backlink: boolean
+  backlink_host: string
+  expected_hosts: string
+  message: string
+}
+
+export function validateFriendLink(input: { url: string; check_url?: string }) {
+  return api<{
+    reachable: boolean
+    status_code: number
+    has_backlink: boolean
+    backlink_host: string
+    expected_hosts: string
+    message: string
+  }>('/admin/links/validate', { method: 'POST', body: input, auth: true })
 }
 
 export function createFriendLink(input: FriendLinkInput) {

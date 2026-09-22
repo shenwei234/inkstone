@@ -13,6 +13,7 @@ import {
   Plus,
   RefreshCw,
   Trash2,
+  XCircle,
 } from 'lucide-react'
 import {
   checkAllFriendLinks,
@@ -22,16 +23,14 @@ import {
   fetchAdminLinks,
   updateFriendLink,
   uploadImage,
+  validateFriendLink,
   ApiError,
 } from '@/lib/api'
-import type { AdminFriendLink, FriendLinkInput } from '@/lib/api'
+import type { AdminFriendLink, FriendLinkInput, LinkValidation } from '@/lib/api'
 import { useNotify } from '@/components/toast'
 import { PageTransition } from '@/components/motion'
-
-const easeOut = [0.16, 1, 0.3, 1] as const
-
-const inputClass =
-  'w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20'
+import { Modal } from '@/components/modal'
+import { inputClass } from '@/lib/ui'
 
 interface DialogState {
   open: boolean
@@ -57,9 +56,12 @@ function LinkDialog({
     description: editing?.description ?? '',
     sort_order: editing?.sort_order ?? 0,
   })
+  const [validation, setValidation] = useState<LinkValidation | null>(null)
 
-  const set = <K extends keyof FriendLinkInput>(key: K, value: FriendLinkInput[K]) =>
+  const set = <K extends keyof FriendLinkInput>(key: K, value: FriendLinkInput[K]) => {
     setForm((f) => ({ ...f, [key]: value }))
+    setValidation(null) // 改表单后上次预检结果失效
+  }
 
   const upload = useMutation({
     mutationFn: (file: File) => uploadImage(file),
@@ -74,11 +76,24 @@ function LinkDialog({
     mutationFn: () =>
       editing ? updateFriendLink(editing.id, form) : createFriendLink(form),
     onSuccess: () => {
-      notify.success(editing ? '友链已更新' : '友链已添加，正在后台自动检测')
+      notify.success(editing ? '友链已更新' : '友链已添加')
       onSaved()
       onClose()
     },
     onError: (e) => notify.error(e instanceof ApiError ? e.message : '保存失败'),
+  })
+
+  // 预检：站点可达 + 是否含本站反链
+  const check = useMutation({
+    mutationFn: () =>
+      validateFriendLink({ url: form.url, check_url: form.check_url || undefined }),
+    onSuccess: (res) => {
+      setValidation(res)
+      if (!res.reachable) notify.error(res.message)
+      else if (!res.has_backlink) notify.error(res.message)
+      else notify.success(res.message)
+    },
+    onError: (e) => notify.error(e instanceof ApiError ? e.message : '检测失败'),
   })
 
   const submit = (e: React.FormEvent) => {
@@ -87,145 +102,48 @@ function LinkDialog({
       notify.error('请填写网站名称和网站链接')
       return
     }
+    // 新增时要求先通过预检（可达即可，反链仅提示）
+    if (!validation) {
+      check.mutate()
+      notify.error('请先点击「检测站点」确认对方网站可访问')
+      return
+    }
+    if (!validation.reachable) {
+      notify.error('站点无法访问，请检查链接后再添加')
+      return
+    }
     save.mutate()
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.15 }}
-      className="fixed inset-0 z-[130] flex items-center justify-center overflow-y-auto bg-black/40 p-4 backdrop-blur-sm"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.94, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 8 }}
-        transition={{ duration: 0.2, ease: easeOut }}
-        className="my-8 w-[520px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/25"
-        role="dialog"
-        aria-modal="true"
-      >
-        <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-          <p className="text-sm font-semibold">{editing ? '编辑友链' : '添加友链'}</p>
+    <Modal
+      open
+      onClose={onClose}
+      title={editing ? '编辑友链' : '添加友链'}
+      description="填写对方站点信息。添加前可「检测站点」确认可达，并检查对方页面是否已加本站反链。"
+      width={560}
+      footer={
+        <div className="flex items-center justify-between gap-2">
           <button
             type="button"
-            onClick={onClose}
-            className="text-lg leading-none text-muted-foreground transition-colors hover:text-foreground"
+            onClick={() => check.mutate()}
+            disabled={check.isPending || !form.url.trim()}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50"
           >
-            ×
+            <RefreshCw className={`h-4 w-4 ${check.isPending ? 'animate-spin' : ''}`} />
+            {check.isPending ? '检测中...' : '检测站点'}
           </button>
-        </div>
-        <form onSubmit={submit} className="space-y-4 px-5 py-5">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">网站名称 *</label>
-              <input
-                value={form.name}
-                onChange={(e) => set('name', e.target.value)}
-                placeholder="如：某某的博客"
-                className={inputClass}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">排序（越小越靠前）</label>
-              <input
-                type="number"
-                value={form.sort_order ?? 0}
-                onChange={(e) => set('sort_order', Number(e.target.value))}
-                className={inputClass}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">网站链接 *（点击跳转的地址）</label>
-            <input
-              value={form.url}
-              onChange={(e) => set('url', e.target.value)}
-              placeholder="https://friend-site.com"
-              className={inputClass}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">
-              友链检测页面（留空则检测网站链接）
-            </label>
-            <input
-              value={form.check_url}
-              onChange={(e) => set('check_url', e.target.value)}
-              placeholder="https://friend-site.com/links 或留空"
-              className={inputClass}
-            />
-            <p className="text-xs text-muted-foreground">
-              每日自动请求该地址判断站点是否可达；返回 5xx 或超时视为失效
-            </p>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">网站图标</label>
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted">
-                {form.icon_url ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={form.icon_url} alt="icon" className="h-full w-full object-cover" />
-                ) : (
-                  <ImagePlus className="h-4 w-4 text-muted-foreground/50" />
-                )}
-              </div>
-              <input
-                value={form.icon_url}
-                onChange={(e) => set('icon_url', e.target.value)}
-                placeholder="图片地址，或点击右侧上传"
-                className={inputClass}
-              />
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                disabled={upload.isPending}
-                className="shrink-0 rounded-lg border border-border px-3 py-2 text-xs font-medium transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50"
-              >
-                {upload.isPending ? '上传中...' : '上传'}
-              </button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) upload.mutate(file)
-                  e.target.value = ''
-                }}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">简介（可选）</label>
-            <input
-              value={form.description}
-              onChange={(e) => set('description', e.target.value)}
-              placeholder="一句话介绍对方站点"
-              className={inputClass}
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-1">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+              className="rounded-lg border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
             >
               取消
             </button>
             <motion.button
               type="submit"
+              form="friend-link-form"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.97 }}
               disabled={save.isPending}
@@ -234,9 +152,139 @@ function LinkDialog({
               {save.isPending ? '保存中...' : editing ? '保存修改' : '添加友链'}
             </motion.button>
           </div>
-        </form>
-      </motion.div>
-    </motion.div>
+        </div>
+      }
+    >
+      <form id="friend-link-form" onSubmit={submit} className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">网站名称 *</label>
+            <input
+              value={form.name}
+              onChange={(e) => set('name', e.target.value)}
+              placeholder="如：某某的博客"
+              className={inputClass}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">排序（越小越靠前）</label>
+            <input
+              type="number"
+              value={form.sort_order ?? 0}
+              onChange={(e) => set('sort_order', Number(e.target.value))}
+              className={inputClass}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">网站链接 *（点击跳转的地址）</label>
+          <input
+            value={form.url}
+            onChange={(e) => set('url', e.target.value)}
+            placeholder="https://friend-site.com"
+            className={inputClass}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">友链检测页面（留空则检测网站链接）</label>
+          <input
+            value={form.check_url}
+            onChange={(e) => set('check_url', e.target.value)}
+            placeholder="https://friend-site.com/links 或留空"
+            className={inputClass}
+          />
+          <p className="text-xs text-muted-foreground">
+            填写对方放置友链的页面（如 /links）。反链检测会在该页面查找本站域名。
+          </p>
+        </div>
+
+        {/* 预检结果 */}
+        {validation && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`flex items-start gap-2.5 rounded-lg border p-3 text-xs leading-relaxed ${
+              validation.reachable
+                ? validation.has_backlink
+                  ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300'
+                  : 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300'
+                : 'border-red-300 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300'
+            }`}
+          >
+            {validation.reachable ? (
+              validation.has_backlink ? (
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+              ) : (
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              )
+            ) : (
+              <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            )}
+            <div className="min-w-0 space-y-1">
+              <p className="font-medium">{validation.message}</p>
+              <p className="opacity-70">
+                检测地址：{validation.backlink_host}
+                {validation.status_code > 0 && ` · HTTP ${validation.status_code}`}
+              </p>
+              {validation.expected_hosts && (
+                <p className="opacity-70">期望反链域名：{validation.expected_hosts}</p>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">网站图标</label>
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted">
+              {form.icon_url ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={form.icon_url} alt="icon" className="h-full w-full object-cover" />
+              ) : (
+                <ImagePlus className="h-4 w-4 text-muted-foreground/50" />
+              )}
+            </div>
+            <input
+              value={form.icon_url}
+              onChange={(e) => set('icon_url', e.target.value)}
+              placeholder="图片地址，或点击右侧上传"
+              className={inputClass}
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={upload.isPending}
+              className="shrink-0 rounded-lg border border-border px-3 py-2 text-xs font-medium transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50"
+            >
+              {upload.isPending ? '上传中...' : '上传'}
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) upload.mutate(file)
+                e.target.value = ''
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">简介（可选）</label>
+          <input
+            value={form.description}
+            onChange={(e) => set('description', e.target.value)}
+            placeholder="一句话介绍对方站点"
+            className={inputClass}
+          />
+        </div>
+      </form>
+    </Modal>
   )
 }
 
@@ -294,7 +342,7 @@ export default function AdminLinksPage() {
             {data ? `共 ${links.length} 个友链` : '加载中...'} · 每日自动检测，失效站点将禁止跳转并脱敏
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
             href="/links"
             target="_blank"

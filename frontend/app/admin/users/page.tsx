@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
@@ -16,9 +16,9 @@ import {
 import { useAuth } from '@/lib/auth-context'
 import { useNotify } from '@/components/toast'
 import { SecretInput } from '@/components/secret-input'
+import { Modal } from '@/components/modal'
+import { inputClass } from '@/lib/ui'
 import type { AdminUser } from '@/lib/types'
-
-const easeOut = [0.16, 1, 0.3, 1] as const
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value)
@@ -50,12 +50,9 @@ function AddUserDialog({
       onClose()
     },
     onError: (e) => notify.error(e instanceof ApiError ? e.message : '创建失败'),
-  })
+    })
 
-  const inputClass =
-    'w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20'
-
-  const submit = (e: React.FormEvent) => {
+    const submit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!email.trim() || !username.trim() || !password) {
       notify.error('请填写完整信息')
@@ -65,123 +62,100 @@ function AddUserDialog({
   }
 
   return (
-    <motion.div
-      key="add-user-overlay"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.15 }}
-      className="fixed inset-0 z-[130] flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.94, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 8 }}
-        transition={{ duration: 0.2, ease: easeOut }}
-        className="w-[440px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/25"
-        role="dialog"
-        aria-modal="true"
-      >
-        <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-          <p className="text-sm font-semibold">添加用户</p>
+    <Modal
+      open
+      onClose={onClose}
+      title="添加用户"
+      description="创建后请告知用户及时修改初始密码"
+      width={440}
+      footer={
+        <div className="flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="rounded-lg border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
           >
-            ×
+            取消
           </button>
+          <motion.button
+            type="submit"
+            form="add-user-form"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            disabled={create.isPending}
+            className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
+          >
+            {create.isPending ? '创建中...' : '创建用户'}
+          </motion.button>
         </div>
-        <form onSubmit={submit} className="space-y-4 px-5 py-5">
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">邮箱</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="user@example.com"
-              className={inputClass}
-            />
+      }
+    >
+      <form id="add-user-form" onSubmit={submit} className="space-y-4">
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">邮箱</label>
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="user@example.com"
+            className={inputClass}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">用户名</label>
+          <input
+            type="text"
+            required
+            minLength={2}
+            maxLength={32}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="2-32 个字符"
+            className={inputClass}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">初始密码</label>
+          <input
+            type="text"
+            required
+            minLength={8}
+            maxLength={72}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="至少 8 个字符"
+            className={inputClass}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">角色</label>
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-background p-1">
+            {(['user', 'admin'] as const).map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setRole(r)}
+                className={`relative flex-1 rounded-md px-3 py-1.5 text-sm transition-colors ${
+                  role === r ? 'text-white' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {role === r && (
+                  <motion.span
+                    layoutId="role-pill"
+                    className={`absolute inset-0 rounded-md ${
+                      r === 'admin' ? 'bg-purple-500' : 'bg-accent'
+                    }`}
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  />
+                )}
+                <span className="relative">{r === 'admin' ? '管理员' : '普通用户'}</span>
+              </button>
+            ))}
           </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">用户名</label>
-            <input
-              type="text"
-              required
-              minLength={2}
-              maxLength={32}
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="2-32 个字符"
-              className={inputClass}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">初始密码</label>
-            <input
-              type="text"
-              required
-              minLength={8}
-              maxLength={72}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="至少 8 个字符"
-              className={inputClass}
-            />
-            <p className="text-xs text-muted-foreground">创建后请告知用户及时修改密码</p>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">角色</label>
-            <div className="flex items-center gap-1 rounded-lg border border-border bg-background p-1">
-              {(['user', 'admin'] as const).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRole(r)}
-                  className={`relative flex-1 rounded-md px-3 py-1.5 text-sm transition-colors ${
-                    role === r ? 'text-white' : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {role === r && (
-                    <motion.span
-                      layoutId="role-pill"
-                      className={`absolute inset-0 rounded-md ${
-                        r === 'admin' ? 'bg-purple-500' : 'bg-accent'
-                      }`}
-                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                    />
-                  )}
-                  <span className="relative">{r === 'admin' ? '管理员' : '普通用户'}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
-            >
-              取消
-            </button>
-            <motion.button
-              type="submit"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-              disabled={create.isPending}
-              className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
-            >
-              {create.isPending ? '创建中...' : '创建用户'}
-            </motion.button>
-          </div>
-        </form>
-      </motion.div>
-    </motion.div>
+        </div>
+      </form>
+    </Modal>
   )
 }
 
@@ -212,108 +186,83 @@ function EditUserDialog({
       onClose()
     },
     onError: (e) => notify.error(e instanceof ApiError ? e.message : '保存失败'),
-  })
+    })
 
-  const inputClass =
-    'w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20'
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.15 }}
-      className="fixed inset-0 z-[130] flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.94, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 8 }}
-        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-        className="w-[440px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/25"
-        role="dialog"
-        aria-modal="true"
-      >
-        <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-          <p className="text-sm font-semibold">编辑用户 · {target.username}</p>
+    return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`编辑用户 · ${target.username}`}
+      description="重置密码留空表示不修改"
+      width={440}
+      footer={
+        <div className="flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="rounded-lg border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
           >
-            ×
+            取消
           </button>
+          <motion.button
+            type="submit"
+            form="edit-user-form"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            disabled={save.isPending}
+            className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
+          >
+            {save.isPending ? '保存中...' : '保存修改'}
+          </motion.button>
         </div>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (!email.trim() || !username.trim()) {
-              notify.error('邮箱和用户名不能为空')
-              return
-            }
-            save.mutate()
-          }}
-          className="space-y-4 px-5 py-5"
-        >
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">邮箱</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={inputClass}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">用户名</label>
-            <input
-              type="text"
-              required
-              minLength={2}
-              maxLength={32}
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className={inputClass}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">重置密码（可选）</label>
-            <SecretInput
-              value={password}
-              onChange={setPassword}
-              placeholder="留空表示不修改密码"
-              className={inputClass}
-            />
-            <p className="text-xs text-muted-foreground">
-              填写后该用户密码将立即变更，请告知本人
-            </p>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
-            >
-              取消
-            </button>
-            <motion.button
-              type="submit"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-              disabled={save.isPending}
-              className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
-            >
-              {save.isPending ? '保存中...' : '保存修改'}
-            </motion.button>
-          </div>
-        </form>
-      </motion.div>
-    </motion.div>
+      }
+    >
+      <form
+        id="edit-user-form"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (!email.trim() || !username.trim()) {
+            notify.error('邮箱和用户名不能为空')
+            return
+          }
+          save.mutate()
+        }}
+        className="space-y-4"
+      >
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">邮箱</label>
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={inputClass}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">用户名</label>
+          <input
+            type="text"
+            required
+            minLength={2}
+            maxLength={32}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className={inputClass}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">重置密码（可选）</label>
+          <SecretInput
+            value={password}
+            onChange={setPassword}
+            placeholder="留空表示不修改密码"
+            className={inputClass}
+          />
+          <p className="text-xs text-muted-foreground">填写后该用户密码将立即变更，请告知本人</p>
+        </div>
+      </form>
+    </Modal>
   )
 }
 
@@ -372,12 +321,12 @@ export default function AdminUsersPage() {
             {data ? `共 ${data.total} 个用户` : '加载中...'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="搜索邮箱或用户名..."
-            className="w-56 rounded-lg border border-border bg-card px-3.5 py-2 text-sm outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20"
+            className="w-full min-w-0 rounded-lg border border-border bg-card px-3.5 py-2 text-sm outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20 sm:w-56"
           />
           <motion.button
             onClick={() => setAddOpen(true)}
@@ -398,8 +347,8 @@ export default function AdminUsersPage() {
           ))}
         </div>
       ) : (
-        <div className="mt-6 overflow-hidden rounded-xl border border-border bg-card">
-          <table className="w-full text-sm">
+        <div className="mt-6 overflow-x-auto rounded-xl border border-border bg-card">
+          <table className="w-full min-w-[680px] whitespace-nowrap text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
                 <th className="px-5 py-3 font-medium">用户</th>

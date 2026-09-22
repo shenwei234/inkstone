@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { ArrowLeft, X } from 'lucide-react'
+import { ArrowLeft, ShieldCheck, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createArticle,
@@ -23,7 +23,6 @@ import { RichEditor } from '@/components/rich-editor'
 import { useNotify } from '@/components/toast'
 import { useSiteConfig } from '@/components/site-config-context'
 import { Captcha, type CaptchaResult } from '@/components/captcha'
-
 
 function htmlToText(html: string): string {
   return html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ')
@@ -49,6 +48,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
   const notify = useNotify()
   const site = useSiteConfig()
   const [captcha, setCaptcha] = useState<CaptchaResult>({})
+  const [captchaOpen, setCaptchaOpen] = useState(false)
 
   const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
   const tagsQuery = useQuery({ queryKey: ['tags'], queryFn: fetchTags })
@@ -106,9 +106,23 @@ function EditorShell({ mode, article }: EditorShellProps) {
 
   const isPublished = mode === 'edit' && article?.status === 'published'
 
+  /** 真正提交（此时人机验证已通过） */
+  const commitPublish = () => {
+    publish.mutate()
+  }
+
   const publish = useMutation({
     mutationFn: async () => {
-      const body = { title, content, status: 'published', category_id: categoryId, tags, cover, ...captcha }
+      const body = {
+        title,
+        content,
+        status: 'published',
+        category_id: categoryId,
+        tags,
+        cover,
+        captcha_token: captcha.captcha_token,
+        captcha_answer: captcha.captcha_answer,
+      }
       if (mode === 'edit' && article) {
         return updateArticle(article.id, body)
       }
@@ -172,6 +186,13 @@ function EditorShell({ mode, article }: EditorShellProps) {
   const wordCount = htmlToText(content).replace(/\s+/g, '').length
   const readMinutes = Math.max(1, Math.round(wordCount / 400))
 
+  // 是否需要人机验证（后台「安全防护」为发文开启时）
+  const captchaRequired =
+    !!site.captcha &&
+    site.captcha.provider !== 'none' &&
+    Boolean(site.captcha.on_article)
+
+  // 点击「发布/更新」：先做人机验证（如开启），通过后再提交
   const doPublish = () => {
     if (!title.trim()) {
       notify.error('给文章起个标题吧')
@@ -181,7 +202,11 @@ function EditorShell({ mode, article }: EditorShellProps) {
       notify.error('先写一点正文，再发布')
       return
     }
-    publish.mutate()
+    if (captchaRequired) {
+      setCaptchaOpen(true)
+      return
+    }
+    commitPublish()
   }
 
   const submit = (e: FormEvent) => {
@@ -231,9 +256,10 @@ function EditorShell({ mode, article }: EditorShellProps) {
   const primaryLabel = mode === 'new' ? '发布文章' : isPublished ? '更新' : '发布'
 
   return (
-    <form onSubmit={submit} className="-mx-4 -my-8">
-      <div className="sticky top-16 z-40 border-b border-border bg-card/95 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4">
+    <form onSubmit={submit} className="min-h-[60vh]">
+      {/* 顶部工具条 */}
+      <div className="sticky top-16 z-40 -mx-4 border-b border-border bg-card/95 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
           <div className="flex min-w-0 items-center gap-3">
             <Link
               href="/admin/articles"
@@ -265,8 +291,9 @@ function EditorShell({ mode, article }: EditorShellProps) {
               disabled={publish.isPending}
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              className="rounded-md bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-md bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
             >
+              {captchaRequired && !publish.isPending && <ShieldCheck className="h-3.5 w-3.5" />}
               {publish.isPending ? '保存中...' : primaryLabel}
             </motion.button>
           </div>
@@ -455,22 +482,27 @@ function EditorShell({ mode, article }: EditorShellProps) {
           </div>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.35 }}
-          className="mt-4 flex justify-center"
-        >
-          <Captcha config={site.captcha} action="article" onChange={setCaptcha} />
-        </motion.div>
+        {/* 人机验证：发布/更新时弹出（单层 gsap 弹窗，验证通过自动提交） */}
+        {captchaRequired && captchaOpen && (
+          <Captcha
+            config={site.captcha}
+            action="article"
+            autoOpen
+            onChange={setCaptcha}
+            onVerified={commitPublish}
+            onCancel={() => setCaptchaOpen(false)}
+          />
+        )}
 
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
-          className="mt-4 text-center text-xs text-muted-foreground"
+          className="mt-8 text-center text-xs text-muted-foreground"
         >
-          提示：写完点右上角「{primaryLabel}」就能发表。草稿每 2 秒自动保存，不用怕丢。
+          {captchaRequired
+            ? `提示：写完点右上角「${primaryLabel}」，会先进行人机验证再发布。草稿每 2 秒自动保存。`
+            : `提示：写完点右上角「${primaryLabel}」就能发表。草稿每 2 秒自动保存，不用怕丢。`}
         </motion.p>
       </div>
     </form>

@@ -106,6 +106,7 @@ export interface SiteSettings {
   wallpaper_opacity?: string
   wallpaper_blur?: string
   article_sidebar?: string
+  maintenance_mode?: boolean
 }
 
 export interface ArticleListResponse {

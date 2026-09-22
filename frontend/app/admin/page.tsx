@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { fetchAdminStats, fetchSystemResources, fetchTrafficTrend } from '@/lib/api'
 import { formatSize } from '@/lib/ui'
+import { MaintenanceToggle } from '@/components/maintenance-toggle'
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import {
   Area,
@@ -396,7 +397,11 @@ export default function AdminOverviewPage() {
       <h1 className="text-2xl font-bold tracking-tight">概览</h1>
       <p className="mt-1 text-sm text-muted-foreground">平台数据与服务器状态</p>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6">
+        <MaintenanceToggle />
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((card, i) => (
           <motion.div
             key={card.key}

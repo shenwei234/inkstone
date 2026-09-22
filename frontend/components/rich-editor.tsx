@@ -12,6 +12,7 @@ import { Extension } from '@tiptap/core'
 import Suggestion from '@tiptap/suggestion'
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ChevronDown,
@@ -265,7 +266,7 @@ function ToolButton({
       disabled={disabled}
       onMouseDown={onMouseDown ?? ((e) => e.preventDefault())}
       onClick={onClick}
-      className={`h-8 min-w-8 rounded-md px-2 text-sm font-medium transition-colors disabled:opacity-30 ${
+      className={`h-8 min-w-8 shrink-0 rounded-md px-2 text-sm font-medium transition-colors disabled:opacity-30 ${
         active ? 'bg-accent/15 text-accent' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
       }`}
     >
@@ -297,7 +298,7 @@ function BlockToolbar({
   return (
     <div
       style={{ position: 'fixed', top, left, zIndex: 60 }}
-      className="flex items-center gap-0.5 rounded-lg border border-border bg-card px-1 py-1 shadow-xl shadow-black/10"
+      className="flex max-w-[calc(100vw-1rem)] items-center gap-0.5 overflow-x-auto rounded-lg border border-border bg-card px-1 py-1 shadow-xl shadow-black/10"
     >
       {isText && (
         <>
@@ -310,7 +311,7 @@ function BlockToolbar({
           <ToolButton title="小标题 H3" active={isH3} onClick={() => editor.chain().focus().setNode('heading', { level: 3 }).run()}>
             <Heading3 className="h-4 w-4" />
           </ToolButton>
-          <span className="mx-0.5 h-4 w-px bg-border" />
+          <span className="mx-0.5 h-4 w-px shrink-0 bg-border" />
           <ToolButton title="加粗" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>
             <span className="font-bold">B</span>
           </ToolButton>
@@ -340,7 +341,7 @@ function BlockToolbar({
           >
             <Link2 className="h-4 w-4" />
           </ToolButton>
-          <span className="mx-0.5 h-4 w-px bg-border" />
+          <span className="mx-0.5 h-4 w-px shrink-0 bg-border" />
           <ToolButton title="列表" active={isUl} onClick={() => editor.chain().focus().toggleBulletList().run()}>
             <List className="h-4 w-4" />
           </ToolButton>
@@ -350,12 +351,12 @@ function BlockToolbar({
         </>
       )}
       {!isText && (
-        <span className="px-2 text-xs font-medium text-muted-foreground">
+        <span className="shrink-0 px-2 text-xs font-medium text-muted-foreground">
           {block.typeName === 'image' ? '图片' : '分割线'}
         </span>
       )}
 
-      <span className="mx-0.5 h-4 w-px bg-border" />
+      <span className="mx-0.5 h-4 w-px shrink-0 bg-border" />
       <ToolButton
         title="上移"
         disabled={block.index === 0}
@@ -715,87 +716,89 @@ export function RichEditor({ content, onChange, variant = 'card' }: RichEditorPr
 
       <EditorContent editor={editor} />
 
-      {/* Styled prompt dialog */}
+      {/* Styled prompt dialog（Portal 渲染，避免被后台 transform 容器困住） */}
       <AnimatePresence>
-        {dialog && (
-          <motion.div
-            key="dialog-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
-            onMouseDown={(e) => {
-              if (e.target === e.currentTarget) closeDialog(null)
-            }}
-          >
+        {dialog &&
+          createPortal(
             <motion.div
-              initial={{ opacity: 0, scale: 0.94, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 8 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="w-[420px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/25"
-              role="dialog"
-              aria-modal="true"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  confirmDialog()
-                }
-                if (e.key === 'Escape') {
-                  e.preventDefault()
-                  closeDialog(null)
-                }
+              key="dialog-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+              onMouseDown={(e) => {
+                if (e.target === e.currentTarget) closeDialog(null)
               }}
             >
-              <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-                <p className="text-sm font-semibold">{dialog.title}</p>
-                <button
-                  type="button"
-                  onClick={() => closeDialog(null)}
-                  className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="space-y-2 px-5 py-5">
-                <label className="text-sm font-medium">{dialog.label}</label>
-                <input
-                  ref={dialogRef}
-                  type="text"
-                  defaultValue={dialog.defaultValue ?? ''}
-                  placeholder={dialog.placeholder}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') {
-                      e.stopPropagation()
-                      closeDialog(null)
-                    }
-                  }}
-                  className="w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20"
-                />
-                {dialog.hint && <p className="text-xs text-muted-foreground">{dialog.hint}</p>}
-              </div>
-              <div className="flex justify-end gap-2 border-t border-border bg-muted/40 px-5 py-3.5">
-                <button
-                  type="button"
-                  onClick={() => closeDialog(null)}
-                  className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
-                >
-                  取消
-                </button>
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={confirmDialog}
-                  className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25"
-                >
-                  {dialog.confirmText ?? '确定'}
-                </motion.button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.94, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 8 }}
+                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                className="w-[420px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/25"
+                role="dialog"
+                aria-modal="true"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    confirmDialog()
+                  }
+                  if (e.key === 'Escape') {
+                    e.preventDefault()
+                    closeDialog(null)
+                  }
+                }}
+              >
+                <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+                  <p className="text-sm font-semibold">{dialog.title}</p>
+                  <button
+                    type="button"
+                    onClick={() => closeDialog(null)}
+                    className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="space-y-2 px-5 py-5">
+                  <label className="text-sm font-medium">{dialog.label}</label>
+                  <input
+                    ref={dialogRef}
+                    type="text"
+                    defaultValue={dialog.defaultValue ?? ''}
+                    placeholder={dialog.placeholder}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        e.stopPropagation()
+                        closeDialog(null)
+                      }
+                    }}
+                    className="w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20"
+                  />
+                  {dialog.hint && <p className="text-xs text-muted-foreground">{dialog.hint}</p>}
+                </div>
+                <div className="flex justify-end gap-2 border-t border-border bg-muted/40 px-5 py-3.5">
+                  <button
+                    type="button"
+                    onClick={() => closeDialog(null)}
+                    className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+                  >
+                    取消
+                  </button>
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={confirmDialog}
+                    className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25"
+                  >
+                    {dialog.confirmText ?? '确定'}
+                  </motion.button>
+                </div>
+              </motion.div>
+            </motion.div>,
+            document.body,
+          )}
       </AnimatePresence>
     </motion.div>
   )
