@@ -1,0 +1,58 @@
+# InkStone 生产编排（源码构建方式）。
+# 离线镜像方式：把 backend 的 build 换成 `image: inkstone-backend:latest`、frontend 同理即可。
+# 启动：cp .env.example .env && 填好 → docker compose --env-file .env -f docker-compose.prod.yml up -d --build
+services:
+  postgres:
+    image: docker.m.daocloud.io/library/postgres:16-alpine
+    container_name: blog-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-blog}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?请在 .env 设置 DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-blog_platform}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-blog} -d ${DB_NAME:-blog_platform}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    container_name: blog-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      PORT: "8080"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: ${DB_USER:-blog}
+      DB_PASSWORD: ${DB_PASSWORD:?请在 .env 设置 DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-blog_platform}
+      JWT_SECRET: ${JWT_SECRET:?请在 .env 设置 JWT_SECRET}
+      FRONTEND_URL: ${FRONTEND_URL:-https://blog.shenv.top}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-https://blog.shenv.top}
+    volumes:
+      - uploads_data:/app/data
+    ports:
+      - "${BACKEND_BIND:-127.0.0.1}:8080:8080"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://blog.shenv.top/api/v1}
+    container_name: blog-frontend
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_BIND:-127.0.0.1}:3000:3000"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  uploads_data:

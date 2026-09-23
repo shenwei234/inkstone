@@ -1,0 +1,7 @@
+server
+server.exe
+*.exe
+data/
+tmp/
+.git
+.gitignore

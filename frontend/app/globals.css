@@ -194,11 +194,6 @@ body.has-wallpaper header {
   background: color-mix(in srgb, var(--foreground) 32%, transparent);
 }
 
-/* 动画性能优化：为频繁动画的元素启用 GPU 合成 */
-[style*="transform"] {
-  will-change: transform;
-}
-
 /* 列表项动画结束后移除 will-change，避免长时间占用内存 */
 @media (prefers-reduced-motion: no-preference) {
   .motion-safe\:gpu {
