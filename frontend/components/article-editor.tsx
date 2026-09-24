@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useEffect, useRef, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
@@ -19,7 +19,8 @@ import {
 import type { Article } from '@/lib/types'
 import { PageTransition } from '@/components/motion'
 import { easeOut } from '@/components/motion'
-import { RichEditor } from '@/components/rich-editor'
+import { MarkdownEditor } from '@/components/markdown-editor'
+import { markdownToHtml, htmlToMarkdown } from '@/lib/markdown'
 import { useNotify } from '@/components/toast'
 import { useSiteConfig } from '@/components/site-config-context'
 import { Captcha, type CaptchaResult } from '@/components/captcha'
@@ -37,7 +38,9 @@ function EditorShell({ mode, article }: EditorShellProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [title, setTitle] = useState(article?.title ?? '')
-  const [content, setContent] = useState(article?.content ?? '')
+  // 编辑器内部用 Markdown；保存时转成 HTML 交给后端（与既有存储/渲染保持一致）
+  const [markdown, setMarkdown] = useState(() => (article?.content ? htmlToMarkdown(article.content) : ''))
+  const content = useMemo(() => markdownToHtml(markdown), [markdown])
   const [viewSlug, setViewSlug] = useState<string | null>(article?.slug ?? null)
   const [categoryId, setCategoryId] = useState<number | null>(article?.category?.id ?? null)
   const [tags, setTags] = useState<string[]>((article?.tags ?? []).map((t) => t.name))
@@ -450,7 +453,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
           </div>
 
           <div className="mt-6 border-t border-border pt-2">
-            <RichEditor content={content} onChange={setContent} variant="plain" />
+            <MarkdownEditor value={markdown} onChange={setMarkdown} />
           </div>
 
           <div className="mt-8 flex items-center justify-between border-t border-border pt-4 text-xs text-muted-foreground">
