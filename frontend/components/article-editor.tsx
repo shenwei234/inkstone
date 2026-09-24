@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { ArrowLeft, ShieldCheck, X } from 'lucide-react'
+import { ArrowLeft, Eye, ShieldCheck, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createArticle,
@@ -23,6 +23,8 @@ import { MarkdownEditor } from '@/components/markdown-editor'
 import { markdownToHtml, htmlToMarkdown } from '@/lib/markdown'
 import { useNotify } from '@/components/toast'
 import { useSiteConfig } from '@/components/site-config-context'
+import { useAuth } from '@/lib/auth-context'
+import { ArticlePreview } from '@/components/article-preview'
 import { Captcha, type CaptchaResult } from '@/components/captcha'
 
 function htmlToText(html: string): string {
@@ -50,8 +52,10 @@ function EditorShell({ mode, article }: EditorShellProps) {
   const uploadCoverRef = useRef<HTMLInputElement>(null)
   const notify = useNotify()
   const site = useSiteConfig()
+  const { user } = useAuth()
   const [captcha, setCaptcha] = useState<CaptchaResult>({})
   const [captchaOpen, setCaptchaOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
 
   const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
   const tagsQuery = useQuery({ queryKey: ['tags'], queryFn: fetchTags })
@@ -189,6 +193,17 @@ function EditorShell({ mode, article }: EditorShellProps) {
   const wordCount = htmlToText(content).replace(/\s+/g, '').length
   const readMinutes = Math.max(1, Math.round(wordCount / 400))
 
+  // 实时预览用的派生数据
+  const previewCategory =
+    categoriesQuery.data?.categories.find((c) => c.id === categoryId)?.name ?? article?.category?.name ?? null
+  const previewAuthor = article?.author?.username ?? user?.username ?? '我'
+  const [todayLabel] = useState(() => new Date().toLocaleDateString('zh-CN'))
+  const previewDate =
+    article?.published_at ?? article?.created_at
+      ? new Date((article?.published_at ?? article?.created_at) as string).toLocaleDateString('zh-CN')
+      : todayLabel
+  const previewViews = article?.views ?? 0
+
   // 是否需要人机验证（后台「安全防护」为发文开启时）
   const captchaRequired =
     !!site.captcha &&
@@ -288,6 +303,14 @@ function EditorShell({ mode, article }: EditorShellProps) {
                 查看
               </Link>
             )}
+            <button
+              type="button"
+              onClick={() => setPreviewOpen(true)}
+              className="flex items-center gap-1.5 rounded-md border border-border px-3.5 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">预览</span>
+            </button>
             <motion.button
               type="button"
               onClick={doPublish}
@@ -508,6 +531,32 @@ function EditorShell({ mode, article }: EditorShellProps) {
             : `提示：写完点右上角「${primaryLabel}」就能发表。草稿每 2 秒自动保存，不用怕丢。`}
         </motion.p>
       </div>
+      {/* 全屏实时预览 */}
+      {previewOpen && (
+        <div className="fixed inset-0 z-[200] overflow-y-auto bg-background">
+          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/90 px-4 py-3 backdrop-blur">
+            <span className="flex items-center gap-2 text-sm font-medium">
+              <Eye className="h-4 w-4 text-accent" /> 实时预览
+            </span>
+            <button
+              type="button"
+              onClick={() => setPreviewOpen(false)}
+              className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <X className="h-4 w-4" /> 关闭预览
+            </button>
+          </div>
+          <ArticlePreview
+            title={title}
+            categoryName={previewCategory}
+            tags={tags}
+            authorName={previewAuthor}
+            date={previewDate}
+            views={previewViews}
+            contentHtml={content}
+          />
+        </div>
+      )}
     </form>
   )
 }
