@@ -166,13 +166,15 @@ body.has-wallpaper header {
   --tw-prose-code: var(--foreground);
 }
 
-/* 文章/页面正文：代码块横向滚动、图片自适应、长词换行，避免宽内容撑破卡片导致整页横滚 */
+/* 文章/页面正文：代码块横向滚动、图片限宽居中、长词换行，避免宽内容撑破卡片导致整页横滚 */
 .prose pre {
   overflow-x: auto;
 }
 .prose img {
-  max-width: 100%;
+  max-width: min(100%, 40rem);
   height: auto;
+  margin-inline: auto;
+  border-radius: 0.75rem;
 }
 .prose {
   overflow-wrap: break-word;

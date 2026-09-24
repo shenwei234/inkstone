@@ -62,6 +62,7 @@ func main() {
 	commentHandler := handler.NewCommentHandler(commentSvc, tokens, captchaSvc, apiLimiter)
 	reactionHandler := handler.NewReactionHandler(reactionSvc)
 	rssHandler := handler.NewRSSHandler(articleSvc, cfg.FrontendURL)
+	sitemapHandler := handler.NewSitemapHandler(articleSvc, pageSvc, taxonomyRepo, cfg.FrontendURL)
 	settingsHandler := handler.NewSettingsHandler(settingsSvc, mailer, captchaSvc, emailCodeSvc)
 	pageHandler := handler.NewPageHandler(pageSvc)
 	systemHandler := handler.NewSystemHandler(settingsSvc, service.NewUpdateRunner(settingsSvc))
@@ -152,6 +153,8 @@ func main() {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 	router.GET("/feed.xml", rssHandler.Feed)
+	router.GET("/sitemap.xml", sitemapHandler.Sitemap)
+	router.GET("/robots.txt", sitemapHandler.Robots)
 	router.Static("/uploads", cfg.UploadDir)
 	router.Static("/files", cfg.FilesDir)
 

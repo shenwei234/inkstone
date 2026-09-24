@@ -16,6 +16,7 @@ import {
   Tag as TagIcon,
   SearchX,
   Trash2,
+  User,
 } from 'lucide-react'
 import {
   deleteComment,
@@ -163,76 +164,90 @@ export function PostDetail({ slug }: { slug: string }) {
         <SiteSidebar widgets={widgets} position="left" />
       )}
       <div className="min-w-0">
+        {/* 顶部标题区：蓝色竖线 + 标题 + 三图标信息栏（圆角卡片） */}
+        <motion.header
+          initial={false}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: easeOut }}
+          className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8"
+        >
+          {article.category && (
+            <Link
+              href={`/?category=${article.category.slug}`}
+              className="inline-block rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent/20"
+            >
+              {article.category.name}
+            </Link>
+          )}
+          <div className="mt-3 flex items-stretch gap-3">
+            <span className="w-1.5 shrink-0 rounded-full bg-accent" />
+            <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
+              {article.title}
+            </h1>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <User className="h-4 w-4" />
+              <Link href="/" className="font-medium text-foreground transition-colors hover:text-accent">
+                {article.author.username}
+              </Link>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CalendarDays className="h-4 w-4" />
+              <time dateTime={article.published_at ?? article.created_at}>{date}</time>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Eye className="h-4 w-4" />
+              {article.views} 次阅读
+            </span>
+          </div>
+        </motion.header>
+
+        {/* 主体：白色圆角容器，居中图形 + 正文 */}
         <motion.div
           initial={false}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55, ease: easeOut }}
-          className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-10"
+          transition={{ duration: 0.55, delay: 0.05, ease: easeOut }}
+          className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-10"
         >
-          {article.cover && (
-            <div className="relative mb-6 aspect-video w-full overflow-hidden rounded-xl">
-              <Image
-                src={article.cover}
-                alt={article.title}
-                fill
-                sizes="(max-width: 1024px) 100vw, 768px"
-                className="object-cover"
-              />
-            </div>
-          )}
-          <motion.header
-            initial={false}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: easeOut }}
-            className="mb-8 border-b border-border pb-6"
-          >
-            {article.category && (
-              <Link
-                href={`/?category=${article.category.slug}`}
-                className="inline-block rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent/20"
-              >
-                {article.category.name}
-              </Link>
-            )}
-            <h1 className="mt-3 text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
-              {article.title}
-            </h1>
-            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
-              <Link href="/" className="font-medium text-foreground hover:text-accent transition-colors">
-                {article.author.username}
-              </Link>
-              <span className="flex items-center gap-1">
-                <CalendarDays className="h-3.5 w-3.5" />
-                <time dateTime={article.published_at ?? article.created_at}>{date}</time>
-              </span>
-              <span className="flex items-center gap-1">
-                <Eye className="h-3.5 w-3.5" />
-                {article.views} 次阅读
-              </span>
-            </div>
-            {article.tags && article.tags.length > 0 && (
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <TagIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                {article.tags.map((tag) => (
-                  <Link
-                    key={tag.id}
-                    href={`/?tag=${tag.slug}`}
-                    className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:border-accent/40 hover:text-accent"
-                  >
-                    {tag.name}
-                  </Link>
-                ))}
+          <div className="mb-8 flex justify-center">
+            {article.cover ? (
+              <div className="relative aspect-video w-full max-w-2xl overflow-hidden rounded-xl">
+                <Image
+                  src={article.cover}
+                  alt={article.title}
+                  fill
+                  sizes="(max-width: 1024px) 100vw, 672px"
+                  className="object-cover"
+                />
               </div>
+            ) : (
+              <KnowledgeGraphic />
             )}
-          </motion.header>
+          </div>
 
           <motion.article
             initial={false}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1, ease: easeOut }}
+            transition={{ duration: 0.5, ease: easeOut }}
             className="prose prose-neutral dark:prose-invert max-w-none overflow-x-auto prose-headings:font-semibold prose-a:text-accent prose-pre:bg-muted prose-code:bg-muted prose-code:rounded prose-code:px-1.5 prose-code:py-0.5 prose-code:text-[0.9em] prose-code:before:content-none prose-code:after:content-none prose-img:rounded-xl prose-blockquote:border-l-accent"
             dangerouslySetInnerHTML={{ __html: article.content }}
           />
+
+          {article.tags && article.tags.length > 0 && (
+            <div className="mt-8 flex flex-wrap items-center gap-2 border-t border-border pt-6">
+              <TagIcon className="h-3.5 w-3.5 text-muted-foreground" />
+              {article.tags.map((tag) => (
+                <Link
+                  key={tag.id}
+                  href={`/?tag=${tag.slug}`}
+                  className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:border-accent/40 hover:text-accent"
+                >
+                  {tag.name}
+                </Link>
+              ))}
+            </div>
+          )}
         </motion.div>
 
         <motion.div
@@ -396,5 +411,36 @@ export function PostDetail({ slug }: { slug: string }) {
       )}
       </div>
     </PageTransition>
+  )
+}
+
+// 无封面文章展示的扁平「电脑屏幕」图形标识（极简知识库风格）
+function KnowledgeGraphic() {
+  return (
+    <svg
+      viewBox="0 0 180 128"
+      className="h-32 w-48 sm:h-36 sm:w-56"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      role="img"
+      aria-label="文章配图"
+    >
+      {/* 屏幕 */}
+      <rect x="24" y="14" width="132" height="86" rx="10" className="fill-muted stroke-border" strokeWidth="2" />
+      {/* 顶部标题栏 */}
+      <path d="M24 24a10 10 0 0 1 10-10h112a10 10 0 0 1 10 10v12H24V24Z" className="fill-border" />
+      {/* 三个窗口圆点 */}
+      <circle cx="37" cy="25" r="2.6" className="fill-accent" />
+      <circle cx="47" cy="25" r="2.6" className="fill-muted-foreground/40" />
+      <circle cx="57" cy="25" r="2.6" className="fill-muted-foreground/40" />
+      {/* 内容：标题行 + 文本行 */}
+      <rect x="40" y="48" width="54" height="7" rx="3.5" className="fill-accent/70" />
+      <rect x="40" y="64" width="100" height="5" rx="2.5" className="fill-muted-foreground/25" />
+      <rect x="40" y="76" width="86" height="5" rx="2.5" className="fill-muted-foreground/25" />
+      <rect x="40" y="88" width="62" height="5" rx="2.5" className="fill-muted-foreground/25" />
+      {/* 底座 */}
+      <rect x="82" y="100" width="16" height="10" rx="2" className="fill-border" />
+      <rect x="62" y="110" width="56" height="7" rx="3.5" className="fill-border" />
+    </svg>
   )
 }
