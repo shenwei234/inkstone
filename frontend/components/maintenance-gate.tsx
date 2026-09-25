@@ -6,6 +6,7 @@ import { gsap } from 'gsap'
 import { Construction } from 'lucide-react'
 import { useSiteConfig } from '@/components/site-config-context'
 import { useAuth } from '@/lib/auth-context'
+import { prefersReducedMotion } from '@/components/gsap'
 
 /**
  * 全屏「网站维护中」页面。背景不透明（首帧即实底，无白屏闪烁），
@@ -25,13 +26,15 @@ function MaintenanceScreen() {
           { opacity: 0, scale: 0.6 },
           { opacity: 1, scale: 1, duration: 0.6, ease: 'back.out(1.6)' },
         )
-        gsap.to(iconRef.current, {
-          rotation: 360,
-          duration: 9,
-          repeat: -1,
-          ease: 'none',
-          transformOrigin: '50% 50%',
-        })
+        if (!prefersReducedMotion()) {
+          gsap.to(iconRef.current, {
+            rotation: 360,
+            duration: 9,
+            repeat: -1,
+            ease: 'none',
+            transformOrigin: '50% 50%',
+          })
+        }
       }
       if (titleRef.current) {
         gsap.fromTo(titleRef.current, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.5, delay: 0.15, ease: 'power3.out' })

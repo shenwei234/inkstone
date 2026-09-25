@@ -16,6 +16,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -104,12 +105,15 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
     }
   }, [confirmState])
 
-  const value: NotifyContextValue = {
-    toast: push,
-    success: (m, slug) => push('success', m, slug),
-    error: (m) => push('error', m),
-    confirm,
-  }
+  const value = useMemo<NotifyContextValue>(
+    () => ({
+      toast: push,
+      success: (m: string, slug?: string) => push('success', m, slug),
+      error: (m: string) => push('error', m),
+      confirm,
+    }),
+    [push, confirm],
+  )
 
   return (
     <NotifyContext.Provider value={value}>

@@ -279,11 +279,11 @@ export function Navbar() {
       <AnimatePresence>
         {searchOpen && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.22, ease: easeOut }}
-            className="overflow-hidden border-t border-border bg-card sm:hidden"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2, ease: easeOut }}
+            className="border-t border-border bg-card sm:hidden"
           >
             <form
               onSubmit={(e) => {

@@ -358,7 +358,9 @@ function CountdownWidget({ widget }: { widget: SidebarWidget }) {
 
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000)
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') setNow(Date.now())
+    }, 1000)
     return () => clearInterval(t)
   }, [])
 
@@ -419,7 +421,9 @@ function CountdownWidget({ widget }: { widget: SidebarWidget }) {
 function ClockWidget({ widget }: { widget: SidebarWidget }) {
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000)
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') setNow(new Date())
+    }, 1000)
     return () => clearInterval(t)
   }, [])
 

@@ -3,6 +3,11 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { gsap } from 'gsap'
 
+/** 是否偏好「减少动效」——用于跳过 GSAP 循环/位移动画（framer 侧由 MotionConfig 统一处理） */
+export function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
 /**
  * 复用 GSAP 动画组件（命令式，随卸载自动清理 tween）。
  * 约定与 components/modal.tsx 一致：用 ref + gsap.fromTo/to，repeat:-1 的循环动画在
@@ -28,6 +33,10 @@ export function GsapReveal({
   useEffect(() => {
     const el = ref.current
     if (!el) return
+    if (prefersReducedMotion()) {
+      gsap.set(el, { opacity: 1, y: 0 })
+      return
+    }
     const tween = gsap.fromTo(
       el,
       { opacity: 0, y },
@@ -73,7 +82,7 @@ export function GsapPulse({
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    if (!active) {
+    if (!active || prefersReducedMotion()) {
       gsap.set(el, { boxShadow: '0 0 0 0 rgba(0,0,0,0)' })
       return
     }
@@ -106,7 +115,7 @@ export function GsapSpinner({ size = 44, className }: { size?: number; className
 
   useEffect(() => {
     const el = ref.current
-    if (!el) return
+    if (!el || prefersReducedMotion()) return
     const tween = gsap.to(el, {
       rotation: 360,
       duration: 1,
