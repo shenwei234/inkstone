@@ -150,9 +150,9 @@ function HomePage({ category, tag, q }: { category: string | null; tag: string |
           <div className="mb-6 flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight">
               {category
-                ? `分类：${categoriesQuery.data?.categories.find((c) => c.slug === category)?.name ?? category}`
+                ? `分类：${(categoriesQuery.data?.categories ?? []).find((c) => c.slug === category)?.name ?? category}`
                 : tag
-                  ? `标签：${tagsQuery.data?.tags.find((t) => t.slug === tag)?.name ?? tag}`
+                  ? `标签：${(tagsQuery.data?.tags ?? []).find((t) => t.slug === tag)?.name ?? tag}`
                   : q
                     ? `搜索：${q}`
                     : ''}

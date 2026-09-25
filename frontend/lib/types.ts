@@ -93,13 +93,6 @@ export interface SiteSettings {
   security_register_max?: number
   security_comment_max?: number
   security_block_minutes?: number
-  captcha_provider?: 'none' | 'turnstile' | 'geetest' | 'builtin'
-  captcha_site_key?: string
-  geetest_captcha_id?: string
-  captcha_on_register?: boolean
-  captcha_on_login?: boolean
-  captcha_on_comment?: boolean
-  captcha_on_article?: boolean
   email_code_on_register?: string
   email_code_on_login?: string
   site_wallpaper?: string

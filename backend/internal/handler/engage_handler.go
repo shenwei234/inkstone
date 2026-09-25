@@ -42,18 +42,15 @@ func (h *TaxonomyHandler) ListTags(c *gin.Context) {
 type CommentHandler struct {
 	comments *service.CommentService
 	tokens   *service.TokenManager
-	captcha  *service.CaptchaService
 	limiter  *middleware.SlidingLimiter
 }
 
-func NewCommentHandler(comments *service.CommentService, tokens *service.TokenManager, captcha *service.CaptchaService, limiter *middleware.SlidingLimiter) *CommentHandler {
-	return &CommentHandler{comments: comments, tokens: tokens, captcha: captcha, limiter: limiter}
+func NewCommentHandler(comments *service.CommentService, tokens *service.TokenManager, limiter *middleware.SlidingLimiter) *CommentHandler {
+	return &CommentHandler{comments: comments, tokens: tokens, limiter: limiter}
 }
 
 type createCommentRequest struct {
-	Content       string `json:"content" binding:"required"`
-	CaptchaToken  string `json:"captcha_token"`
-	CaptchaAnswer string `json:"captcha_answer"`
+	Content string `json:"content" binding:"required"`
 }
 
 // Create handles POST /articles/:id/comments.
@@ -70,10 +67,6 @@ func (h *CommentHandler) Create(c *gin.Context) {
 	var req createCommentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "评论内容不能为空"})
-		return
-	}
-	if err := h.captcha.Verify(service.CaptchaActionComment, req.CaptchaToken, req.CaptchaAnswer, middleware.ClientIP(c)); err != nil {
-		errorResponse(c, err)
 		return
 	}
 	comment, err := h.comments.Create(uint(articleID), current.ID, req.Content)

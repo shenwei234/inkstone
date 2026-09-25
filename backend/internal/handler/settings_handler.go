@@ -11,12 +11,11 @@ import (
 type SettingsHandler struct {
 	settings  *service.SettingsService
 	mailer    *mailer.Mailer
-	captcha   *service.CaptchaService
 	emailCode *service.EmailCodeService
 }
 
-func NewSettingsHandler(settings *service.SettingsService, mailClient *mailer.Mailer, captcha *service.CaptchaService, emailCode *service.EmailCodeService) *SettingsHandler {
-	return &SettingsHandler{settings: settings, mailer: mailClient, captcha: captcha, emailCode: emailCode}
+func NewSettingsHandler(settings *service.SettingsService, mailClient *mailer.Mailer, emailCode *service.EmailCodeService) *SettingsHandler {
+	return &SettingsHandler{settings: settings, mailer: mailClient, emailCode: emailCode}
 }
 
 // Get handles GET /admin/settings.
@@ -55,15 +54,12 @@ func (h *SettingsHandler) Update(c *gin.Context) {
 }
 
 // SiteConfig handles GET /api/v1/site-config — non-sensitive settings for
-// the frontend (registration switch, site name, captcha config, etc).
+// the frontend (registration switch, site name, etc).
 func (h *SettingsHandler) SiteConfig(c *gin.Context) {
 	out, err := h.settings.Public()
 	if err != nil {
 		errorResponse(c, err)
 		return
-	}
-	if h.captcha != nil {
-		out["captcha"] = h.captcha.PublicConfig()
 	}
 	if h.emailCode != nil {
 		out["email_code"] = h.emailCode.PublicConfig()

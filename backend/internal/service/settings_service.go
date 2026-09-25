@@ -33,17 +33,6 @@ const (
 	SettingUploadSpeedKB     = "upload_speed_kb"     // 文件管理：上传限速（KB/s，0=不限）
 	SettingDownloadSpeedKB   = "download_speed_kb"   // 文件管理：下载限速（KB/s，0=不限）
 
-	// 人机验证
-	SettingCaptchaProvider   = "captcha_provider"    // none | turnstile | geetest | builtin
-	SettingCaptchaSiteKey    = "captcha_site_key"    // Turnstile site key（公开）
-	SettingCaptchaSecretKey  = "captcha_secret_key"  // Turnstile secret key（保密）
-	SettingGeeTestCaptchaID  = "geetest_captcha_id"  // 极验 Captcha ID（公开）
-	SettingGeeTestCaptchaKey = "geetest_captcha_key" // 极验 Captcha Key（保密）
-	SettingCaptchaOnRegister = "captcha_on_register" // 注册开启验证
-	SettingCaptchaOnLogin    = "captcha_on_login"    // 登录开启验证
-	SettingCaptchaOnComment  = "captcha_on_comment"  // 评论开启验证
-	SettingCaptchaOnArticle  = "captcha_on_article"  // 发文开启验证
-
 	// 安全防护
 	SettingSecurityEnabled      = "security_enabled"       // 主开关
 	SettingSecurityLoginMax     = "security_login_max"     // 登录失败次数上限/15 分钟
@@ -89,16 +78,6 @@ var settingDefaults = map[string]string{
 	SettingUploadSpeedKB:     "0",
 	SettingDownloadSpeedKB:   "0",
 
-	SettingCaptchaProvider:   "none",
-	SettingCaptchaSiteKey:    "",
-	SettingCaptchaSecretKey:  "",
-	SettingGeeTestCaptchaID:  "",
-	SettingGeeTestCaptchaKey: "",
-	SettingCaptchaOnRegister: "true",
-	SettingCaptchaOnLogin:    "false",
-	SettingCaptchaOnComment:  "true",
-	SettingCaptchaOnArticle:  "true",
-
 	SettingSecurityEnabled:      "true",
 	SettingSecurityLoginMax:     "30",
 	SettingSecurityRegisterMax:  "20",
@@ -136,9 +115,7 @@ func decodeJSONSetting(value string) any {
 
 // maskKeys are never exposed through the public API.
 var maskKeys = map[string]bool{
-	SettingSMTPPass:          true,
-	SettingCaptchaSecretKey:  true,
-	SettingGeeTestCaptchaKey: true,
+	SettingSMTPPass: true,
 }
 
 type SettingsService struct {

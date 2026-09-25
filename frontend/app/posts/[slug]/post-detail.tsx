@@ -29,13 +29,8 @@ import {
 import { useAuth } from '@/lib/auth-context'
 import { useNotify } from '@/components/toast'
 import { useSiteConfig } from '@/components/site-config-context'
-import type { CaptchaResult } from '@/components/captcha'
-import dynamic from 'next/dynamic'
 import { PageTransition, easeOut } from '@/components/motion'
 import { SiteSidebar } from '@/components/site-sidebar'
-
-// captcha 内含 gsap（拖拽滑块），懒加载以把 gsap 移出文章页首包
-const Captcha = dynamic(() => import('@/components/captcha').then((m) => m.Captcha), { ssr: false })
 
 export function PostDetail({ slug }: { slug: string }) {
   const { user } = useAuth()
@@ -44,7 +39,6 @@ export function PostDetail({ slug }: { slug: string }) {
   const queryClient = useQueryClient()
   const [commentText, setCommentText] = useState('')
   const site = useSiteConfig()
-  const [captcha, setCaptcha] = useState<CaptchaResult>({})
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['article', 'slug', slug],
@@ -72,10 +66,9 @@ export function PostDetail({ slug }: { slug: string }) {
   })
 
   const addComment = useMutation({
-    mutationFn: () => postComment(articleId!, commentText, captcha),
+    mutationFn: () => postComment(articleId!, commentText),
     onSuccess: () => {
       setCommentText('')
-      setCaptcha({})
       queryClient.invalidateQueries({ queryKey: ['comments', articleId] })
       notify.success('评论已发布')
     },
@@ -322,9 +315,6 @@ export function PostDetail({ slug }: { slug: string }) {
                 maxLength={1000}
                 className="w-full resize-y rounded-lg border border-border bg-background px-4 py-3 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20"
               />
-              <div className="mt-2">
-                <Captcha config={site.captcha} action="comment" onChange={setCaptcha} />
-              </div>
               <div className="mt-2 flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">{commentText.length}/1000</span>
                 <motion.button

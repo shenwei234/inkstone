@@ -1,8 +1,6 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import {
   Bold,
   Code,
@@ -22,6 +20,7 @@ import {
   Strikethrough,
 } from 'lucide-react'
 import { uploadImage, ApiError } from '@/lib/api'
+import { markdownToHtml } from '@/lib/markdown'
 import { useNotify } from '@/components/toast'
 
 interface MarkdownEditorProps {
@@ -147,7 +146,7 @@ export function MarkdownEditor({ value, onChange, placeholder }: MarkdownEditorP
         <div className={`border-t border-border lg:border-t-0 lg:border-l ${tab === 'preview' ? '' : 'hidden lg:block'}`}>
           <div className="prose prose-neutral dark:prose-invert h-[60vh] min-h-[360px] max-w-none overflow-y-auto px-4 py-4 lg:h-[68vh] prose-headings:font-semibold prose-a:text-accent prose-pre:bg-muted prose-code:bg-muted prose-code:rounded prose-code:px-1.5 prose-code:py-0.5 prose-img:rounded-xl">
             {value.trim() ? (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{value}</ReactMarkdown>
+              <div dangerouslySetInnerHTML={{ __html: markdownToHtml(value) }} />
             ) : (
               <p className="text-muted-foreground">预览会显示在这里…</p>
             )}

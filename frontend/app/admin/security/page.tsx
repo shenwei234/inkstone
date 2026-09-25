@@ -3,10 +3,9 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Gauge, KeyRound, Mail, ShieldCheck, UserCheck } from 'lucide-react'
+import { Gauge, KeyRound, Mail, ShieldCheck } from 'lucide-react'
 import { fetchAdminSettings, updateAdminSettings, ApiError } from '@/lib/api'
 import { useNotify } from '@/components/toast'
-import { SecretInput } from '@/components/secret-input'
 import { PageTransition } from '@/components/motion'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
@@ -21,15 +20,6 @@ interface SecurityForm {
   security_register_max: number
   security_comment_max: number
   security_block_minutes: number
-  captcha_provider: string
-  captcha_site_key: string
-  captcha_secret_key: string
-  geetest_captcha_id: string
-  geetest_captcha_key: string
-  captcha_on_register: boolean
-  captcha_on_login: boolean
-  captcha_on_comment: boolean
-  captcha_on_article: boolean
   email_code_on_register: boolean
   email_code_on_login: boolean
 }
@@ -99,8 +89,6 @@ export default function AdminSecurityPage() {
   const notify = useNotify()
   const queryClient = useQueryClient()
   const [form, setForm] = useState<SecurityForm | null>(null)
-  const [captchaSecretSet, setCaptchaSecretSet] = useState(false)
-  const [geetestKeySet, setGeetestKeySet] = useState(false)
 
   const settingsQuery = useQuery({ queryKey: ['admin', 'settings'], queryFn: fetchAdminSettings })
 
@@ -113,8 +101,6 @@ export default function AdminSecurityPage() {
       return Number.isFinite(n) ? n : d
     }
     const t = setTimeout(() => {
-      setCaptchaSecretSet(s.captcha_secret_key_set === true)
-      setGeetestKeySet(s.geetest_captcha_key_set === true)
       setForm({
         security_enabled: toBool(s.security_enabled, true),
         security_api_max: toNum(s.security_api_max, 300),
@@ -122,15 +108,6 @@ export default function AdminSecurityPage() {
         security_register_max: toNum(s.security_register_max, 5),
         security_comment_max: toNum(s.security_comment_max, 10),
         security_block_minutes: toNum(s.security_block_minutes, 15),
-        captcha_provider: String(s.captcha_provider ?? 'none'),
-        captcha_site_key: String(s.captcha_site_key ?? ''),
-        captcha_secret_key: '',
-        geetest_captcha_id: String(s.geetest_captcha_id ?? ''),
-        geetest_captcha_key: '',
-        captcha_on_register: toBool(s.captcha_on_register, true),
-        captcha_on_login: toBool(s.captcha_on_login, false),
-        captcha_on_comment: toBool(s.captcha_on_comment, true),
-        captcha_on_article: toBool(s.captcha_on_article, true),
         email_code_on_register: toBool(s.email_code_on_register, false),
         email_code_on_login: toBool(s.email_code_on_login, false),
       })
@@ -141,21 +118,11 @@ export default function AdminSecurityPage() {
   const save = useMutation({
     mutationFn: () => {
       const payload: Record<string, unknown> = { ...form }
-      // 空值表示不修改密钥（后端会保留原值）
-      if (!form?.captcha_secret_key) delete payload.captcha_secret_key
-      if (!form?.geetest_captcha_key) delete payload.geetest_captcha_key
       return updateAdminSettings(payload as never)
     },
-    onSuccess: (res) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'settings'] })
       queryClient.invalidateQueries({ queryKey: ['site-config'] })
-      const s = res.settings as unknown as Record<string, unknown>
-      // 保存后清空输入框，并根据后端返回刷新「已配置」状态
-      setForm((f) =>
-        f ? { ...f, captcha_secret_key: '', geetest_captcha_key: '' } : f,
-      )
-      setCaptchaSecretSet(s.captcha_secret_key_set === true)
-      setGeetestKeySet(s.geetest_captcha_key_set === true)
       notify.success('安全设置已保存')
     },
     onError: (e) => notify.error(e instanceof ApiError ? e.message : '保存失败'),
@@ -183,7 +150,7 @@ export default function AdminSecurityPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">安全防护</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            人机验证与访问限流，抵御垃圾评论、暴力破解与刷接口
+            访问限流与邮箱验证码，抵御垃圾注册、暴力破解与刷接口
           </p>
         </div>
         <motion.button
@@ -268,117 +235,6 @@ export default function AdminSecurityPage() {
           </p>
         </Section>
 
-        <Section icon={<UserCheck className="h-4 w-4 text-purple-500" />} title="人机验证">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5 sm:col-span-2">
-              <label className="text-sm font-medium">验证方式</label>
-              <select
-                value={form.captcha_provider}
-                onChange={(e) => update('captcha_provider', e.target.value)}
-                className={inputClass}
-              >
-                <option value="none">关闭人机验证</option>
-                <option value="turnstile">Cloudflare Turnstile（推荐，无感验证）</option>
-                <option value="geetest">GeeTest 极验（国内推荐 v4）</option>
-                <option value="builtin">内置算式验证（无需第三方服务）</option>
-              </select>
-            </div>
-
-            {form.captcha_provider === 'turnstile' && (
-              <>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Turnstile Site Key（公开）</label>
-                  <input
-                    value={form.captcha_site_key}
-                    onChange={(e) => update('captcha_site_key', e.target.value)}
-                    placeholder="0x4AAA..."
-                    className={inputClass}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Turnstile Secret Key（保密）</label>
-                  <SecretInput
-                    key={`turnstile-secret-${captchaSecretSet ? 'set' : 'unset'}`}
-                    value={form.captcha_secret_key}
-                    onChange={(v) => update('captcha_secret_key', v)}
-                    isSet={captchaSecretSet}
-                    placeholder="留空表示不修改"
-                    className={inputClass}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    在 Cloudflare 控制台 → Turnstile 创建站点后获取
-                  </p>
-                </div>
-              </>
-            )}
-
-            {form.captcha_provider === 'geetest' && (
-              <>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">极验 Captcha ID（公开）</label>
-                  <input
-                    value={form.geetest_captcha_id}
-                    onChange={(e) => update('geetest_captcha_id', e.target.value)}
-                    placeholder="在极验后台「行为验证 4.0」应用中获取"
-                    className={inputClass}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">极验 Captcha Key（保密）</label>
-                  <SecretInput
-                    key={`geetest-key-${geetestKeySet ? 'set' : 'unset'}`}
-                    value={form.geetest_captcha_key}
-                    onChange={(v) => update('geetest_captcha_key', v)}
-                    isSet={geetestKeySet}
-                    placeholder="留空表示不修改"
-                    className={inputClass}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    在 https://console.geetest.com 创建「行为验证 4.0」后获取 ID 与 Key
-                  </p>
-                </div>
-              </>
-            )}
-
-            {form.captcha_provider === 'builtin' && (
-              <div className="sm:col-span-2">
-                <p className="rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
-                  内置算式验证无需任何配置，用户回答简单加法题即可，适合无外部依赖的部署。
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="mt-4 divide-y divide-border border-t border-border">
-            <p className="pt-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              在以下操作开启验证
-            </p>
-            <Toggle
-              checked={form.captcha_on_register}
-              onChange={(v) => update('captcha_on_register', v)}
-              label="用户注册"
-            />
-            <Toggle
-              checked={form.captcha_on_login}
-              onChange={(v) => update('captcha_on_login', v)}
-              label="用户登录"
-              desc="建议在遭遇暴力破解时开启"
-            />
-            <Toggle
-              checked={form.captcha_on_comment}
-              onChange={(v) => update('captcha_on_comment', v)}
-              label="发表评论"
-              desc="有效拦截垃圾评论机器人"
-            />
-            <Toggle
-              checked={form.captcha_on_article}
-              onChange={(v) => update('captcha_on_article', v)}
-              label="发布文章"
-              desc="仅发布时校验，保存草稿不受影响"
-            />
-          </div>
-        </Section>
-
         <Section icon={<Mail className="h-4 w-4 text-sky-500" />} title="邮箱验证码">
           <p className="text-xs text-muted-foreground">
             开启后，注册/登录需先获取发送到邮箱的 6 位验证码（需先在「网站管理」配置 SMTP）
@@ -402,7 +258,7 @@ export default function AdminSecurityPage() {
         <Section icon={<KeyRound className="h-4 w-4 text-amber-500" />} title="安全建议">
           <ul className="space-y-1.5 text-sm text-muted-foreground">
             <li>· 生产环境务必修改 JWT_SECRET 与数据库密码</li>
-            <li>· 建议始终开启「评论」人机验证，可拦截绝大多数垃圾评论</li>
+            <li>· 建议结合「访问限流」与「邮箱验证码」，抵御垃圾注册与暴力破解</li>
             <li>· 全站已自动附加 X-Frame-Options、X-Content-Type-Options、Referrer-Policy 等安全响应头</li>
             <li>· 使用 HTTPS（Caddy/Nginx）可进一步保护传输安全</li>
           </ul>

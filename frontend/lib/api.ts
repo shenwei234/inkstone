@@ -119,7 +119,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   return res.json() as Promise<T>
 }
 
-// ---------- Captcha / Email Code API ----------
+// ---------- Email Code API ----------
 
 export interface EmailCodeConfig {
   on_register: boolean
@@ -134,34 +134,13 @@ export function sendEmailCode(email: string, purpose: 'register' | 'login') {
   })
 }
 
-export interface CaptchaConfig {
-  provider: 'none' | 'turnstile' | 'geetest' | 'builtin'
-  site_key: string
-  geetest_captcha_id?: string
-  on_register: boolean
-  on_login: boolean
-  on_comment: boolean
-  on_article: boolean
-}
-
-export interface CaptchaChallenge {
-  provider: string
-  enabled: boolean
-  question?: string
-  token?: string
-}
-
-export function fetchCaptchaChallenge() {
-  return api<CaptchaChallenge>('/captcha/challenge')
-}
-
 // ---------- Auth API ----------
 
 export function register(
   email: string,
   username: string,
   password: string,
-  extra?: { captcha_token?: string; captcha_answer?: string; email_code?: string },
+  extra?: { email_code?: string },
 ) {
   return api<AuthResponse>('/auth/register', {
     method: 'POST',
@@ -172,7 +151,7 @@ export function register(
 export function login(
   email: string,
   password: string,
-  extra?: { captcha_token?: string; captcha_answer?: string; email_code?: string },
+  extra?: { email_code?: string },
 ) {
   return api<AuthResponse>('/auth/login', {
     method: 'POST',
@@ -228,8 +207,6 @@ export function createArticle(input: {
   category_id?: number | null
   tags?: string[]
   cover?: string
-  captcha_token?: string
-  captcha_answer?: string
 }) {
   return api<{ article: Article }>('/articles', { method: 'POST', body: input, auth: true })
 }
@@ -243,8 +220,6 @@ export function updateArticle(
     category_id: number | null
     tags: string[]
     cover: string
-    captcha_token?: string
-    captcha_answer?: string
   }>,
 ) {
   return api<{ article: Article }>(`/articles/${id}`, { method: 'PUT', body: input, auth: true })
@@ -282,14 +257,10 @@ export function fetchComments(articleId: number | string) {
   return api<{ comments: CommentItem[] }>(`/articles/${articleId}/comments`)
 }
 
-export function postComment(
-  articleId: number | string,
-  content: string,
-  captcha?: { captcha_token?: string; captcha_answer?: string },
-) {
+export function postComment(articleId: number | string, content: string) {
   return api<{ comment: CommentItem }>(`/articles/${articleId}/comments`, {
     method: 'POST',
-    body: { content, ...captcha },
+    body: { content },
     auth: true,
   })
 }

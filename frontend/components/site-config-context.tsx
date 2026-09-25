@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { fetchSiteConfig } from '@/lib/api'
-import type { CaptchaConfig, EmailCodeConfig } from '@/lib/api'
+import type { EmailCodeConfig } from '@/lib/api'
 
 export interface NavMenuItem {
   label: string
@@ -43,7 +43,6 @@ export interface SiteConfig {
   navMenu: NavMenuItem[]
   widgets: SidebarWidget[]
   sidebarPosition: 'left' | 'right'
-  captcha: CaptchaConfig
   emailCode: EmailCodeConfig
   wallpaper: string
   wallpaperOpacity: number
@@ -63,14 +62,6 @@ const DEFAULT_CONFIG: SiteConfig = {
   navMenu: [],
   widgets: [],
   sidebarPosition: 'right',
-  captcha: {
-    provider: 'none',
-    site_key: '',
-    on_register: false,
-    on_login: false,
-    on_comment: false,
-    on_article: false,
-  },
   emailCode: { on_register: false, on_login: false },
   wallpaper: '',
   wallpaperOpacity: 100,
@@ -99,7 +90,6 @@ interface RawSiteConfig {
   nav_menu?: unknown
   sidebar_widgets?: unknown
   sidebar_position?: string
-  captcha?: Partial<CaptchaConfig>
   email_code?: Partial<EmailCodeConfig>
   site_wallpaper?: string
   wallpaper_opacity?: string
@@ -166,15 +156,6 @@ export function SiteConfigProvider({ children }: { children: ReactNode }) {
           }),
           allowRegistration: cfg.allow_registration !== false,
           sidebarPosition: cfg.sidebar_position === 'left' ? 'left' : 'right',
-          captcha: {
-            provider: (cfg.captcha?.provider ?? 'none') as CaptchaConfig['provider'],
-            site_key: cfg.captcha?.site_key ?? '',
-            geetest_captcha_id: cfg.captcha?.geetest_captcha_id ?? '',
-            on_register: cfg.captcha?.on_register ?? false,
-            on_login: cfg.captcha?.on_login ?? false,
-            on_comment: cfg.captcha?.on_comment ?? false,
-            on_article: cfg.captcha?.on_article ?? false,
-          },
           emailCode: {
             on_register: cfg.email_code?.on_register ?? false,
             on_login: cfg.email_code?.on_login ?? false,

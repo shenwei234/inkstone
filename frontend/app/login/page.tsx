@@ -7,14 +7,9 @@ import { motion } from 'framer-motion'
 import { useAuth } from '@/lib/auth-context'
 import { ApiError } from '@/lib/api'
 import { useSiteConfig } from '@/components/site-config-context'
-import type { CaptchaResult } from '@/components/captcha'
 import { EmailCodeInput } from '@/components/email-code-input'
 import { easeOut } from '@/components/motion'
 import { inputClass } from '@/lib/ui'
-import dynamic from 'next/dynamic'
-
-// captcha 内含 gsap，懒加载移出首包
-const Captcha = dynamic(() => import('@/components/captcha').then((m) => m.Captcha), { ssr: false })
 
 
 export default function LoginPage() {
@@ -23,7 +18,6 @@ export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [captcha, setCaptcha] = useState<CaptchaResult>({})
   const [emailCode, setEmailCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -33,7 +27,7 @@ export default function LoginPage() {
     setError(null)
     setSubmitting(true)
     try {
-      const loggedIn = await login(email, password, { ...captcha, email_code: emailCode })
+      const loggedIn = await login(email, password, { email_code: emailCode })
       router.push(loggedIn.role === 'admin' ? '/admin' : '/')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '登录失败，请稍后重试')
@@ -111,8 +105,6 @@ export default function LoginPage() {
                 onChange={setEmailCode}
               />
             )}
-
-            <Captcha config={site.captcha} action="login" onChange={setCaptcha} />
 
             {error && (
               <motion.p

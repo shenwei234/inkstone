@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Eye, ShieldCheck, X } from 'lucide-react'
+import { ArrowLeft, Eye, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createArticle,
@@ -22,10 +22,8 @@ import { easeOut } from '@/components/motion'
 import { MarkdownEditor } from '@/components/markdown-editor'
 import { markdownToHtml, htmlToMarkdown } from '@/lib/markdown'
 import { useNotify } from '@/components/toast'
-import { useSiteConfig } from '@/components/site-config-context'
 import { useAuth } from '@/lib/auth-context'
 import { ArticlePreview } from '@/components/article-preview'
-import { Captcha, type CaptchaResult } from '@/components/captcha'
 
 function htmlToText(html: string): string {
   return html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ')
@@ -51,10 +49,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
   const [showCover, setShowCover] = useState(Boolean(article?.cover))
   const uploadCoverRef = useRef<HTMLInputElement>(null)
   const notify = useNotify()
-  const site = useSiteConfig()
   const { user } = useAuth()
-  const [captcha, setCaptcha] = useState<CaptchaResult>({})
-  const [captchaOpen, setCaptchaOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
 
   const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
@@ -113,11 +108,6 @@ function EditorShell({ mode, article }: EditorShellProps) {
 
   const isPublished = mode === 'edit' && article?.status === 'published'
 
-  /** 真正提交（此时人机验证已通过） */
-  const commitPublish = () => {
-    publish.mutate()
-  }
-
   const publish = useMutation({
     mutationFn: async () => {
       const body = {
@@ -127,8 +117,6 @@ function EditorShell({ mode, article }: EditorShellProps) {
         category_id: categoryId,
         tags,
         cover,
-        captcha_token: captcha.captcha_token,
-        captcha_answer: captcha.captcha_answer,
       }
       if (mode === 'edit' && article) {
         return updateArticle(article.id, body)
@@ -195,7 +183,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
 
   // 实时预览用的派生数据
   const previewCategory =
-    categoriesQuery.data?.categories.find((c) => c.id === categoryId)?.name ?? article?.category?.name ?? null
+    (categoriesQuery.data?.categories ?? []).find((c) => c.id === categoryId)?.name ?? article?.category?.name ?? null
   const previewAuthor = article?.author?.username ?? user?.username ?? '我'
   const [todayLabel] = useState(() => new Date().toLocaleDateString('zh-CN'))
   const previewDate =
@@ -204,13 +192,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
       : todayLabel
   const previewViews = article?.views ?? 0
 
-  // 是否需要人机验证（后台「安全防护」为发文开启时）
-  const captchaRequired =
-    !!site.captcha &&
-    site.captcha.provider !== 'none' &&
-    Boolean(site.captcha.on_article)
-
-  // 点击「发布/更新」：先做人机验证（如开启），通过后再提交
+  // 点击「发布/更新」
   const doPublish = () => {
     if (!title.trim()) {
       notify.error('给文章起个标题吧')
@@ -220,11 +202,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
       notify.error('先写一点正文，再发布')
       return
     }
-    if (captchaRequired) {
-      setCaptchaOpen(true)
-      return
-    }
-    commitPublish()
+    publish.mutate()
   }
 
   const submit = (e: FormEvent) => {
@@ -319,7 +297,6 @@ function EditorShell({ mode, article }: EditorShellProps) {
               whileTap={{ scale: 0.97 }}
               className="flex items-center gap-1.5 rounded-md bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
             >
-              {captchaRequired && !publish.isPending && <ShieldCheck className="h-3.5 w-3.5" />}
               {publish.isPending ? '保存中...' : primaryLabel}
             </motion.button>
           </div>
@@ -508,27 +485,13 @@ function EditorShell({ mode, article }: EditorShellProps) {
           </div>
         </motion.div>
 
-        {/* 人机验证：发布/更新时弹出（单层 gsap 弹窗，验证通过自动提交） */}
-        {captchaRequired && captchaOpen && (
-          <Captcha
-            config={site.captcha}
-            action="article"
-            autoOpen
-            onChange={setCaptcha}
-            onVerified={commitPublish}
-            onCancel={() => setCaptchaOpen(false)}
-          />
-        )}
-
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
           className="mt-8 text-center text-xs text-muted-foreground"
         >
-          {captchaRequired
-            ? `提示：写完点右上角「${primaryLabel}」，会先进行人机验证再发布。草稿每 2 秒自动保存。`
-            : `提示：写完点右上角「${primaryLabel}」就能发表。草稿每 2 秒自动保存，不用怕丢。`}
+          {`提示：写完点右上角「${primaryLabel}」就能发表。草稿每 2 秒自动保存，不用怕丢。`}
         </motion.p>
       </div>
       {/* 全屏实时预览 */}

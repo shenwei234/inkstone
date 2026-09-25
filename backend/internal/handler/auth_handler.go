@@ -11,14 +11,13 @@ import (
 
 type AuthHandler struct {
 	auth      *service.AuthService
-	captcha   *service.CaptchaService
 	emailCode *service.EmailCodeService
 	limiter   *middleware.SlidingLimiter
 	logs      *service.LogService
 }
 
-func NewAuthHandler(auth *service.AuthService, captcha *service.CaptchaService, emailCode *service.EmailCodeService, limiter *middleware.SlidingLimiter, logs *service.LogService) *AuthHandler {
-	return &AuthHandler{auth: auth, captcha: captcha, emailCode: emailCode, limiter: limiter, logs: logs}
+func NewAuthHandler(auth *service.AuthService, emailCode *service.EmailCodeService, limiter *middleware.SlidingLimiter, logs *service.LogService) *AuthHandler {
+	return &AuthHandler{auth: auth, emailCode: emailCode, limiter: limiter, logs: logs}
 }
 
 // resetAuthLimit clears the rate-limit budget for the caller after a
@@ -34,20 +33,16 @@ func (h *AuthHandler) resetAuthLimit(c *gin.Context) {
 }
 
 type registerRequest struct {
-	Email         string `json:"email" binding:"required"`
-	Username      string `json:"username" binding:"required"`
-	Password      string `json:"password" binding:"required"`
-	CaptchaToken  string `json:"captcha_token"`
-	CaptchaAnswer string `json:"captcha_answer"`
-	EmailCode     string `json:"email_code"`
+	Email     string `json:"email" binding:"required"`
+	Username  string `json:"username" binding:"required"`
+	Password  string `json:"password" binding:"required"`
+	EmailCode string `json:"email_code"`
 }
 
 type loginRequest struct {
-	Email         string `json:"email" binding:"required"`
-	Password      string `json:"password" binding:"required"`
-	CaptchaToken  string `json:"captcha_token"`
-	CaptchaAnswer string `json:"captcha_answer"`
-	EmailCode     string `json:"email_code"`
+	Email     string `json:"email" binding:"required"`
+	Password  string `json:"password" binding:"required"`
+	EmailCode string `json:"email_code"`
 }
 
 type refreshRequest struct {
@@ -69,10 +64,6 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	if err := h.emailCode.Verify("register", req.Email, req.EmailCode); err != nil {
-		errorResponse(c, err)
-		return
-	}
-	if err := h.captcha.Verify(service.CaptchaActionRegister, req.CaptchaToken, req.CaptchaAnswer, middleware.ClientIP(c)); err != nil {
 		errorResponse(c, err)
 		return
 	}
@@ -115,10 +106,6 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	if err := h.emailCode.Verify("login", req.Email, req.EmailCode); err != nil {
-		errorResponse(c, err)
-		return
-	}
-	if err := h.captcha.Verify(service.CaptchaActionLogin, req.CaptchaToken, req.CaptchaAnswer, middleware.ClientIP(c)); err != nil {
 		errorResponse(c, err)
 		return
 	}

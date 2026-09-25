@@ -15,33 +15,28 @@ import (
 
 type ArticleHandler struct {
 	articles *service.ArticleService
-	captcha  *service.CaptchaService
 }
 
-func NewArticleHandler(articles *service.ArticleService, captcha *service.CaptchaService) *ArticleHandler {
-	return &ArticleHandler{articles: articles, captcha: captcha}
+func NewArticleHandler(articles *service.ArticleService) *ArticleHandler {
+	return &ArticleHandler{articles: articles}
 }
 
 type articleRequest struct {
-	Title         string   `json:"title" binding:"required"`
-	Content       string   `json:"content" binding:"required"`
-	Status        string   `json:"status"`
-	CategoryID    *uint    `json:"category_id"`
-	Tags          []string `json:"tags"`
-	Cover         string   `json:"cover"`
-	CaptchaToken  string   `json:"captcha_token"`
-	CaptchaAnswer string   `json:"captcha_answer"`
+	Title      string   `json:"title" binding:"required"`
+	Content    string   `json:"content" binding:"required"`
+	Status     string   `json:"status"`
+	CategoryID *uint    `json:"category_id"`
+	Tags       []string `json:"tags"`
+	Cover      string   `json:"cover"`
 }
 
 type articleUpdateRequest struct {
-	Title         *string   `json:"title"`
-	Content       *string   `json:"content"`
-	Status        *string   `json:"status"`
-	CategoryID    **uint    `json:"category_id"`
-	Tags          *[]string `json:"tags"`
-	Cover         *string   `json:"cover"`
-	CaptchaToken  string    `json:"captcha_token"`
-	CaptchaAnswer string    `json:"captcha_answer"`
+	Title      *string   `json:"title"`
+	Content    *string   `json:"content"`
+	Status     *string   `json:"status"`
+	CategoryID **uint    `json:"category_id"`
+	Tags       *[]string `json:"tags"`
+	Cover      *string   `json:"cover"`
 }
 
 type articleResponse struct {
@@ -120,13 +115,6 @@ func (h *ArticleHandler) Create(c *gin.Context) {
 		return
 	}
 
-	if req.Status != model.ArticleDraft {
-		if err := h.captcha.Verify(service.CaptchaActionArticle, req.CaptchaToken, req.CaptchaAnswer, middleware.ClientIP(c)); err != nil {
-			errorResponse(c, err)
-			return
-		}
-	}
-
 	article, err := h.articles.Create(current.ID, service.ArticleInput{
 		Title:      req.Title,
 		Content:    req.Content,
@@ -162,19 +150,6 @@ func (h *ArticleHandler) Update(c *gin.Context) {
 	}
 
 	// 发布（或取消草稿）同样需要人机验证，与新建一致
-	nextStatus := ""
-	if req.Status != nil {
-		nextStatus = *req.Status
-	} else if st, gerr := h.articles.StatusForOwner(uint(id), current.ID); gerr == nil {
-		nextStatus = st
-	}
-	if nextStatus != model.ArticleDraft {
-		if err := h.captcha.Verify(service.CaptchaActionArticle, req.CaptchaToken, req.CaptchaAnswer, middleware.ClientIP(c)); err != nil {
-			errorResponse(c, err)
-			return
-		}
-	}
-
 	article, err := h.articles.Update(uint(id), current.ID, service.ArticleUpdate{
 		Title:      req.Title,
 		Content:    req.Content,
