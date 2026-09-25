@@ -12,12 +12,13 @@ import (
 type AuthHandler struct {
 	auth      *service.AuthService
 	emailCode *service.EmailCodeService
+	geetest   *service.GeetestService
 	limiter   *middleware.SlidingLimiter
 	logs      *service.LogService
 }
 
-func NewAuthHandler(auth *service.AuthService, emailCode *service.EmailCodeService, limiter *middleware.SlidingLimiter, logs *service.LogService) *AuthHandler {
-	return &AuthHandler{auth: auth, emailCode: emailCode, limiter: limiter, logs: logs}
+func NewAuthHandler(auth *service.AuthService, emailCode *service.EmailCodeService, geetest *service.GeetestService, limiter *middleware.SlidingLimiter, logs *service.LogService) *AuthHandler {
+	return &AuthHandler{auth: auth, emailCode: emailCode, geetest: geetest, limiter: limiter, logs: logs}
 }
 
 // resetAuthLimit clears the rate-limit budget for the caller after a
@@ -37,12 +38,14 @@ type registerRequest struct {
 	Username  string `json:"username" binding:"required"`
 	Password  string `json:"password" binding:"required"`
 	EmailCode string `json:"email_code"`
+	service.GeetestParams
 }
 
 type loginRequest struct {
 	Email     string `json:"email" binding:"required"`
 	Password  string `json:"password" binding:"required"`
 	EmailCode string `json:"email_code"`
+	service.GeetestParams
 }
 
 type refreshRequest struct {
@@ -60,6 +63,11 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	var req registerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请填写完整的注册信息"})
+		return
+	}
+
+	if err := h.geetest.Verify("register", req.GeetestParams); err != nil {
+		errorResponse(c, err)
 		return
 	}
 
@@ -102,6 +110,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	var req loginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请填写邮箱和密码"})
+		return
+	}
+
+	if err := h.geetest.Verify("login", req.GeetestParams); err != nil {
+		errorResponse(c, err)
 		return
 	}
 

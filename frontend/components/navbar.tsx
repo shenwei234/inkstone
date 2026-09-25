@@ -307,7 +307,7 @@ export function Navbar() {
         )}
       </AnimatePresence>
 
-      {/* 手机端菜单：背景冻结 + 毛玻璃弹出 */}
+      {/* 手机端菜单：背景冻结 + 弹出式毛玻璃卡片 */}
       <AnimatePresence>
         {navOpen && (
           <>
@@ -319,17 +319,17 @@ export function Navbar() {
               transition={{ duration: 0.2 }}
               onClick={() => setNavOpen(false)}
               aria-hidden
-              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm md:hidden"
+              className="fixed inset-x-0 bottom-0 top-16 z-40 bg-black/40 backdrop-blur-sm md:hidden"
             />
-            {/* 毛玻璃菜单面板 */}
+            {/* 毛玻璃菜单面板：fixed 弹出式卡片（背景滚动已锁定） */}
             <motion.div
               initial={{ opacity: 0, y: -12, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -12, scale: 0.98 }}
               transition={{ duration: 0.24, ease: easeOut }}
-              className="max-h-[calc(100vh-4rem)] overflow-y-auto border-t border-border bg-card/80 backdrop-blur-2xl md:hidden"
+              className="fixed left-4 right-4 top-[4.5rem] z-50 max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-2xl border border-border bg-card/95 p-3 shadow-2xl shadow-black/20 backdrop-blur-2xl md:hidden"
             >
-              <div className="mx-auto max-w-5xl space-y-4 px-4 py-4">
+              <div className="space-y-2">
                 <nav className="space-y-1">
                   {menuItems.map((item) => {
                     const active = isActive(item.href)

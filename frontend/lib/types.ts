@@ -95,6 +95,13 @@ export interface SiteSettings {
   security_block_minutes?: number
   email_code_on_register?: string
   email_code_on_login?: string
+  geetest_enabled?: boolean
+  geetest_captcha_id?: string
+  geetest_captcha_key?: string
+  geetest_captcha_key_set?: boolean
+  geetest_on_login?: boolean
+  geetest_on_register?: boolean
+  geetest_on_comment?: boolean
   site_wallpaper?: string
   wallpaper_opacity?: string
   wallpaper_blur?: string

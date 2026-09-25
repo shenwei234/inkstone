@@ -126,6 +126,23 @@ export interface EmailCodeConfig {
   on_login: boolean
 }
 
+/** 极验第四代人机验证：前台配置（通过 /site-config 下发，不含密钥） */
+export interface GeetestConfig {
+  enabled: boolean
+  on_login: boolean
+  on_register: boolean
+  on_comment: boolean
+  captcha_id: string
+}
+
+/** 极验验证通过后的凭证，随登录/注册/评论提交给后端做二次校验 */
+export interface GeetestCredential {
+  lot_number: string
+  captcha_output: string
+  pass_token: string
+  gen_time: string
+}
+
 /** 发送邮箱验证码 */
 export function sendEmailCode(email: string, purpose: 'register' | 'login') {
   return api<{ message: string }>('/auth/email-code', {
@@ -140,7 +157,7 @@ export function register(
   email: string,
   username: string,
   password: string,
-  extra?: { email_code?: string },
+  extra?: { email_code?: string } & Partial<GeetestCredential>,
 ) {
   return api<AuthResponse>('/auth/register', {
     method: 'POST',
@@ -151,7 +168,7 @@ export function register(
 export function login(
   email: string,
   password: string,
-  extra?: { email_code?: string },
+  extra?: { email_code?: string } & Partial<GeetestCredential>,
 ) {
   return api<AuthResponse>('/auth/login', {
     method: 'POST',
@@ -257,10 +274,14 @@ export function fetchComments(articleId: number | string) {
   return api<{ comments: CommentItem[] }>(`/articles/${articleId}/comments`)
 }
 
-export function postComment(articleId: number | string, content: string) {
+export function postComment(
+  articleId: number | string,
+  content: string,
+  extra?: Partial<GeetestCredential>,
+) {
   return api<{ comment: CommentItem }>(`/articles/${articleId}/comments`, {
     method: 'POST',
-    body: { content },
+    body: { content, ...extra },
     auth: true,
   })
 }

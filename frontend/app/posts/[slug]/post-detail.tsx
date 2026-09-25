@@ -29,6 +29,7 @@ import {
 import { useAuth } from '@/lib/auth-context'
 import { useNotify } from '@/components/toast'
 import { useSiteConfig } from '@/components/site-config-context'
+import { useGeetestCaptcha } from '@/components/geetest-captcha'
 import { PageTransition, easeOut } from '@/components/motion'
 import { SiteSidebar } from '@/components/site-sidebar'
 
@@ -39,6 +40,7 @@ export function PostDetail({ slug }: { slug: string }) {
   const queryClient = useQueryClient()
   const [commentText, setCommentText] = useState('')
   const site = useSiteConfig()
+  const captcha = useGeetestCaptcha('comment')
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['article', 'slug', slug],
@@ -66,13 +68,21 @@ export function PostDetail({ slug }: { slug: string }) {
   })
 
   const addComment = useMutation({
-    mutationFn: () => postComment(articleId!, commentText),
+    // 开启人机验证时先弹窗验证，通过后携带凭证提交
+    mutationFn: async () => {
+      const credential = captcha.enabled ? await captcha.run() : undefined
+      return postComment(articleId!, commentText, credential)
+    },
     onSuccess: () => {
       setCommentText('')
       queryClient.invalidateQueries({ queryKey: ['comments', articleId] })
       notify.success('评论已发布')
     },
-    onError: (e) => notify.error(e instanceof Error ? e.message : '评论失败'),
+    onError: (e) => {
+      // 用户主动关闭验证框时不打扰
+      if (e instanceof Error && e.message === '人机验证已取消') return
+      notify.error(e instanceof Error ? e.message : '评论失败')
+    },
   })
 
   const removeComment = useMutation({
@@ -399,6 +409,7 @@ export function PostDetail({ slug }: { slug: string }) {
       {showSidebar && site.sidebarPosition !== 'left' && (
         <SiteSidebar widgets={widgets} position="right" />
       )}
+      {captcha.dialog}
       </div>
     </PageTransition>
   )

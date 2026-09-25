@@ -104,6 +104,67 @@ body {
   animation: scale-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* 人机验证：成功对勾图标弹入 + 窗口退场动画 */
+@keyframes captcha-check-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes captcha-overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes captcha-pop-out {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.92) translateY(14px);
+  }
+}
+
+.captcha-check-pop {
+  animation: captcha-check-pop 0.35s cubic-bezier(0.34, 1.42, 0.5, 1) both;
+}
+
+.captcha-closing-overlay {
+  animation: captcha-overlay-out 0.22s ease-in both;
+}
+
+.captcha-closing-card {
+  animation: captcha-pop-out 0.22s ease-in both;
+}
+
+/* 极验 SDK 在入口按钮左缘渲染的蓝色装饰竖条：隐藏 */
+[data-geetest-box] .geetest_gradient_bar {
+  display: none !important;
+}
+
+/* 按钮内 svg 描边呼吸动画（stroke-dashoffset）与扫光层：禁用，
+   避免动画条贴着蓝环边框造成视觉错位/UI 撕裂 */
+[data-geetest-box] .geetest_btn_svg path {
+  animation: none !important;
+  stroke-dasharray: none !important;
+  stroke-dashoffset: 0 !important;
+}
+
+[data-geetest-box] .geetest_mask_layer {
+  display: none !important;
+}
+
 /* Respect reduced-motion preference */
 @media (prefers-reduced-motion: reduce) {
   *,

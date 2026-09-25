@@ -5,11 +5,12 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { fetchSiteConfig } from '@/lib/api'
+import { fetchSiteConfig, type GeetestCredential } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { ApiError } from '@/lib/api'
 import { useSiteConfig } from '@/components/site-config-context'
 import { EmailCodeInput } from '@/components/email-code-input'
+import { useGeetestCaptcha } from '@/components/geetest-captcha'
 import { easeOut } from '@/components/motion'
 import { inputClass } from '@/lib/ui'
 
@@ -18,6 +19,7 @@ export default function RegisterPage() {
   const { register } = useAuth()
   const site = useSiteConfig()
   const router = useRouter()
+  const captcha = useGeetestCaptcha('register')
   const [emailCode, setEmailCode] = useState('')
   const configQuery = useQuery({ queryKey: ['site-config'], queryFn: fetchSiteConfig })
   const registrationOpen = configQuery.data?.allow_registration !== false
@@ -27,17 +29,41 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    setError(null)
+  const doRegister = async (credential?: GeetestCredential) => {
     setSubmitting(true)
     try {
-      const newUser = await register(email, username, password, { email_code: emailCode })
+      const newUser = await register(email, username, password, {
+        email_code: emailCode,
+        ...credential,
+      })
       router.push(newUser.role === 'admin' ? '/admin' : '/')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '注册失败，请稍后重试')
       setSubmitting(false)
     }
+  }
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    setError(null)
+
+    // 开启人机验证时先弹窗验证，通过后携带凭证提交
+    if (captcha.enabled) {
+      setSubmitting(true)
+      let credential: GeetestCredential
+      try {
+        credential = await captcha.run()
+      } catch (err) {
+        setSubmitting(false)
+        // 用户主动关闭验证框时不展示错误提示
+        const msg = err instanceof Error ? err.message : '人机验证未完成'
+        if (msg !== '人机验证已取消') setError(msg)
+        return
+      }
+      await doRegister(credential)
+      return
+    }
+    await doRegister()
   }
 
     const fields = [
@@ -164,6 +190,7 @@ export default function RegisterPage() {
           </motion.form>
         </div>
       </motion.div>
+      {captcha.dialog}
     </div>
   )
 }

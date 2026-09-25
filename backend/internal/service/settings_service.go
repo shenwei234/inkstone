@@ -46,6 +46,14 @@ const (
 	SettingEmailCodeOnLogin    = "email_code_on_login"    // 登录需邮箱验证码
 	SettingEmailCodeTTLMinutes = "email_code_ttl_minutes" // 验证码有效期（分钟）
 
+	// 人机验证（极验第四代行为验证）
+	SettingGeetestEnabled    = "geetest_enabled"     // 总开关
+	SettingGeetestCaptchaID  = "geetest_captcha_id"  // 极验验证 ID（前台初始化用，非敏感）
+	SettingGeetestCaptchaKey = "geetest_captcha_key" // 极验密钥（仅服务端二次验证用，敏感字段）
+	SettingGeetestOnLogin    = "geetest_on_login"    // 登录需人机验证
+	SettingGeetestOnRegister = "geetest_on_register" // 注册需人机验证
+	SettingGeetestOnComment  = "geetest_on_comment"  // 评论/发表需人机验证
+
 	// 站点外观
 	SettingSiteWallpaper    = "site_wallpaper"    // 全站壁纸图片地址
 	SettingWallpaperOpacity = "wallpaper_opacity" // 壁纸不透明度（0-100）
@@ -89,6 +97,13 @@ var settingDefaults = map[string]string{
 	SettingEmailCodeOnLogin:    "false",
 	SettingEmailCodeTTLMinutes: "10",
 
+	SettingGeetestEnabled:    "false",
+	SettingGeetestCaptchaID:  "",
+	SettingGeetestCaptchaKey: "",
+	SettingGeetestOnLogin:    "false",
+	SettingGeetestOnRegister: "false",
+	SettingGeetestOnComment:  "false",
+
 	SettingSiteWallpaper:    "",
 	SettingWallpaperOpacity: "100",
 	SettingWallpaperBlur:    "0",
@@ -115,7 +130,8 @@ func decodeJSONSetting(value string) any {
 
 // maskKeys are never exposed through the public API.
 var maskKeys = map[string]bool{
-	SettingSMTPPass: true,
+	SettingSMTPPass:          true,
+	SettingGeetestCaptchaKey: true,
 }
 
 type SettingsService struct {

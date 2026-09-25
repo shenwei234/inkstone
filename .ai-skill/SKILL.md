@@ -92,6 +92,13 @@ errorResponse(c, err)                  // 统一错误响应
 ### 6. 敏感设置的「空值保护」
 `settings_service.Update()` 对 `maskKeys` 中的字段做了特殊处理：**提交空字符串 = 保持原值不变**（不会误删密钥）。新增敏感字段无需额外处理，登记 `maskKeys` 即可。
 
+### 7. 改完代码必须同步更新 skill 文档
+每次完成功能新增/bug 修复（跑通验证清单之外），**必须**同步更新文档：
+- 本文件（`SKILL.md`）：关键事实、目录导航、开发约定、常见坑（踩到的新坑也要记录）
+- 组件说明：`references/frontend.md`（新增/变更的组件、页面、状态管理逻辑）
+- 按改动范围联动：`references/api.md`（接口）、`references/settings.md`（设置项）、`references/data-models.md`（表结构）、`references/backend.md`（服务/中间件）
+- 全局 skill 目录与仓库内副本 `.ai-skill/` **两份都要改**，内容保持一致
+
 ## 前端约定
 
 ### 全局状态用 Context，服务端数据用 React Query
@@ -138,7 +145,9 @@ cd backend && gofmt -w . && go vet ./... && go build -o server.exe ./cmd/server
 cd frontend && npm run build && npx eslint app components lib --ext .ts,.tsx
 ```
 
-三项全绿才算完成。ESLint 必须 0 错误 0 警告。
+4. **文档同步**：按「开发铁律 §7」更新 SKILL.md（含仓库 `.ai-skill/` 副本）与 `references/frontend.md` 等组件说明。
+
+以上四项全绿才算完成。ESLint 必须 0 错误 0 警告。
 
 ## 常见坑（踩过的）
 
@@ -148,5 +157,8 @@ cd frontend && npm run build && npx eslint app components lib --ext .ts,.tsx
 | 前端新增 site-config 字段要双层透传 | `settings_service.Public()` 下发 + `site-config-context.tsx` 解构，缺一不可 |
 | 设置保存前端要显式带上字段 | `admin/settings/page.tsx` 的 payload 是白名单，新增设置项必须手动加入 |
 | 验证码配置无效应放行 | 见 `captcha_service.go`：未配置密钥/服务不可达时 `return nil`（避免锁死用户） |
+| GT4 弹窗必须真人点入口 | 极验 v4 无法用 `showBox()`/synthetic click 程序代弹验证面板；必须渲染可见的入口按钮（`geetest_btn_click`）让用户真实点击。入口容器要在视口内且不裁剪。init 需显式 `product: 'popup'` |
+| GT4 freeze_wait 卡死 | 点击入口后 class 停在 `geetest_boxShow geetest_freeze_wait`：多为极验后台该 captchaId 的域名白名单未含 `localhost` 或产品类型非「行为验证4.0 弹出式」。用官方 demo ID（7e111794121d87ca0959954f89580e1a）对照可秒判是 ID 配置还是代码问题 |
+| GT4 二次校验必传 captcha_id | 极验 v4 `/validate` 请求必须带 `captcha_id`（放 URL query），缺了返回 `-50101 not captcha_id`（status:error 结构，不是 result:fail）→ 前端验证已通过、后端必报不通过。签名是 `HMAC-SHA256(key=captcha_key, msg=lot_number)` |
 | 登录限流被误伤 | 登录成功会重置限流计数，失败才累计 |
 | 部署镜像需用国内源 | Dockerfile 用 `docker.m.daocloud.io`，Go 用 goproxy.cn，npm 用 npmmirror |

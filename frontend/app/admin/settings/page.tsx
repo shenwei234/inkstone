@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Globe, Image as ImageIcon, ImagePlus, Mail, Send, ShieldCheck, Trash2 } from 'lucide-react'
 import {
   fetchAdminSettings,
@@ -13,6 +13,7 @@ import {
 } from '@/lib/api'
 import { useNotify } from '@/components/toast'
 import { SecretInput } from '@/components/secret-input'
+import { useSiteConfigActions } from '@/components/site-config-context'
 import type { SiteSettings } from '@/lib/types'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
@@ -168,7 +169,7 @@ function ImageField({
 
 export default function AdminSettingsPage() {
   const notify = useNotify()
-  const queryClient = useQueryClient()
+  const { refresh: refreshSiteConfig } = useSiteConfigActions()
   const [form, setForm] = useState<SiteSettings | null>(null)
   const [smtpPass, setSmtpPass] = useState('')
   const [testTo, setTestTo] = useState('')
@@ -210,7 +211,10 @@ export default function AdminSettingsPage() {
     onSuccess: (res) => {
       setForm(res.settings)
       setSmtpPass('')
-      queryClient.invalidateQueries({ queryKey: ['site-config'] })
+      // 立即刷新站点配置：favicon、Logo、站点标题等前台即时生效
+      refreshSiteConfig()
+      // 通知其他标签页（前台页面）也刷新配置
+      localStorage.setItem('site-config-reload', String(Date.now()))
       notify.success('设置已保存')
     },
     onError: (e) => notify.error(e instanceof ApiError ? e.message : '保存失败'),

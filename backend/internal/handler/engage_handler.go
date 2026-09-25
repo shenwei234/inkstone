@@ -42,15 +42,17 @@ func (h *TaxonomyHandler) ListTags(c *gin.Context) {
 type CommentHandler struct {
 	comments *service.CommentService
 	tokens   *service.TokenManager
+	geetest  *service.GeetestService
 	limiter  *middleware.SlidingLimiter
 }
 
-func NewCommentHandler(comments *service.CommentService, tokens *service.TokenManager, limiter *middleware.SlidingLimiter) *CommentHandler {
-	return &CommentHandler{comments: comments, tokens: tokens, limiter: limiter}
+func NewCommentHandler(comments *service.CommentService, tokens *service.TokenManager, geetest *service.GeetestService, limiter *middleware.SlidingLimiter) *CommentHandler {
+	return &CommentHandler{comments: comments, tokens: tokens, geetest: geetest, limiter: limiter}
 }
 
 type createCommentRequest struct {
 	Content string `json:"content" binding:"required"`
+	service.GeetestParams
 }
 
 // Create handles POST /articles/:id/comments.
@@ -67,6 +69,10 @@ func (h *CommentHandler) Create(c *gin.Context) {
 	var req createCommentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "评论内容不能为空"})
+		return
+	}
+	if err := h.geetest.Verify("comment", req.GeetestParams); err != nil {
+		errorResponse(c, err)
 		return
 	}
 	comment, err := h.comments.Create(uint(articleID), current.ID, req.Content)

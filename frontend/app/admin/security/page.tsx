@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Gauge, KeyRound, Mail, ShieldCheck } from 'lucide-react'
+import { Fingerprint, Gauge, KeyRound, Mail, ShieldCheck } from 'lucide-react'
 import { fetchAdminSettings, updateAdminSettings, ApiError } from '@/lib/api'
 import { useNotify } from '@/components/toast'
+import { SecretInput } from '@/components/secret-input'
 import { PageTransition } from '@/components/motion'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
@@ -22,6 +23,13 @@ interface SecurityForm {
   security_block_minutes: number
   email_code_on_register: boolean
   email_code_on_login: boolean
+  geetest_enabled: boolean
+  geetest_captcha_id: string
+  geetest_captcha_key: string
+  geetest_captcha_key_set: boolean
+  geetest_on_login: boolean
+  geetest_on_register: boolean
+  geetest_on_comment: boolean
 }
 
 function Toggle({
@@ -110,6 +118,13 @@ export default function AdminSecurityPage() {
         security_block_minutes: toNum(s.security_block_minutes, 15),
         email_code_on_register: toBool(s.email_code_on_register, false),
         email_code_on_login: toBool(s.email_code_on_login, false),
+        geetest_enabled: toBool(s.geetest_enabled, false),
+        geetest_captcha_id: typeof s.geetest_captcha_id === 'string' ? s.geetest_captcha_id : '',
+        geetest_captcha_key: '',
+        geetest_captcha_key_set: toBool(s.geetest_captcha_key_set, false),
+        geetest_on_login: toBool(s.geetest_on_login, false),
+        geetest_on_register: toBool(s.geetest_on_register, false),
+        geetest_on_comment: toBool(s.geetest_on_comment, false),
       })
     }, 0)
     return () => clearTimeout(t)
@@ -118,6 +133,9 @@ export default function AdminSecurityPage() {
   const save = useMutation({
     mutationFn: () => {
       const payload: Record<string, unknown> = { ...form }
+      // 密钥留空 = 保持原值（后端对敏感字段做空值保护，这里不透传只读标记）
+      delete payload.geetest_captcha_key_set
+      if (!form!.geetest_captcha_key) delete payload.geetest_captcha_key
       return updateAdminSettings(payload as never)
     },
     onSuccess: () => {
@@ -255,10 +273,85 @@ export default function AdminSecurityPage() {
           </div>
         </Section>
 
+        <Section icon={<Fingerprint className="h-4 w-4 text-indigo-500" />} title="人机验证（极验第四代）">
+          <p className="text-xs text-muted-foreground">
+            开启后，登录 / 注册 / 发表评论提交时会弹出极验行为验证（滑块或点选文字），
+            阻挡机器脚本与批量攻击。需先在{' '}
+            <a
+              href="https://www.geetest.com"
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-accent hover:underline underline-offset-4"
+            >
+              极验官网
+            </a>
+            {' '}获取 captchaId 与 captchaKey。
+          </p>
+          <div className="mt-2 divide-y divide-border border-t border-border">
+            <Toggle
+              checked={form.geetest_enabled}
+              onChange={(v) => update('geetest_enabled', v)}
+              label="启用人机验证"
+              desc="总开关；关闭后下方场景全部失效"
+            />
+            <Toggle
+              checked={form.geetest_on_login}
+              onChange={(v) => update('geetest_on_login', v)}
+              label="登录需人机验证"
+              desc="用户点击登录时先弹窗验证"
+            />
+            <Toggle
+              checked={form.geetest_on_register}
+              onChange={(v) => update('geetest_on_register', v)}
+              label="注册需人机验证"
+              desc="抵御批量注册小号"
+            />
+            <Toggle
+              checked={form.geetest_on_comment}
+              onChange={(v) => update('geetest_on_comment', v)}
+              label="发表评论需人机验证"
+              desc="评论/发帖提交前先验证"
+            />
+          </div>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">验证 ID（captchaId）</label>
+              <input
+                value={form.geetest_captcha_id}
+                onChange={(e) => update('geetest_captcha_id', e.target.value)}
+                placeholder="极验后台获取，形如 8342ecxxxx0a56c73d8b0a2f8xxxxxx"
+                className={inputClass}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">
+                验证密钥（captchaKey）
+                {form.geetest_captcha_key_set && (
+                  <span className="ml-2 text-xs text-emerald-600 dark:text-emerald-400">
+                    已配置（留空保持不变）
+                  </span>
+                )}
+              </label>
+              <SecretInput
+                key={`geetest-key-${form.geetest_captcha_key_set ? 'set' : 'unset'}`}
+                value={form.geetest_captcha_key}
+                onChange={(v) => update('geetest_captcha_key', v)}
+                isSet={form.geetest_captcha_key_set}
+                placeholder={form.geetest_captcha_key_set ? '已保存，重新输入可覆盖' : '未设置'}
+                className={inputClass}
+              />
+            </div>
+          </div>
+          <p className="mt-3 rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+            说明：密钥仅保存在服务端用于二次校验，不会下发到浏览器；若已开启场景但未填写 captchaId /
+            密钥，或极验服务不可达时自动放行，不会把用户锁死在登录之外。
+          </p>
+        </Section>
+
         <Section icon={<KeyRound className="h-4 w-4 text-amber-500" />} title="安全建议">
           <ul className="space-y-1.5 text-sm text-muted-foreground">
             <li>· 生产环境务必修改 JWT_SECRET 与数据库密码</li>
-            <li>· 建议结合「访问限流」与「邮箱验证码」，抵御垃圾注册与暴力破解</li>
+            <li>· 建议结合「人机验证」「访问限流」与「邮箱验证码」，抵御垃圾注册与暴力破解</li>
             <li>· 全站已自动附加 X-Frame-Options、X-Content-Type-Options、Referrer-Policy 等安全响应头</li>
             <li>· 使用 HTTPS（Caddy/Nginx）可进一步保护传输安全</li>
           </ul>

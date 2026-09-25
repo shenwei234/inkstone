@@ -1,8 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { fetchSiteConfig } from '@/lib/api'
-import type { EmailCodeConfig } from '@/lib/api'
+import { fetchSiteConfig, type EmailCodeConfig, type GeetestConfig } from '@/lib/api'
 
 export interface NavMenuItem {
   label: string
@@ -44,6 +43,7 @@ export interface SiteConfig {
   widgets: SidebarWidget[]
   sidebarPosition: 'left' | 'right'
   emailCode: EmailCodeConfig
+  geetest: GeetestConfig
   wallpaper: string
   wallpaperOpacity: number
   wallpaperBlur: number
@@ -51,6 +51,14 @@ export interface SiteConfig {
   allowRegistration: boolean
   maintenanceMode: boolean
   loaded: boolean
+}
+
+const DEFAULT_GEETEST: GeetestConfig = {
+  enabled: false,
+  on_login: false,
+  on_register: false,
+  on_comment: false,
+  captcha_id: '',
 }
 
 const DEFAULT_CONFIG: SiteConfig = {
@@ -63,6 +71,7 @@ const DEFAULT_CONFIG: SiteConfig = {
   widgets: [],
   sidebarPosition: 'right',
   emailCode: { on_register: false, on_login: false },
+  geetest: DEFAULT_GEETEST,
   wallpaper: '',
   wallpaperOpacity: 100,
   wallpaperBlur: 0,
@@ -91,6 +100,7 @@ interface RawSiteConfig {
   sidebar_widgets?: unknown
   sidebar_position?: string
   email_code?: Partial<EmailCodeConfig>
+  geetest?: Partial<GeetestConfig>
   site_wallpaper?: string
   wallpaper_opacity?: string
   wallpaper_blur?: string
@@ -160,6 +170,13 @@ export function SiteConfigProvider({ children }: { children: ReactNode }) {
             on_register: cfg.email_code?.on_register ?? false,
             on_login: cfg.email_code?.on_login ?? false,
           },
+          geetest: {
+            enabled: cfg.geetest?.enabled === true,
+            on_login: cfg.geetest?.on_login === true,
+            on_register: cfg.geetest?.on_register === true,
+            on_comment: cfg.geetest?.on_comment === true,
+            captcha_id: cfg.geetest?.captcha_id ?? '',
+          },
           wallpaper: cfg.site_wallpaper ?? '',
           wallpaperOpacity: Number(cfg.wallpaper_opacity ?? 100) || 100,
           wallpaperBlur: Number(cfg.wallpaper_blur ?? 0) || 0,
@@ -178,14 +195,28 @@ export function SiteConfigProvider({ children }: { children: ReactNode }) {
 
         // Apply browser tab title and favicon dynamically.
         document.title = next.siteName
+        const iconLink = document.querySelector<HTMLLinkElement>("link[rel~='icon']")
         if (next.siteFavicon) {
-          let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']")
+          let link = iconLink
           if (!link) {
             link = document.createElement('link')
             link.rel = 'icon'
             document.head.appendChild(link)
           }
+          // 记录 Next 自动注入的默认图标地址，便于之后清除自定义图标时还原
+          if (!link.dataset.defaultHref) {
+            link.dataset.defaultHref = link.getAttribute('href') ?? ''
+          }
           link.href = next.siteFavicon
+        } else if (iconLink) {
+          // 清除自定义 favicon：还原默认图标（无默认记录则直接移除该 link）
+          const defaultHref = iconLink.dataset.defaultHref
+          if (defaultHref) {
+            iconLink.setAttribute('href', defaultHref)
+            delete iconLink.dataset.defaultHref
+          } else {
+            iconLink.remove()
+          }
         }
       })
       .catch(() => setConfig((c) => ({ ...c, loaded: true })))
@@ -193,6 +224,16 @@ export function SiteConfigProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     loadConfig()
+  }, [loadConfig])
+
+  // 其他标签页（如后台保存设置）写入标记后，本地重新拉取配置，
+  // 保证 favicon、站点标题等后台改动在前台立即同步，无需手动刷新
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'site-config-reload') loadConfig()
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
   }, [loadConfig])
 
   const actions = useMemo<SiteConfigActions>(() => ({ refresh: loadConfig }), [loadConfig])
