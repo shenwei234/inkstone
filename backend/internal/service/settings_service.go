@@ -25,10 +25,12 @@ const (
 	SettingSMTPPort          = "smtp_port" // string digits
 	SettingSMTPUser          = "smtp_user"
 	SettingSMTPPass          = "smtp_pass"
-	SettingSMTPFrom          = "smtp_from" // From header, e.g. "Blog <no-reply@x.com>"
-	SettingUpdateManifest    = "update_manifest_url"
-	SettingUpdateScriptPath  = "update_script_path"  // 服务器上一键更新脚本的绝对路径
-	SettingUpdateAutoRestart = "update_auto_restart" // "true"/"false" 更新后是否自动重启服务
+	SettingSMTPFrom          = "smtp_from"           // From header, e.g. "Blog <no-reply@x.com>"
+	SettingUpdateServerURL   = "update_server_url"   // 更新推送后台地址（D:\Update 部署的服务）
+	SettingUpdateToken       = "update_token"        // 推送后台颁发的客户端访问令牌（敏感字段）
+	SettingUpdateAuto        = "update_auto"         // "true"/"false" 收到推送后是否自动执行更新
+	SettingUpdateRepoDir     = "update_repo_dir"     // 镜像包 git 仓库在服务器上的检出目录
+	SettingUpdateComposeFile = "update_compose_file" // 仓库内的 docker compose 编排文件名
 	SettingUploadMaxMB       = "upload_max_mb"       // 文件管理：最大上传大小（MB）
 	SettingUploadSpeedKB     = "upload_speed_kb"     // 文件管理：上传限速（KB/s，0=不限）
 	SettingDownloadSpeedKB   = "download_speed_kb"   // 文件管理：下载限速（KB/s，0=不限）
@@ -79,9 +81,11 @@ var settingDefaults = map[string]string{
 	SettingSMTPUser:          "",
 	SettingSMTPPass:          "",
 	SettingSMTPFrom:          "",
-	SettingUpdateManifest:    "",
-	SettingUpdateScriptPath:  "/usr/local/bin/inkstone-update.sh",
-	SettingUpdateAutoRestart: "true",
+	SettingUpdateServerURL:   "",
+	SettingUpdateToken:       "",
+	SettingUpdateAuto:        "true",
+	SettingUpdateRepoDir:     "/opt/inkstone-images",
+	SettingUpdateComposeFile: "docker-compose.offline.yml",
 	SettingUploadMaxMB:       "50",
 	SettingUploadSpeedKB:     "0",
 	SettingDownloadSpeedKB:   "0",
@@ -132,6 +136,7 @@ func decodeJSONSetting(value string) any {
 var maskKeys = map[string]bool{
 	SettingSMTPPass:          true,
 	SettingGeetestCaptchaKey: true,
+	SettingUpdateToken:       true,
 }
 
 type SettingsService struct {

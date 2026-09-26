@@ -9,10 +9,10 @@ import (
 
 type SystemHandler struct {
 	settings *service.SettingsService
-	updates  *service.UpdateRunner
+	updates  *service.UpdateAgent
 }
 
-func NewSystemHandler(settings *service.SettingsService, updates *service.UpdateRunner) *SystemHandler {
+func NewSystemHandler(settings *service.SettingsService, updates *service.UpdateAgent) *SystemHandler {
 	return &SystemHandler{settings: settings, updates: updates}
 }
 
@@ -25,100 +25,77 @@ func (h *SystemHandler) Info(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"info": service.BuildSystemInfo(name)})
 }
 
-// Changelog handles GET /admin/updates — current version + changelog.
+// Changelog handles GET /admin/updates — current version + changelog + push config & status.
 func (h *SystemHandler) Changelog(c *gin.Context) {
-	manifestURL, _ := h.settings.Get(service.SettingUpdateManifest)
 	c.JSON(http.StatusOK, gin.H{
-		"current":      service.AppVersion,
-		"changelog":    service.ChangelogList(),
-		"manifest_url": manifestURL,
-		"version":      service.AppVersion,
+		"current":   service.AppVersion,
+		"changelog": service.ChangelogList(),
+		"version":   service.AppVersion,
+		"config":    h.updates.Config(),
+		"status":    h.updates.Status(),
 	})
 }
-
-// CheckUpdates handles POST /admin/updates/check.
-func (h *SystemHandler) CheckUpdates(c *gin.Context) {
-	manifestURL, _ := h.settings.Get(service.SettingUpdateManifest)
-	result, err := service.CheckUpdates(manifestURL)
-	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, result)
-}
-
-type saveManifestRequest struct {
-	ManifestURL string `json:"manifest_url" binding:"required"`
-}
-
-// SaveManifestURL handles PUT /admin/updates/manifest.
-func (h *SystemHandler) SaveManifestURL(c *gin.Context) {
-	var req saveManifestRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请填写更新清单地址"})
-		return
-	}
-	if err := h.settings.Update(map[string]any{
-		service.SettingUpdateManifest: req.ManifestURL,
-	}); err != nil {
-		errorResponse(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"message": "更新源已保存"})
-}
-
-// ———— 一键更新 ————
 
 // UpdateStatus handles GET /admin/updates/status — current update state & live logs.
 func (h *SystemHandler) UpdateStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": h.updates.Status()})
 }
 
-// ApplyUpdate handles POST /admin/updates/apply — trigger the server update script.
-func (h *SystemHandler) ApplyUpdate(c *gin.Context) {
-	if err := h.updates.Start(); err != nil {
-		errorResponse(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"status": h.updates.Status(), "message": "已开始更新"})
-}
-
-// UpdateScript handles GET /admin/updates/script — the recommended script template.
-func (h *SystemHandler) UpdateScript(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"script": service.UpdateScriptTemplate,
-		"path":   h.updates.Status().ScriptPath,
-	})
-}
-
 type saveUpdateConfigRequest struct {
-	ScriptPath  string `json:"script_path"`
-	AutoRestart *bool  `json:"auto_restart"`
+	ServerURL   string `json:"server_url"`
+	Token       string `json:"token"`
+	Auto        bool   `json:"auto"`
+	RepoDir     string `json:"repo_dir"`
+	ComposeFile string `json:"compose_file"`
 }
 
-// SaveUpdateConfig handles PUT /admin/updates/config — script path & auto-restart toggle.
+// SaveUpdateConfig handles PUT /admin/updates/config — push server URL/token/paths.
 func (h *SystemHandler) SaveUpdateConfig(c *gin.Context) {
 	var req saveUpdateConfigRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求体格式错误"})
 		return
 	}
-	payload := map[string]any{}
-	if req.ScriptPath != "" {
-		payload[service.SettingUpdateScriptPath] = req.ScriptPath
+	if err := h.updates.SaveConfig(service.UpdateConfigInput{
+		ServerURL:   req.ServerURL,
+		Token:       req.Token,
+		Auto:        req.Auto,
+		RepoDir:     req.RepoDir,
+		ComposeFile: req.ComposeFile,
+	}); err != nil {
+		errorResponse(c, err)
+		return
 	}
-	if req.AutoRestart != nil {
-		val := "false"
-		if *req.AutoRestart {
-			val = "true"
-		}
-		payload[service.SettingUpdateAutoRestart] = val
+	c.JSON(http.StatusOK, gin.H{"config": h.updates.Config(), "message": "更新配置已保存"})
+}
+
+// CheckUpdates handles POST /admin/updates/check — poll the push server once.
+func (h *SystemHandler) CheckUpdates(c *gin.Context) {
+	if h.updates.Status().Running {
+		c.JSON(http.StatusConflict, gin.H{"error": "正在更新中，请稍候"})
+		return
 	}
-	if len(payload) > 0 {
-		if err := h.settings.Update(payload); err != nil {
-			errorResponse(c, err)
-			return
-		}
+	task, err := h.updates.CheckOnce()
+	if err != nil {
+		errorResponse(c, err)
+		return
 	}
-	c.JSON(http.StatusOK, gin.H{"status": h.updates.Status(), "message": "更新配置已保存"})
+	if task == nil {
+		c.JSON(http.StatusOK, gin.H{"task": nil, "message": "当前已是最新版本"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"task": task, "message": "发现新版本 " + task.Version + "，可执行更新"})
+}
+
+// ApplyUpdate handles POST /admin/updates/apply — poll and run the update task.
+func (h *SystemHandler) ApplyUpdate(c *gin.Context) {
+	if h.updates.Status().Running {
+		c.JSON(http.StatusConflict, gin.H{"error": "已有更新正在执行，请稍候"})
+		return
+	}
+	if err := h.updates.ApplyNow(); err != nil {
+		errorResponse(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": h.updates.Status(), "message": "已开始更新"})
 }

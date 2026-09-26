@@ -65,7 +65,8 @@ func main() {
 	sitemapHandler := handler.NewSitemapHandler(articleSvc, pageSvc, taxonomyRepo, cfg.FrontendURL)
 	settingsHandler := handler.NewSettingsHandler(settingsSvc, mailer, emailCodeSvc, geetestSvc)
 	pageHandler := handler.NewPageHandler(pageSvc)
-	systemHandler := handler.NewSystemHandler(settingsSvc, service.NewUpdateRunner(settingsSvc))
+	updateAgent := service.NewUpdateAgent(settingsSvc, cfg.FrontendURL)
+	systemHandler := handler.NewSystemHandler(settingsSvc, updateAgent)
 	linkHandler := handler.NewLinkHandler(linkSvc)
 	fileHandler := handler.NewFileHandler(fileSvc, cfg.PublicAPIURL)
 	statHandler := handler.NewStatHandler(statSvc)
@@ -159,6 +160,9 @@ func main() {
 
 	uploadsHandler := handler.NewUploadsHandler(cfg)
 
+	// 启动更新代理：定时轮询「更新推送后台」，收到新版本后自动 git 拉镜像 → docker load → compose 替换部署。
+	updateAgent.Start()
+
 	api := router.Group("/api/v1", rateLimitMiddle)
 	{
 		uploads := api.Group("/uploads", middleware.Auth(tokens, userStatusOK))
@@ -238,11 +242,9 @@ func main() {
 			admin.PUT("/settings", settingsHandler.Update)
 			admin.POST("/settings/test-mail", settingsHandler.TestMail)
 			admin.GET("/updates", systemHandler.Changelog)
-			admin.POST("/updates/check", systemHandler.CheckUpdates)
-			admin.PUT("/updates/manifest", systemHandler.SaveManifestURL)
 			admin.GET("/updates/status", systemHandler.UpdateStatus)
+			admin.POST("/updates/check", systemHandler.CheckUpdates)
 			admin.POST("/updates/apply", systemHandler.ApplyUpdate)
-			admin.GET("/updates/script", systemHandler.UpdateScript)
 			admin.PUT("/updates/config", systemHandler.SaveUpdateConfig)
 			admin.GET("/links", linkHandler.ListAdmin)
 			admin.POST("/links", linkHandler.Create)

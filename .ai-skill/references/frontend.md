@@ -27,7 +27,7 @@ app/                          # 路由（App Router）
     ├── appearance/           # 外观（菜单/小工具/侧边栏位置）
     ├── security/             # 安全防护（验证码/限流/邮箱验证）
     ├── settings/             # 网站管理（站点信息/壁纸/SMTP）
-    ├── updates/              # 系统更新
+    ├── updates/              # 系统更新（推送后台连接/检查/立即更新/日志/变更日志）
     └── about/                # 关于系统
 
 components/                   # 组件
@@ -245,6 +245,14 @@ easeOut  // 统一缓动曲线 [0.16, 1, 0.3, 1]
 ### 管理后台（`app/admin/`）
 - `layout.tsx` 做**权限守卫**：未登录跳 `/login`，非管理员显示「需要管理员权限」
 - 侧边栏 11 个入口，用 `layoutId="admin-nav-pill"` 做滑动高亮
+
+#### 系统更新页（`app/admin/updates/page.tsx`）
+连接「更新推送后台」的实例端界面：
+- 主卡片：当前版本、推送后台在线状态（绿点）、「检查更新」/「立即更新」按钮（更新用 `notify.confirm` 二次确认）
+- 待更新任务卡：展示新版本号、更新说明（多行）、镜像仓库地址/分支/镜像包/编排文件名
+- 进度与日志：`GsapProgress` 不确定进度条 + 等宽字体日志框（running 时 2s 轮询并自动滚底）
+- 推送服务配置（折叠）：`server_url`、`token`（已设置显示占位符，留空=保持原值）、`auto` 自动更新开关、`repo_dir`、`compose_file`
+- 底部：changelog 列表（来自 `GET /admin/updates`）
 
 ### 用户中心（`app/me/page.tsx`）
 所有登录用户可用：账户安全（改用户名/密码）、我的文章、我的评论。

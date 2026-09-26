@@ -180,19 +180,81 @@ docker run --rm -v inkstone_uploads_data:/data -v $(pwd):/backup alpine \
 cat backup.sql | docker exec -i blog-postgres psql -U blog blog_platform
 ```
 
-## 更新版本
+## 更新版本（推送后台 + 镜像包 git 仓库）
+
+新更新体系由两部分组成：
+
+1. **更新推送后台**（`D:\Update`，独立 Go+Gin 单二进制服务）：发布版本、管理实例
+2. **镜像包 git 仓库**：存放 `inkstone-images.tar`（docker save 导出）与 `docker-compose.offline.yml`
+
+**生产推送后台**：https://update.shenv.top（服务器 47.116.16.181，systemd `inkstone-update.service`，
+只绑 `127.0.0.1:9090`，Nginx 443 反代，LE 证书 acme.sh 自动续期）。
+客户端侧「推送服务配置」服务地址填 `https://update.shenv.top`，令牌在推送后台「注册令牌」页生成（每个实例一个）。
+
+### 1. 镜像包 git 仓库结构（根目录即部署目录）
+
+```text
+inkstone-images/                  # git 仓库
+├── inkstone-images.tar           # docker save 导出的镜像包
+├── docker-compose.offline.yml    # 离线编排（image: 引用，不 build）
+└── .env                          # 服务器本地维护，不进 git（pull 不覆盖未跟踪文件）
+```
+
+本地打包命令：
+
+```powershell
+docker build -t inkstone-backend:latest "D:\blog-platform-release\blog-platform\backend"
+docker build -t inkstone-frontend:latest --build-arg NEXT_PUBLIC_API_URL=https://blog.shenv.top/api/v1 "D:\blog-platform-release\blog-platform\frontend"
+docker save -o inkstone-images.tar inkstone-backend:latest inkstone-frontend:latest
+git add inkstone-images.tar docker-compose.offline.yml
+git commit -m "release Beta1.1"
+git push
+```
+
+### 2. 更新推送后台部署（/opt/inkstone-update）
 
 ```bash
-# 离线方式（推荐）
-# 本地：重新 build + save → 上传 → 服务器：
-docker load -i inkstone-images.tar
-docker compose up -d
-
-# 源码方式
-git pull && docker compose up -d --build
-
-# 数据库结构变更会在后端启动时自动迁移（GORM AutoMigrate）
+PORT=9090 DATA_DIR=/opt/inkstone-update/data ADMIN_PASSWORD=<强密码> nohup ./update-server > run.log 2>&1 &
 ```
+
+初始管理密码 `admin`（或 `ADMIN_PASSWORD`，仅首次生效），登录后立即在页面右上角修改。
+Nginx 反代必须与博客同为 https（浏览器混合内容策略会拦截 http 请求）：
+
+```nginx
+server {
+    server_name update.shenv.top;
+    location / { proxy_pass http://127.0.0.1:9090; include /etc/nginx/proxy_params; }
+}
+```
+
+### 3. 连接博客实例
+
+博客后台 →「系统更新 → 推送服务配置」：
+
+| 配置项 | 示例 |
+|---|---|
+| 推送后台服务地址 | `https://update.shenv.top` |
+| 访问令牌 | 推送后台「注册令牌」页生成（每个实例一个） |
+| 镜像包 git 仓库检出目录 | `/opt/inkstone-images` |
+| docker compose 编排文件名 | `docker-compose.offline.yml` |
+
+保存后实例每 60s 轮询一次；`auto` 开启时收到新版本自动更新，关闭时仅在页面提醒、手动点「立即更新」。
+
+### 4. 发布新版本
+
+推送后台 →「版本发布」填版本号（如 `Beta1.1`）、更新说明、镜像仓库地址/分支/镜像包/编排 → 创建 → 点「发布」。
+所有实例 60s 内收到任务并执行：
+
+```bash
+git clone --depth 1 --branch <branch> <repo_url> <repo_dir>   # 首次
+git -C <repo_dir> fetch origin <branch> && git -C <repo_dir> reset --hard FETCH_HEAD  # 增量
+docker load -i <repo_dir>/inkstone-images.tar
+docker compose -f docker-compose.offline.yml up -d              # 替换部署（backend 自身会重建）
+```
+
+「客户端实例」页可查看每个站点的当前版本/目标版本/更新状态/心跳；更新失败可重新点「发布」再次推送。
+
+**故障提示**：backend 容器更新时会被自身替换，进程日志随之清断，最终状态以推送后台显示的版本为准。
 
 ---
 
@@ -241,5 +303,6 @@ mkdir -p /etc/nginx/ssl
 | 离线部署配置包 | `D:\blog-platform-release\inkstone-offline-deploy.zip` |
 | Docker 镜像包 | `D:\blog-platform-release\inkstone-images.tar` |
 | 源码压缩包 | `D:\blog-platform-release\inkstone-latest.zip` |
+| 更新推送后台（版本发布/推送） | `D:\Update`（Go+Gin 单二进制，默认端口 9090） |
 | GitHub 仓库 | `https://github.com/shenwei234/inkstone` |
 | 生产站点 | `https://blog.shenv.top` |

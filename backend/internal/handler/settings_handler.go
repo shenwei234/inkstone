@@ -56,7 +56,10 @@ func (h *SettingsHandler) Update(c *gin.Context) {
 
 // SiteConfig handles GET /api/v1/site-config — non-sensitive settings for
 // the frontend (registration switch, site name, etc).
+// Cache-Control: no-store 必须设置：浏览器启发式缓存会让后台开启人机验证后，
+// 前端仍读到旧的 geetest.enabled=false，导致不弹验证直接提交被拒。
 func (h *SettingsHandler) SiteConfig(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
 	out, err := h.settings.Public()
 	if err != nil {
 		errorResponse(c, err)

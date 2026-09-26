@@ -1,9 +1,12 @@
+# ===== 数据 / 上传（开发期产物，禁止提交）=====
+/data/
+/backend/data/
+
 # ===== 后端 =====
 backend/server
 backend/server.exe
 backend/server.exe~
 backend/tmp/
-backend/data/
 *.exe
 
 # ===== 前端 =====

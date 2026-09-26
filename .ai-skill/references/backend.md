@@ -219,6 +219,31 @@ AdminView()                    // 管理视图（maskKeys 转为 xxx_set）
 - 内存存储（单实例），6 位数字，10 分钟过期，5 次错误锁定
 - 邮件发送通过 `MailSender` 接口注入（**避免 service → mailer 循环依赖**）
 
+### UpdateAgent（`service/update_agent.go`，更新推送后台实例端）
+博客实例侧自动更新编排，`main.go` 中 `NewUpdateAgent(settingsSvc, cfg.FrontendURL).Start()` 启动。
+
+```go
+Config()                    // 推送配置视图（token 只回传 token_set）
+SaveConfig(UpdateConfigInput) // 保存（token 空 = 保持原值，走 maskKeys 机制）
+CheckOnce() (*UpdateTask, error) // 立即轮询一次（不执行）
+ApplyNow() error            // 轮询 + 执行；无可用更新返回 ValidationError
+Status() UpdateStatus       // phase/running/logs/task（每 2s 可轮询）
+```
+
+**更新执行序列**（`runUpdateSteps`，每步输出实时进内存日志）：
+1. 仓库目录无 `.git` → `git clone --depth 1 --branch <branch> <repo_url> <repo_dir>`；否则 `git fetch` + `git reset --hard FETCH_HEAD`（**reset 不动未跟踪文件**，服务器本地 `.env` 安全）
+2. `docker load -i <repo_dir>/<tar_name>`（默认 `inkstone-images.tar`）
+3. `docker compose -f <compose_file> up -d`（workdir = 仓库目录）
+
+**关键设计**：
+- 第 3 步会重建 backend 容器自身，进程可能被中途 kill，`success` 上报不保证到达；推送后台会在实例重启后的下次轮询时按上报版本自动纠正状态
+- 轮询协程每 60s 一次（`updatePollInterval`），未配置 `server_url`/`token` 时静默跳过
+- 命令执行统一 30 分钟超时强杀；版本比较由推送后台负责（Beta1.0 数字段解析：Beta1.0 → [1,0]）
+
+**推送后台（D:\Update）**：独立 Go+Gin 单二进制服务（go:embed 内嵌管理页面），默认端口 9090，
+`DATA_DIR`（默认 ./data）下 `store.json` 存版本/实例/管理密码。其客户端 API 契约：
+`POST /api/client/poll`（心跳+取任务）、`POST /api/client/report`（进度上报），Bearer token 认证。
+
 ---
 
 ## 已知设计取舍

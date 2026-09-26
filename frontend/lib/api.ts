@@ -662,36 +662,28 @@ export interface ChangelogEntry {
   items: string[]
 }
 
-export interface UpdateCheckResult {
-  current: string
-  latest: string
-  has_update: boolean
-  notes?: string[]
-  download_url?: string
-  message: string
-  manifest_url: string
-}
-
 export function fetchSystemInfo() {
   return api<{ info: SystemInfo }>('/system/info')
 }
 
-export function fetchUpdateInfo() {
-  return api<{ current: string; changelog: ChangelogEntry[]; manifest_url: string }>('/admin/updates', {
-    auth: true,
-  })
+// ---------- 系统更新（更新推送后台联动） ----------
+
+export interface UpdateTask {
+  version: string
+  notes: string
+  repo_url: string
+  branch: string
+  tar_name: string
+  compose_file: string
 }
 
-export function checkSystemUpdates() {
-  return api<UpdateCheckResult>('/admin/updates/check', { method: 'POST', auth: true })
-}
-
-export function saveUpdateManifest(url: string) {
-  return api<{ message: string }>('/admin/updates/manifest', {
-    method: 'PUT',
-    body: { manifest_url: url },
-    auth: true,
-  })
+export interface UpdateConfig {
+  server_url: string
+  token_set: boolean
+  auto: boolean
+  repo_dir: string
+  compose_file: string
+  configured: boolean
 }
 
 export type UpdatePhase = 'idle' | 'running' | 'success' | 'failed'
@@ -699,18 +691,35 @@ export type UpdatePhase = 'idle' | 'running' | 'success' | 'failed'
 export interface UpdateStatus {
   phase: UpdatePhase
   running: boolean
-  script_path: string
-  auto_restart: boolean
-  script_exists: boolean
+  configured: boolean
+  online: boolean
   message: string
+  task: UpdateTask | null
   logs: string[]
   started_at?: string
   finished_at?: string
-  exit_code?: number
+  last_check_at?: string
+  last_error?: string
+}
+
+export function fetchUpdateInfo() {
+  return api<{
+    current: string
+    changelog: ChangelogEntry[]
+    config: UpdateConfig
+    status: UpdateStatus
+  }>('/admin/updates', { auth: true })
 }
 
 export function fetchUpdateStatus() {
   return api<{ status: UpdateStatus }>('/admin/updates/status', { auth: true })
+}
+
+export function checkSystemUpdates() {
+  return api<{ task: UpdateTask | null; message: string }>('/admin/updates/check', {
+    method: 'POST',
+    auth: true,
+  })
 }
 
 export function applySystemUpdate() {
@@ -720,12 +729,14 @@ export function applySystemUpdate() {
   })
 }
 
-export function fetchUpdateScript() {
-  return api<{ script: string; path: string }>('/admin/updates/script', { auth: true })
-}
-
-export function saveUpdateConfig(payload: { script_path?: string; auto_restart?: boolean }) {
-  return api<{ status: UpdateStatus; message: string }>('/admin/updates/config', {
+export function saveUpdateConfig(payload: {
+  server_url?: string
+  token?: string
+  auto: boolean
+  repo_dir?: string
+  compose_file?: string
+}) {
+  return api<{ config: UpdateConfig; message: string }>('/admin/updates/config', {
     method: 'PUT',
     body: payload,
     auth: true,

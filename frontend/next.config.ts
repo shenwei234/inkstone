@@ -17,6 +17,8 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ["lucide-react"],
   },
+  // standalone 输出：运行镜像只含必要依赖（785MB → ~200MB），更新推送的镜像包大幅缩小。
+  output: "standalone",
 };
 
 export default nextConfig;

@@ -1,0 +1,21 @@
+{
+  "name": "blog-platform",
+  "version": "1.0.0",
+  "description": "多用户博客平台（P1 骨架）— Go (Gin + GORM) 后端 + Next.js 15 前端。",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shenwei234/inkstone.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/shenwei234/inkstone/issues"
+  },
+  "homepage": "https://github.com/shenwei234/inkstone#readme"
+}

@@ -79,10 +79,14 @@
 | `upload_speed_kb` | `0` | 上传限速 KB/s（0=不限） |
 | `download_speed_kb` | `0` | 下载限速 KB/s（0=不限） |
 
-### 系统更新
+### 系统更新（推送后台联动）
 | Key | 默认值 | 说明 |
 |---|---|---|
-| `update_manifest_url` | `""` | 远程版本清单地址 |
+| `update_server_url` | `""` | 更新推送后台地址（D:\Update 部署的服务） |
+| `update_token` | `""` | 推送后台颁发的客户端访问令牌（**敏感字段**） |
+| `update_auto` | `true` | 收到新版本后是否自动执行更新 |
+| `update_repo_dir` | `/opt/inkstone-images` | 镜像包 git 仓库在服务器上的检出目录 |
+| `update_compose_file` | `docker-compose.offline.yml` | 仓库内的 docker compose 编排文件名 |
 
 ---
 
@@ -95,6 +99,7 @@ var maskKeys = map[string]bool{
     SettingSMTPPass:          true,
     SettingCaptchaSecretKey:  true,
     SettingGeeTestCaptchaKey: true,
+    SettingUpdateToken:       true,
 }
 ```
 

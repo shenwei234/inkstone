@@ -252,13 +252,19 @@ Body 字段：`{title, content, template, status, sort_order, show_in_nav}`
 | PUT | `/admin/settings` | 更新。Body: `{settings: {...}}`（**注意包装层**） |
 | POST | `/admin/settings/test-mail` | 发送测试邮件。Body: `{to}` |
 
-### 系统更新
+### 系统更新（更新推送后台联动）
+
+博客实例通过 `internal/service/UpdateAgent` 每 60 秒轮询「更新推送后台」（D:\Update 部署的独立服务），收到新版本任务后执行 `git 拉取镜像包仓库 → docker load → docker compose up -d`。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/admin/updates` | 当前版本 + 变更日志 |
-| POST | `/admin/updates/check` | 检查远程新版本 |
-| PUT | `/admin/updates/manifest` | 保存更新源地址。Body: `{manifest_url}` |
+| GET | `/admin/updates` | 当前版本 + 变更日志 + 推送配置 + 更新状态 |
+| GET | `/admin/updates/status` | 更新状态与运行日志（running 时前端 2s 轮询） |
+| POST | `/admin/updates/check` | 立即轮询一次推送后台，返回待更新任务（不执行） |
+| POST | `/admin/updates/apply` | 立即轮询并执行更新（无可用更新返回 400） |
+| PUT | `/admin/updates/config` | 保存推送配置。Body: `{server_url, token, auto, repo_dir, compose_file}`（`token` 留空=保持原值） |
+
+> 历史接口 `/admin/updates/manifest`、`/admin/updates/script` 已随旧版「远程 manifest + 预置脚本」方案移除。
 
 ---
 

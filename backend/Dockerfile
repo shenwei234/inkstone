@@ -9,9 +9,12 @@ RUN go mod download
 COPY . .
 RUN go build -trimpath -o /server ./cmd/server
 
-# 运行阶段
+# 运行阶段（apk 换阿里云源：alpine 官方源国内被墙；tzdata 提供 Asia/Shanghai 时区；
+# git + docker-cli + gcompat：更新代理在容器内 git 拉取镜像包仓库，并执行 docker load /
+# compose（宿主的 compose 插件是 glibc 版，需 gcompat 提供 libc 兼容层才能运行）
 FROM docker.m.daocloud.io/library/alpine:3.20
-RUN apk add --no-cache ca-certificates
+RUN sed -i 's|https://dl-cdn.alpinelinux.org/alpine|https://mirrors.aliyun.com/alpine|g' /etc/apk/repositories \
+    && apk add --no-cache ca-certificates tzdata docker-cli gcompat git
 WORKDIR /app
 COPY --from=builder /server /app/server
 EXPOSE 8080

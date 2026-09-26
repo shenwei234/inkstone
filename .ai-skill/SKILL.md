@@ -12,6 +12,7 @@ Go + Gin + GORM + PostgreSQL 后端，Next.js 15 + React 19 前端，Docker 部�
 | 项目 | 值 |
 |---|---|
 | 模块名 | `github.com/shenwei/inkstone/backend` |
+| 当前版本 | `Beta1.1`（推送后台发起，见「更新推送后台」） |
 | 后端端口 | `8080`（API 前缀 `/api/v1`） |
 | 前端端口 | `3000`（Next.js App Router） |
 | 数据库 | PostgreSQL 16（GORM AutoMigrate 自动建表） |
@@ -19,7 +20,8 @@ Go + Gin + GORM + PostgreSQL 后端，Next.js 15 + React 19 前端，Docker 部�
 | 角色 | `admin` / `user`（RBAC 中间件） |
 | 用户状态 | `active` / `banned` |
 | 文章状态 | `draft` / `published` |
-| 敏感字段 | SMTP 密码、验证码密钥（API 只返回 `xxx_set` 布尔值，不下发明文） |
+| 敏感字段 | SMTP 密码、验证码密钥、更新令牌（API 只返回 `xxx_set` 布尔值，不下发明文） |
+| 更新推送后台 | `D:\Update`（独立 Go+Gin 单二进制服务，默认端口 9090，数据在 `data/store.json`） |
 
 ## 目录导航
 
@@ -27,12 +29,13 @@ Go + Gin + GORM + PostgreSQL 后端，Next.js 15 + React 19 前端，Docker 部�
 backend/
   cmd/server/main.go              # 入口：依赖注入 + 全部路由注册
   internal/handler/               # HTTP 层：参数绑定、调用 service、错误映射
-  internal/service/               # 业务逻辑层
+  internal/service/               # 业务逻辑层（update_agent.go = 更新推送实例端）
   internal/repository/            # GORM 数据访问层
   internal/middleware/            # Auth / CORS / 限流 / 安全头 / 流量统计
   internal/model/                 # 数据模型（GORM 结构体）
   pkg/config/                     # 环境变量配置
   pkg/mailer/                     # SMTP 发信
+D:\Update/                        # 更新推送后台（独立 Go+Gin 单二进制服务，非本仓库）
 frontend/
   app/                            # Next.js 路由（页面）
   components/                     # 可复用组件
@@ -162,3 +165,8 @@ cd frontend && npm run build && npx eslint app components lib --ext .ts,.tsx
 | GT4 二次校验必传 captcha_id | 极验 v4 `/validate` 请求必须带 `captcha_id`（放 URL query），缺了返回 `-50101 not captcha_id`（status:error 结构，不是 result:fail）→ 前端验证已通过、后端必报不通过。签名是 `HMAC-SHA256(key=captcha_key, msg=lot_number)` |
 | 登录限流被误伤 | 登录成功会重置限流计数，失败才累计 |
 | 部署镜像需用国内源 | Dockerfile 用 `docker.m.daocloud.io`，Go 用 goproxy.cn，npm 用 npmmirror |
+| alpine 缺 tzdata 连不上库 | 运行阶段 `apk add tzdata`，否则 DSN 的 `TimeZone=Asia/Shanghai` 报 `unknown time zone`，容器反复重启 |
+| alpine apk 官方源被墙 | `dl-cdn.alpinelinux.org` Permission denied；`sed` 换 `mirrors.aliyun.com/alpine` 再 apk add |
+| 更新时容器自重建 | `docker compose up -d` 会替换 backend 容器自身，进程日志可能中断，最终版本以推送后台显示为准；`git reset --hard` 不动未跟踪文件（服务器 `.env` 安全） |
+| 推送后台必须 https | 博客站点是 https 时，页面请求 http 推送后台会被浏览器混合内容策略拦截 |
+| 服务器 curl 自己公网域名 000 | 阿里云 hairpin NAT 限制，**不是服务故障**；验证用外网客户端或本地 `curl -H Host:` |
