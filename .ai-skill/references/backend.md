@@ -259,14 +259,13 @@ VerifyPendingUpdate()       // 启动时自检上次更新（Start 内延迟 5s 
 5. sibling 容器（`inkstone-updater`）执行 `docker compose up -d`（第 5 步会重建 backend 自身，必须在独立容器）
 
 **自动更新触发**（`tick`，每 15s 一次）：
-- 推送后台模式：`poll()` 拿到任务 且 `update_auto=true` → **直接 execute，站长无需点击任何按钮**（`update_auto=false` 时仅在页面提醒、手动「立即更新」）
-- 自治模式（`update_direct`，默认 false）：`git ls-remote` 探测镜像仓库最新 commit，与 `deployed-commit.json` 不同 → 直接 execute（绕过推送后台）
+- `poll()` 拿到任务 且 `update_auto=true` → **直接 execute，站长无需点击任何按钮**（`update_auto=false` 时仅在页面提醒、手动「立即更新」）
 - 成功后写 deployed commit；同一 commit 的重复任务幂等跳过（覆盖「更新成功→新版本上报」窗口期的补跑）
+- Beta1.14 起移除「仓库自治模式」（原 `update_direct`/`update_direct_branch`/`directTick`/`lsRemote`），统一只走推送后台链路
 
 **更新后自检与自动回滚**（`VerifyPendingUpdate`，服务启动时跑）：
 - 读 `update-verify.json`：无 → 跳过
-- agent 模式：`AppVersion == pending.Version` → 清除状态文件，`report("success")`；不一致（打包漏改版本号的典型症状）→ `docker tag` 两个 rollback tag 回 latest → sibling 执行 `compose up -d` 回滚 → `report("failed")`
-- direct 模式（`pending.IsDirect()`）：新进程能启动即视为生效，清除并上报
+- `AppVersion == pending.Version` → 清除状态文件，`report("success")`；不一致（打包漏改版本号的典型症状）→ `docker tag` 两个 rollback tag 回 latest → sibling 执行 `compose up -d` 回滚 → `report("failed")`
 - 注意：若新镜像**根本起不来**（无进程跑自检），只能宿主机手动回滚——见 deployment.md 排障表
 
 **关键设计**：

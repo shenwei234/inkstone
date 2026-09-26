@@ -12,7 +12,7 @@ Go + Gin + GORM + PostgreSQL 后端，Next.js 15 + React 19 前端，Docker 部�
 | 项目 | 值 |
 |---|---|
 | 模块名 | `github.com/shenwei/inkstone/backend` |
-| 当前版本 | `Beta1.12`（推送后台发起，见「更新推送后台」） |
+| 当前版本 | `Beta1.14`（推送后台发起，见「更新推送后台」） |
 | 后端端口 | `8080`（API 前缀 `/api/v1`） |
 | 前端端口 | `3000`（Next.js App Router） |
 | 数据库 | PostgreSQL 16（GORM AutoMigrate 自动建表） |
@@ -183,3 +183,6 @@ cd frontend && npm run build && npx eslint app components lib --ext .ts,.tsx
 | 操作日志禁止记录值 | 设置更新等日志只记 key 名列表（`settingDetail`），**绝不能把 SMTP 密码/验证码密钥等 value 写进日志** |
 | CSV 导出必须 BOM | `c.Writer` 先写 `0xEF 0xBB 0xBF` 再写 csv，否则 Excel 打开中文乱码；`csv.Writer.UseCRLF=true` |
 | blob 下载不能走 api() | `api()` 客户端只会 `res.json()`；文件下载要单独 `fetch + Bearer`（401 刷新重试）+ `URL.createObjectURL` |
+| 更新链路版本号三处一致 | 推送后台发布版本 = 镜像包名版本 = 镜像内 `AppVersion`，任何一处不一致都会导致自检回滚或幂等跳过 |
+| 更新「假成功」 | 镜像仓库没有新 tar 时，实例会把「已部署 commit 幂等跳过」当 success 上报；发布前先确认服务器镜像仓库 HEAD 是新 commit |
+| 更新镜像交付规范 | Beta1.14 起：tar 命名 `inkstone-images-<版本号>.tar` 放 `D:\images`，配套 `release-notes-<版本号>.md`；推送由用户自行完成，AI 不 push 服务器仓库 |

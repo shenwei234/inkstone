@@ -258,22 +258,41 @@ docker compose -f docker-compose.offline.yml up -d              # 替换部署�
 
 ---
 
-## 更新 SOP（标准流程：推送后台发版 → 实例全自动更新，零人工）
+## 更新 SOP（推送后台发版 → 实例全自动更新）
 
-### 1. 一条命令打包发布
+### 0. 镜像交付规范（Beta1.14 起）
+
+打包由 AI 助手完成，交付物只有两个文件，放在 `D:\images`：
+
+| 文件 | 命名 | 说明 |
+|---|---|---|
+| 镜像包 | `inkstone-images-<版本号>.tar` | `docker save inkstone-backend:latest inkstone-frontend:latest` 导出，**包名必须带版本号** |
+| 更新内容 | `release-notes-<版本号>.md` | 本版 changelog 摘要 + 部署/回滚说明，用户直接复制到推送后台「更新说明」 |
+
+发布由用户自行完成（AI 不 push 服务器仓库、不操作推送后台）：
+1. 用户把 tar 同步到服务器镜像包 git 仓库（或 scp 上服务器 `docker load`）
+2. 推送后台创建版本（版本号 = 镜像包版本号）并发布
+3. 实例 15s 内自动完成更新（`update_auto` 开启时零人工）
+
+### 1. 本地构建镜像（release.ps1 或手动）
 
 ```powershell
-# 预演（不改文件不提交）：
-D:\blog-platform\scripts\release.ps1 -Version Beta1.12 -DryRun
+# 方式一：脚本（自动改 AppVersion + 预检 + 打包 + 提交推送服务器裸仓库，适合无人值守发布）
+D:\blog-platform\scripts\release.ps1 -Version Beta1.14 -Notes "说明"
 
-# 正式发布（自动改 AppVersion → 预检 → build → save → commit → push 服务器裸仓库）：
-D:\blog-platform\scripts\release.ps1 -Version Beta1.12 -Notes "说明"
+# 方式二：手动（交付 D:\images 规范）
+docker build -t inkstone-backend:latest "D:\blog-platform\backend"
+docker build -t inkstone-frontend:latest --build-arg NEXT_PUBLIC_API_URL=https://blog.shenv.top/api/v1 "D:\blog-platform\frontend"
+docker save -o "D:\images\inkstone-images-Beta1.14.tar" inkstone-backend:latest inkstone-frontend:latest
 ```
 
-### 2. 推送后台点「发布」（唯一的发布动作，开发者侧）
+> **版本号纪律**：推送后台发布的版本号必须与镜像内 `AppVersion`（`system_service.go`）逐字符一致，
+> 否则更新后自检不符会自动回滚（曾因 `Bate1.12` 拼写错误踩坑）。
 
-推送后台 →「版本发布」：版本号 = 脚本的 Version、更新说明、镜像仓库地址、分支 `main`、
-镜像包 `inkstone-images.tar`、编排 `docker-compose.offline.yml` → 创建 → 发布。
+### 2. 推送后台点「发布」（用户自行操作）
+
+推送后台 →「版本发布」：版本号（必须与镜像包名、镜像内 AppVersion 一致）、更新说明（复制 `release-notes-<版本号>.md` 内容）、镜像仓库地址、分支 `main`、
+镜像包文件名、编排 `docker-compose.offline.yml` → 创建 → 发布。
 
 ### 3. 实例自动更新（站长零操作）
 
@@ -294,9 +313,8 @@ D:\blog-platform\scripts\release.ps1 -Version Beta1.12 -Notes "说明"
 ### 4. 手动/备用路径
 
 - `update_auto=false`：只提醒不执行，博客后台手动「立即更新」
-- `update_direct`（默认 false，高级）：绕过推送后台，实例直巡镜像仓库新 commit 自动部署
 - 首站或无推送后台时：SSH 上服务器在 `/opt/inkstone-images/repo` 执行
-  `git fetch --depth 1 file:///srv/git/inkstone-images.git main && git reset --hard FETCH_HEAD && docker load -i inkstone-images.tar && docker compose -f docker-compose.offline.yml up -d`
+  `git fetch --depth 1 file:///srv/git/inkstone-images.git main && git reset --hard FETCH_HEAD && docker load -i <tar> && docker compose -f docker-compose.offline.yml up -d`
 
 ### 5. 失败回滚
 
@@ -314,7 +332,8 @@ docker compose -f docker-compose.offline.yml up -d
 | 发布 15s+ 后实例没动作 | 实例 `update_auto` 被关 / 推送后台版本未点「发布」 | 后台「系统更新 → 推送服务配置」检查；推送后台确认已发布 |
 | 更新日志停在旧 commit | Beta 未 push 到裸仓库 | `git -C image-repo push origin main` |
 | 「镜像包内容与当前运行版本一致」 | tar 没换新（push 没成功/打包漏项） | 重新打包推送 |
-| 更新后自动回滚、日志「版本不符」 | 打包漏改 AppVersion | 用 release.ps1 打包；修复后重新发布 |
+| 更新后自动回滚、日志「版本不符」 | 打包漏改 AppVersion / 推送后台版本号拼写不一致（曾把 Beta 拼成 Bate） | 重新打包；推送后台版本号与 AppVersion 逐字符一致 |
+| 更新「成功」但站点版本没变 | 镜像仓库无新 tar，实例把重复 commit 幂等跳过并上报 success（假成功） | 确认服务器镜像仓库 HEAD 是新 commit 再发布 |
 | 宿主机 `git fetch origin` 失败 | 检出目录 origin 是容器内路径 | 用 `git fetch file:///srv/git/inkstone-images.git main` 或依赖实例自动回退源 |
 | 新 backend 无限重启 | 自检没机会跑（无人启动） | 手动回滚到 rollback tag |
 | 推送 SSH 要密码 | 本机公钥未装服务器 | `type $env:USERPROFILE\.ssh\id_ed25519.pub` 内容追加到服务器 `~/.ssh/authorized_keys`（已完成一次） |

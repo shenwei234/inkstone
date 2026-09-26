@@ -278,7 +278,7 @@ easeOut  // 统一缓动曲线 [0.16, 1, 0.3, 1]
 - 主卡片：当前版本、推送后台在线状态（绿点）、「检查更新」/「立即更新」按钮（更新用 `notify.confirm` 二次确认）
 - 待更新任务卡：展示新版本号、更新说明（多行）、镜像仓库地址/分支/镜像包/编排文件名
 - 进度与日志：`GsapProgress` 不确定进度条 + 等宽字体日志框（running 时 2s 轮询并自动滚底）
-- 推送服务配置（折叠）：`server_url`、`token`（已设置显示占位符，留空=保持原值）、`auto` 自动更新开关（开启=推送后台发版即自动更新）、`repo_dir`、`compose_file`、`mirror_urls`（备用镜像仓库地址，分号分隔）、`direct` + `direct_branch`（仓库自治模式，高级）
+- 推送服务配置（折叠）：`server_url`、`token`（已设置显示占位符，留空=保持原值）、`auto` 自动更新开关（Beta1.14 起前台仅此一个开关：开启=推送后台发版即自动更新，关闭=只提醒、手动「立即更新」）、`repo_dir`、`compose_file`、`mirror_urls`（备用镜像仓库地址，分号分隔）
 - 底部：changelog 列表（来自 `GET /admin/updates`）
 
 #### 网站日志页（`app/admin/logs/page.tsx`，Beta1.12 增强）

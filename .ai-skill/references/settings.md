@@ -88,8 +88,8 @@
 | `update_repo_dir` | `/opt/inkstone-images` | 镜像包 git 仓库在服务器上的检出目录 |
 | `update_compose_file` | `docker-compose.offline.yml` | 仓库内的 docker compose 编排文件名 |
 | `update_mirror_urls` | `file:///srv/git/inkstone-images.git` | 备用镜像仓库地址（origin 拉取失败时回退，分号分隔）。检出目录 origin 常是容器内路径，宿主机不可用，故默认配宿主机裸仓库路径 |
-| `update_direct` | `false` | 自治模式（高级）：绕过推送后台，实例直巡镜像仓库新 commit 自动部署。默认关闭，标准流程由推送后台触发 |
-| `update_direct_branch` | `main` | 自治模式监听的 git 分支 |
+
+> Beta1.14 起移除 `update_direct` / `update_direct_branch`（仓库自治模式），更新链路只走「推送后台发布 → 实例轮询执行」，由 `update_auto` 一个开关控制是否自动执行。
 
 ---
 

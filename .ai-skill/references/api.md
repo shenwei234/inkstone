@@ -262,7 +262,7 @@ Body 字段：`{title, content, template, status, sort_order, show_in_nav}`
 | GET | `/admin/updates/status` | 更新状态与运行日志（running 时前端 2s 轮询） |
 | POST | `/admin/updates/check` | 立即轮询一次推送后台，返回待更新任务（不执行） |
 | POST | `/admin/updates/apply` | 立即轮询并执行更新（无可用更新返回 400） |
-| PUT | `/admin/updates/config` | 保存推送配置。Body: `{server_url, token, auto, repo_dir, compose_file, mirror_urls, direct, direct_branch}`（`token` 留空=保持原值；`mirror_urls` 分号分隔；`direct`=仓库自治模式，默认关） |
+| PUT | `/admin/updates/config` | 保存推送配置。Body: `{server_url, token, auto, repo_dir, compose_file, mirror_urls}`（`token` 留空=保持原值；`mirror_urls` 分号分隔；`auto`=收到推送后是否自动执行更新，Beta1.14 起前台只有一个「开启自动更新」开关） |
 
 > 历史接口 `/admin/updates/manifest`、`/admin/updates/script` 已随旧版「远程 manifest + 预置脚本」方案移除。
 
