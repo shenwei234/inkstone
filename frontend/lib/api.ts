@@ -48,7 +48,7 @@ interface RequestOptions {
 
 let refreshPromise: Promise<boolean> | null = null
 
-async function tryRefresh(): Promise<boolean> {
+export async function tryRefresh(): Promise<boolean> {
   if (typeof window === 'undefined') return false
   const refresh = localStorage.getItem(REFRESH_KEY)
   if (!refresh) return false
@@ -362,21 +362,71 @@ export interface LogListResponse {
   page_size: number
 }
 
-export function fetchLogs(
-  params: { page?: number; page_size?: number; category?: string; username?: string; q?: string } = {},
-) {
+export interface LogOverview {
+  total: number
+  today: number
+  failed: number
+  by_category: Record<string, number>
+}
+
+export interface LogQueryParams {
+  page?: number
+  page_size?: number
+  category?: string
+  username?: string
+  q?: string
+  from?: string
+  to?: string
+  success?: boolean
+}
+
+function buildLogQuery(params: LogQueryParams) {
   const search = new URLSearchParams()
   if (params.page) search.set('page', String(params.page))
   if (params.page_size) search.set('page_size', String(params.page_size))
   if (params.category) search.set('category', params.category)
   if (params.username) search.set('username', params.username)
   if (params.q) search.set('q', params.q)
-  const qs = search.toString()
+  if (params.from) search.set('from', params.from)
+  if (params.to) search.set('to', params.to)
+  if (params.success !== undefined) search.set('success', String(params.success))
+  return search.toString()
+}
+
+export function fetchLogs(params: LogQueryParams = {}) {
+  const qs = buildLogQuery(params)
   return api<LogListResponse>(`/admin/logs${qs ? `?${qs}` : ''}`, { auth: true })
+}
+
+export function fetchLogOverview() {
+  return api<{ overview: LogOverview }>('/admin/logs/overview', { auth: true })
 }
 
 export function fetchLogStats() {
   return api<{ stats: Record<string, number> }>('/admin/logs/stats', { auth: true })
+}
+
+// downloadLogs 按当前筛选条件导出 CSV 日志（401 时自动刷新 token 重试一次）。
+export async function downloadLogs(params: LogQueryParams = {}): Promise<Blob> {
+  const doFetch = async (token: string | null) => {
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const qs = buildLogQuery(params)
+    return fetch(`${API_BASE}/admin/logs/export${qs ? `?${qs}` : ''}`, { headers })
+  }
+
+  let res = await doFetch(getAccessToken())
+  if (res.status === 401) {
+    if (await tryRefresh()) {
+      res = await doFetch(getAccessToken())
+    } else {
+      clearTokens()
+    }
+  }
+  if (!res.ok) {
+    throw new ApiError(res.status, '导出日志失败')
+  }
+  return res.blob()
 }
 
 export function fetchAdminComments(params: { page?: number; page_size?: number } = {}) {
@@ -683,6 +733,7 @@ export interface UpdateConfig {
   auto: boolean
   repo_dir: string
   compose_file: string
+  mirror_urls: string[]
   configured: boolean
 }
 
@@ -735,6 +786,7 @@ export function saveUpdateConfig(payload: {
   auto: boolean
   repo_dir?: string
   compose_file?: string
+  mirror_urls?: string
 }) {
   return api<{ config: UpdateConfig; message: string }>('/admin/updates/config', {
     method: 'PUT',

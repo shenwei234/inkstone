@@ -13,14 +13,21 @@ const (
 )
 
 type CurrentUser struct {
-	ID   uint
-	Role string
+	ID       uint
+	Role     string
+	Username string
 }
+
+// UserChecker returns (username, ok). ok=false rejects the token. It is called
+// on every authenticated request so banned/deleted accounts are rejected even
+// while their access token is still unexpired; the returned username is stored
+// in the request context for operation logging.
+type UserChecker func(id uint) (string, bool)
 
 // Auth requires a valid access token. When checkUser is provided, the user is
 // also verified against the database so banned/deleted accounts are rejected
 // even while their access token is still unexpired.
-func Auth(tokens *service.TokenManager, checkUser func(id uint) bool) gin.HandlerFunc {
+func Auth(tokens *service.TokenManager, checkUser UserChecker) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
 		if header == "" {
@@ -39,12 +46,16 @@ func Auth(tokens *service.TokenManager, checkUser func(id uint) bool) gin.Handle
 			return
 		}
 
-		if checkUser != nil && !checkUser(claims.UserID) {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "该账号已被封禁，请联系管理员"})
-			return
+		if checkUser != nil {
+			username, ok := checkUser(claims.UserID)
+			if !ok {
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "该账号已被封禁，请联系管理员"})
+				return
+			}
+			claims.Username = username
 		}
 
-		c.Set(ContextUserKey, CurrentUser{ID: claims.UserID, Role: claims.Role})
+		c.Set(ContextUserKey, CurrentUser{ID: claims.UserID, Role: claims.Role, Username: claims.Username})
 		c.Next()
 	}
 }

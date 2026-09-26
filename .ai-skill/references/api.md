@@ -262,9 +262,29 @@ Body 字段：`{title, content, template, status, sort_order, show_in_nav}`
 | GET | `/admin/updates/status` | 更新状态与运行日志（running 时前端 2s 轮询） |
 | POST | `/admin/updates/check` | 立即轮询一次推送后台，返回待更新任务（不执行） |
 | POST | `/admin/updates/apply` | 立即轮询并执行更新（无可用更新返回 400） |
-| PUT | `/admin/updates/config` | 保存推送配置。Body: `{server_url, token, auto, repo_dir, compose_file}`（`token` 留空=保持原值） |
+| PUT | `/admin/updates/config` | 保存推送配置。Body: `{server_url, token, auto, repo_dir, compose_file, mirror_urls, direct, direct_branch}`（`token` 留空=保持原值；`mirror_urls` 分号分隔；`direct`=仓库自治模式，默认关） |
 
 > 历史接口 `/admin/updates/manifest`、`/admin/updates/script` 已随旧版「远程 manifest + 预置脚本」方案移除。
+
+### 操作日志（Beta1.12 增强）
+
+所有写操作（文章/用户/评论/设置/文件/友链/页面/标签/系统更新/认证）均异步记录操作日志，**成功与失败都留痕**，保留最近 90 天。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/admin/logs?page=&page_size=&category=&username=&q=&from=&to=&success=` | 分页查询。`from`/`to` 接受 `YYYY-MM-DD` 或 RFC3339；`success=true`/`false` 按结果筛选 |
+| GET | `/admin/logs/overview` | 总览：`{total, today, failed, by_category}` |
+| GET | `/admin/logs/stats` | 各分类日志数量（旧接口，保留兼容） |
+| GET | `/admin/logs/export?category=&username=&q=&from=&to=&success=` | 按当前筛选条件导出 CSV（UTF-8 BOM，Excel 兼容，上限 5 万条） |
+
+日志分类（category）：`auth` / `article` / `user` / `comment` / `setting` / `file` / `link` / `page` / `taxonomy` / `system` / `other`。
+
+**导出示例**：
+```bash
+curl -H "Authorization: Bearer <token>" \
+  "https://blog.example.com/api/v1/admin/logs/export?category=auth&from=2026-09-01" \
+  -o logs.csv
+```
 
 ---
 

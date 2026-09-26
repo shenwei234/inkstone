@@ -37,6 +37,10 @@ type Entry struct {
 	Success   bool
 }
 
+// maxDetailRunes caps the detail column (gorm size:500) so a long title or URL
+// can never break the INSERT with a value-too-long error.
+const maxDetailRunes = 500
+
 // Record queues a log entry (non-blocking).
 func (s *LogService) Record(e Entry) {
 	if s == nil {
@@ -47,7 +51,7 @@ func (s *LogService) Record(e Entry) {
 		Username:  e.Username,
 		Category:  e.Category,
 		Action:    e.Action,
-		Detail:    e.Detail,
+		Detail:    truncate(e.Detail, maxDetailRunes),
 		IP:        e.IP,
 		UserAgent: truncate(e.UserAgent, 250),
 		Success:   e.Success,
@@ -80,6 +84,45 @@ func (s *LogService) List(q repository.OperationLogQuery) ([]model.OperationLog,
 	return s.repo.List(q)
 }
 
+// Export returns all logs matching the filter (capped), for CSV download.
+func (s *LogService) Export(q repository.OperationLogQuery) ([]model.OperationLog, error) {
+	return s.repo.Export(q)
+}
+
+// LogOverview aggregates headline counters for the admin dashboard.
+type LogOverview struct {
+	Total      int64            `json:"total"`
+	Today      int64            `json:"today"`
+	Failed     int64            `json:"failed"`
+	ByCategory map[string]int64 `json:"by_category"`
+}
+
+func (s *LogService) Overview() (LogOverview, error) {
+	total, err := s.repo.CountAll()
+	if err != nil {
+		return LogOverview{}, err
+	}
+	today, err := s.repo.CountToday()
+	if err != nil {
+		return LogOverview{}, err
+	}
+	failed, err := s.repo.CountFailed()
+	if err != nil {
+		return LogOverview{}, err
+	}
+	byCategory, err := s.repo.CountByCategory()
+	if err != nil {
+		return LogOverview{}, err
+	}
+	return LogOverview{
+		Total:      total,
+		Today:      today,
+		Failed:     failed,
+		ByCategory: byCategory,
+	}, nil
+}
+
+// Stats returns log counts grouped by category.
 func (s *LogService) Stats() (map[string]int64, error) {
 	return s.repo.CountByCategory()
 }

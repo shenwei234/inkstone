@@ -28,6 +28,7 @@ app/                          # 路由（App Router）
     ├── security/             # 安全防护（验证码/限流/邮箱验证）
     ├── settings/             # 网站管理（站点信息/壁纸/SMTP）
     ├── updates/              # 系统更新（推送后台连接/检查/立即更新/日志/变更日志）
+    ├── logs/                 # 网站日志（统计卡片/多维筛选/详情展开/CSV 导出）
     └── about/                # 关于系统
 
 components/                   # 组件
@@ -155,13 +156,39 @@ export function downloadFile(id: number, filename: string)  // 鉴权下载
 ```
 > `content` 和存储的都是 **HTML**（不是 Markdown）。`variant="plain"` 用于无边框的写作区。
 
+### Markdown 编辑器（`components/markdown-editor.tsx`）
+文章正文编辑器（textarea 自研方案，保存时转 HTML）。
+
+```tsx
+<MarkdownEditor value={markdown} onChange={setMarkdown} onSaveRequest={() => doPublish()} />
+```
+
+功能清单：
+- **工具栏**：加粗/斜体/删除线、H1-H3、有序/无序/任务列表、表格（3x3 模板）、引用、行内代码/代码块、链接、图片、分割线
+- **快捷键**：`Ctrl/Cmd+B/I/K/U`、`Ctrl+Shift+X` 删除线、`Ctrl+F` 查找替换、`Ctrl+S` 保存（回调 `onSaveRequest`，阻止浏览器保存网页）
+- **智能输入**：回车自动续写列表/任务列表（空项时结束列表）、`Tab`/`Shift+Tab` 缩进（多行整体）、行首 `#`/`>`/`-`/`1.` 按空格自动补全
+- **图片**：工具栏上传、`Ctrl+V` 粘贴、拖入文件（`.md` 文件拖入插入文本内容）
+- **预览增强**（DOM 后处理，仅影响显示，不入库）：
+  - highlight.js 语法高亮（`highlight.js/lib/common` 按需语言；主题 CSS 在 `globals.css`，跟随系统深色）
+  - 代码块 header：语言标签 + 一键复制按钮（`.md-codeblock`）
+  - 任务列表复选框**可点击**，点击后反向改写 Markdown 源码（` [ ]` ↔ `[x]`）
+- **目录大纲 TOC**：`extractToc()`（`lib/markdown.ts`）提取标题，侧栏可点击跳转，随编辑区滚动高亮当前标题
+- **全屏专注模式**：`fixed inset-0`，`Esc` 退出，锁定 body 滚动
+- **滚动同步**：编辑区 ↔ 预览区按滚动比例双向同步（工具栏开关）
+- **查找替换**：面板支持区分大小写/正则、上一个/下一个、替换当前、全部替换
+- **状态栏**：`Ln/Col`、选中字数、总行数、总字符数、标题数
+
+> 预览后处理放在 `useEffect` 里直接操作 DOM（hljs 高亮、checkbox 增强），
+> 因此保存与后端存储的 HTML 保持纯净（仍由后端 bluemonday 消毒）。
+
 ### 文章编辑器（`components/article-editor.tsx`）
 完整写作页（标题 + 分类 + 标签 + 封面 + 正文 + 状态）。
 
 - **自动保存**：草稿模式停手 2 秒自动保存（开关可记忆）
 - **标签选择器**：点选已有标签 or 手输新建
 - **封面设置**：上传/URL，留空自动取正文首图
-- **发布**：`publish` mutation，触发人机验证
+- **发布**：`publish` mutation，触发人机验证；`Ctrl+S` 或编辑器保存按钮同样触发
+- 内部用 Markdown 状态，保存/自动保存时经 `markdownToHtml()` 转 HTML
 
 ### 人机验证（`components/captcha.tsx`）
 ```tsx
@@ -251,8 +278,15 @@ easeOut  // 统一缓动曲线 [0.16, 1, 0.3, 1]
 - 主卡片：当前版本、推送后台在线状态（绿点）、「检查更新」/「立即更新」按钮（更新用 `notify.confirm` 二次确认）
 - 待更新任务卡：展示新版本号、更新说明（多行）、镜像仓库地址/分支/镜像包/编排文件名
 - 进度与日志：`GsapProgress` 不确定进度条 + 等宽字体日志框（running 时 2s 轮询并自动滚底）
-- 推送服务配置（折叠）：`server_url`、`token`（已设置显示占位符，留空=保持原值）、`auto` 自动更新开关、`repo_dir`、`compose_file`
+- 推送服务配置（折叠）：`server_url`、`token`（已设置显示占位符，留空=保持原值）、`auto` 自动更新开关（开启=推送后台发版即自动更新）、`repo_dir`、`compose_file`、`mirror_urls`（备用镜像仓库地址，分号分隔）、`direct` + `direct_branch`（仓库自治模式，高级）
 - 底部：changelog 列表（来自 `GET /admin/updates`）
+
+#### 网站日志页（`app/admin/logs/page.tsx`，Beta1.12 增强）
+- 统计卡片：日志总数 / 今日新增 / 失败操作 / 当前筛选数（数据来自 `GET /admin/logs/overview`）
+- 筛选：分类 tab（带分类计数）+ 关键词搜索（操作/详情/IP，回车触发）+ 结果下拉（全部/仅成功/仅失败）+ 时间范围下拉（全部/今天/近 7 天/近 30 天 → `from=YYYY-MM-DD`）
+- 列表：成功/失败图标、分类徽章、操作、详情（超 48 字折叠 + 「展开/收起」）、用户名#ID、IP、时间、UA（截断 + title 全文）
+- 导出 CSV：`downloadLogs()` 用 `fetch + Bearer` 直接取 blob（**不能走 `api()` JSON 客户端**），401 时 `tryRefresh()` 刷新重试；通过 `a[download]` + `URL.createObjectURL` 触发浏览器下载
+- 分页：每页 30 条
 
 ### 用户中心（`app/me/page.tsx`）
 所有登录用户可用：账户安全（改用户名/密码）、我的文章、我的评论。

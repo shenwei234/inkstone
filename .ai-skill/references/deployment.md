@@ -258,6 +258,69 @@ docker compose -f docker-compose.offline.yml up -d              # 替换部署�
 
 ---
 
+## 更新 SOP（标准流程：推送后台发版 → 实例全自动更新，零人工）
+
+### 1. 一条命令打包发布
+
+```powershell
+# 预演（不改文件不提交）：
+D:\blog-platform\scripts\release.ps1 -Version Beta1.12 -DryRun
+
+# 正式发布（自动改 AppVersion → 预检 → build → save → commit → push 服务器裸仓库）：
+D:\blog-platform\scripts\release.ps1 -Version Beta1.12 -Notes "说明"
+```
+
+### 2. 推送后台点「发布」（唯一的发布动作，开发者侧）
+
+推送后台 →「版本发布」：版本号 = 脚本的 Version、更新说明、镜像仓库地址、分支 `main`、
+镜像包 `inkstone-images.tar`、编排 `docker-compose.offline.yml` → 创建 → 发布。
+
+### 3. 实例自动更新（站长零操作）
+
+实例每 **15 秒** 轮询推送后台（`updatePollInterval`），收到任务且 `update_auto=true`（默认）即自动执行：
+
+```text
+[1/5] git fetch（origin 失败自动回退「备用镜像仓库地址」，默认 file:///srv/git/inkstone-images.git）
+[2/5] 校验 tar 存在 + sha256
+[3/5] docker load + 镜像 ID 对比：与当前完全一致 → 已部署过则视为最新（不报错），否则报错终止
+[4/5] 打 rollback-日期时间 回滚镜像 + 落盘 update-verify.json
+[5/5] sibling 容器执行 docker compose up -d
+重启后 → 自检：版本一致/已部署 → 清除状态并上报 success；不符 → 自动回滚并上报 failed
+```
+
+博客站长无需进后台点任何按钮；进度可在博客后台「系统更新」页或推送后台「客户端实例」页查看。
+**同一实例再次执行同一 commit 不会报错**（重复任务幂等，供更新成功到版本上报之间的窗口补跑）。
+
+### 4. 手动/备用路径
+
+- `update_auto=false`：只提醒不执行，博客后台手动「立即更新」
+- `update_direct`（默认 false，高级）：绕过推送后台，实例直巡镜像仓库新 commit 自动部署
+- 首站或无推送后台时：SSH 上服务器在 `/opt/inkstone-images/repo` 执行
+  `git fetch --depth 1 file:///srv/git/inkstone-images.git main && git reset --hard FETCH_HEAD && docker load -i inkstone-images.tar && docker compose -f docker-compose.offline.yml up -d`
+
+### 5. 失败回滚
+
+```bash
+# 新镜像起不来等场景（版本不符会自动回滚，一般无需人工）
+docker tag inkstone-backend:rollback-<日期时间> inkstone-backend:latest
+docker tag inkstone-frontend:rollback-<日期时间> inkstone-frontend:latest
+docker compose -f docker-compose.offline.yml up -d
+```
+
+### 6. 排障对照
+
+| 现象 | 原因 | 处理 |
+|---|---|---|
+| 发布 15s+ 后实例没动作 | 实例 `update_auto` 被关 / 推送后台版本未点「发布」 | 后台「系统更新 → 推送服务配置」检查；推送后台确认已发布 |
+| 更新日志停在旧 commit | Beta 未 push 到裸仓库 | `git -C image-repo push origin main` |
+| 「镜像包内容与当前运行版本一致」 | tar 没换新（push 没成功/打包漏项） | 重新打包推送 |
+| 更新后自动回滚、日志「版本不符」 | 打包漏改 AppVersion | 用 release.ps1 打包；修复后重新发布 |
+| 宿主机 `git fetch origin` 失败 | 检出目录 origin 是容器内路径 | 用 `git fetch file:///srv/git/inkstone-images.git main` 或依赖实例自动回退源 |
+| 新 backend 无限重启 | 自检没机会跑（无人启动） | 手动回滚到 rollback tag |
+| 推送 SSH 要密码 | 本机公钥未装服务器 | `type $env:USERPROFILE\.ssh\id_ed25519.pub` 内容追加到服务器 `~/.ssh/authorized_keys`（已完成一次） |
+
+---
+
 ## 证书申请（acme.sh，无需 certbot）
 
 ```bash
@@ -302,6 +365,8 @@ mkdir -p /etc/nginx/ssl
 | 发布副本（含部署文件） | `D:\blog-platform-release\blog-platform\` |
 | 离线部署配置包 | `D:\blog-platform-release\inkstone-offline-deploy.zip` |
 | Docker 镜像包 | `D:\blog-platform-release\inkstone-images.tar` |
+| 镜像包 git 仓库 | `D:\blog-platform-release\image-repo`（origin=服务器裸仓库） |
+| 一键发布脚本 | `D:\blog-platform\scripts\release.ps1`（自动改 AppVersion + 预检 + 打包 + 推送） |
 | 源码压缩包 | `D:\blog-platform-release\inkstone-latest.zip` |
 | 更新推送后台（版本发布/推送） | `D:\Update`（Go+Gin 单二进制，默认端口 9090） |
 | GitHub 仓库 | `https://github.com/shenwei234/inkstone` |

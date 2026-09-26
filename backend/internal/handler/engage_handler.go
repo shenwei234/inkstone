@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -44,10 +45,11 @@ type CommentHandler struct {
 	tokens   *service.TokenManager
 	geetest  *service.GeetestService
 	limiter  *middleware.SlidingLimiter
+	logs     *service.LogService
 }
 
-func NewCommentHandler(comments *service.CommentService, tokens *service.TokenManager, geetest *service.GeetestService, limiter *middleware.SlidingLimiter) *CommentHandler {
-	return &CommentHandler{comments: comments, tokens: tokens, geetest: geetest, limiter: limiter}
+func NewCommentHandler(comments *service.CommentService, tokens *service.TokenManager, geetest *service.GeetestService, limiter *middleware.SlidingLimiter, logs *service.LogService) *CommentHandler {
+	return &CommentHandler{comments: comments, tokens: tokens, geetest: geetest, limiter: limiter, logs: logs}
 }
 
 type createCommentRequest struct {
@@ -119,9 +121,11 @@ func (h *CommentHandler) Delete(c *gin.Context) {
 		return
 	}
 	if err := h.comments.Delete(uint(commentID), current.ID, current.Role == model.RoleAdmin); err != nil {
+		recordOp(h.logs, c, model.LogCategoryComment, "删除评论", fmt.Sprintf("评论 #%d", commentID), false)
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategoryComment, "删除评论", fmt.Sprintf("评论 #%d", commentID), true)
 	c.Status(http.StatusNoContent)
 }
 

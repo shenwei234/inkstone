@@ -1,19 +1,22 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shenwei/inkstone/backend/internal/model"
 	"github.com/shenwei/inkstone/backend/internal/service"
 )
 
 type SystemHandler struct {
 	settings *service.SettingsService
 	updates  *service.UpdateAgent
+	logs     *service.LogService
 }
 
-func NewSystemHandler(settings *service.SettingsService, updates *service.UpdateAgent) *SystemHandler {
-	return &SystemHandler{settings: settings, updates: updates}
+func NewSystemHandler(settings *service.SettingsService, updates *service.UpdateAgent, logs *service.LogService) *SystemHandler {
+	return &SystemHandler{settings: settings, updates: updates, logs: logs}
 }
 
 // Info handles GET /api/v1/system/info.
@@ -47,6 +50,7 @@ type saveUpdateConfigRequest struct {
 	Auto        bool   `json:"auto"`
 	RepoDir     string `json:"repo_dir"`
 	ComposeFile string `json:"compose_file"`
+	MirrorURLs  string `json:"mirror_urls"`
 }
 
 // SaveUpdateConfig handles PUT /admin/updates/config — push server URL/token/paths.
@@ -62,10 +66,14 @@ func (h *SystemHandler) SaveUpdateConfig(c *gin.Context) {
 		Auto:        req.Auto,
 		RepoDir:     req.RepoDir,
 		ComposeFile: req.ComposeFile,
+		MirrorURLs:  req.MirrorURLs,
 	}); err != nil {
+		recordOp(h.logs, c, model.LogCategorySystem, "保存更新配置", "服务地址 "+req.ServerURL, false)
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategorySystem, "保存更新配置",
+		fmt.Sprintf("服务地址 %s（自动更新：%t）", req.ServerURL, req.Auto), true)
 	c.JSON(http.StatusOK, gin.H{"config": h.updates.Config(), "message": "更新配置已保存"})
 }
 
@@ -94,8 +102,10 @@ func (h *SystemHandler) ApplyUpdate(c *gin.Context) {
 		return
 	}
 	if err := h.updates.ApplyNow(); err != nil {
+		recordOp(h.logs, c, model.LogCategorySystem, "执行系统更新", err.Error(), false)
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategorySystem, "执行系统更新", "已开始拉取镜像并替换部署", true)
 	c.JSON(http.StatusOK, gin.H{"status": h.updates.Status(), "message": "已开始更新"})
 }

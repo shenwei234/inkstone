@@ -99,9 +99,10 @@ middleware.Auth(tokens, userStatusOK)
 ```
 - 解析 `Authorization: Bearer <token>`
 - 校验 JWT 有效性 + 类型必须是 `access`
-- `userStatusOK` 回调**实时查库**校验用户未被封禁/删除（避免封禁后旧 token 仍可用）
-- 通过后 `c.Set(ContextUserKey, CurrentUser{ID, Role})`
+- `userStatusOK` 回调**实时查库**校验用户未被封禁/删除（避免封禁后旧 token 仍可用），签名 `func(id uint) (username string, ok bool)`；返回的用户名写入 context 供操作日志使用
+- 通过后 `c.Set(ContextUserKey, CurrentUser{ID, Role, Username})`
 - 用 `middleware.GetCurrentUser(c)` 取值
+- JWT claims 内置 `uname`（用户名）声明（Beta1.12 起），`GeneratePair` 签名 `(userID, username, role)`；**改动签发点必须同步三个参数**（Register/Login/Refresh）
 
 ### OptionalAuth
 同 Auth，但无 token 或 token 无效时不拦截，仅匿名放行。用于文章列表等「登录后可见更多」的接口。
@@ -205,6 +206,25 @@ AdminView()                    // 管理视图（maskKeys 转为 xxx_set）
 - `Trend(days)` — 返回 N 天趋势，**自动补零日期**
 - `SystemResources()` — 系统资源（跨平台：`stat_linux.go` 读 /proc，`stat_windows.go` 用 PowerShell CIM）
 
+### LogService（`service/log_service.go`，Beta1.12 增强）
+```go
+Record(Entry)   // 异步入队（1024 缓冲，满丢弃；Detail 截 500、UserAgent 截 250）
+List(OperationLogQuery)   // 分页查询：category/username/keyword/from/to/success
+Export(OperationLogQuery) // 全量导出（不分页，上限 5 万条）
+Overview() (LogOverview)  // total/today/failed/by_category 总览
+Stats()                   // 各分类计数（旧接口）
+```
+异步 worker 落库，`cleanupLoop` 每 24h 清理 90 天前日志。
+
+**日志记录点**（Beta1.12 起全覆盖，handler 层统一走 `recordOp(logs, c, category, action, detail, success)`，自动带当前用户/IP/UA）：
+- auth：注册成功、登录成功/失败、改密码、改资料、refresh 失败
+- article：文章创建/更新/删除（更新日志含**变更字段明细**，如「变更：标题、内容」）
+- user：创建/改资料/封禁/解禁/改角色/删除用户
+- comment：用户删自己评论、管理员删评论
+- setting：更新设置（**只记 key 名列表，绝不记录值**——设置含 SMTP 密码等密钥）、测试邮件
+- file / link / page / taxonomy / system：增删改详情含标题/名称，更新前先查实体名
+- Detail 长度防护：`Record` 按字符截断到 500（列宽上限），防长标题导致入库失败
+
 ### LinkService
 - `StartAutoCheck()` — 启动后台协程，每 6 小时检测「超过 24 小时未检测」的友链
 - `probeURL()` — HEAD 优先 → GET 回退，`status < 500` 视为可达
@@ -223,21 +243,36 @@ AdminView()                    // 管理视图（maskKeys 转为 xxx_set）
 博客实例侧自动更新编排，`main.go` 中 `NewUpdateAgent(settingsSvc, cfg.FrontendURL).Start()` 启动。
 
 ```go
-Config()                    // 推送配置视图（token 只回传 token_set）
+Config()                    // 推送配置视图（token 只回传 token_set；含 mirror_urls）
 SaveConfig(UpdateConfigInput) // 保存（token 空 = 保持原值，走 maskKeys 机制）
 CheckOnce() (*UpdateTask, error) // 立即轮询一次（不执行）
 ApplyNow() error            // 轮询 + 执行；无可用更新返回 ValidationError
 Status() UpdateStatus       // phase/running/logs/task（每 2s 可轮询）
+VerifyPendingUpdate()       // 启动时自检上次更新（Start 内延迟 5s 调用）
 ```
 
-**更新执行序列**（`runUpdateSteps`，每步输出实时进内存日志）：
-1. 仓库目录无 `.git` → `git clone --depth 1 --branch <branch> <repo_url> <repo_dir>`；否则 `git fetch` + `git reset --hard FETCH_HEAD`（**reset 不动未跟踪文件**，服务器本地 `.env` 安全）
-2. `docker load -i <repo_dir>/<tar_name>`（默认 `inkstone-images.tar`）
-3. `docker compose -f <compose_file> up -d`（workdir = 仓库目录）
+**更新执行序列**（`runUpdateSteps`，每步输出实时进内存日志；Beta1.10 起重构为 5 步）：
+1. `syncRepo`：有 `.git` → `git fetch --depth 1 <源> <branch>`，源按 `[origin, mirror_urls...]` **依次回退**（origin 常是容器内路径 `file:///opt/repo.git`，宿主机场景自动切到备用源）；`git reset --hard FETCH_HEAD`（**不动未跟踪文件**，`.env` 安全）。无 `.git` → 首次 `git clone`
+2. 校验 tar 存在 + sha256（日志输出摘要与大小）
+3. 本进程执行 `docker load -i tar`，比对 `docker images --no-trunc` **前后镜像 ID**：backend/frontend 均无变化 → 该 commit 已部署过则幂等跳过，否则报错终止（防「假更新」：旧 tar 也 load 成功）
+4. 打 `rollback-日期时间` 回滚 tag（backend/frontend 各一个）+ 落盘 `<dataDir>/update-verify.json`（期望版本、回滚 tag、目录、编排）+ 记录已部署 commit（`deployed-commit.json`）
+5. sibling 容器（`inkstone-updater`）执行 `docker compose up -d`（第 5 步会重建 backend 自身，必须在独立容器）
+
+**自动更新触发**（`tick`，每 15s 一次）：
+- 推送后台模式：`poll()` 拿到任务 且 `update_auto=true` → **直接 execute，站长无需点击任何按钮**（`update_auto=false` 时仅在页面提醒、手动「立即更新」）
+- 自治模式（`update_direct`，默认 false）：`git ls-remote` 探测镜像仓库最新 commit，与 `deployed-commit.json` 不同 → 直接 execute（绕过推送后台）
+- 成功后写 deployed commit；同一 commit 的重复任务幂等跳过（覆盖「更新成功→新版本上报」窗口期的补跑）
+
+**更新后自检与自动回滚**（`VerifyPendingUpdate`，服务启动时跑）：
+- 读 `update-verify.json`：无 → 跳过
+- agent 模式：`AppVersion == pending.Version` → 清除状态文件，`report("success")`；不一致（打包漏改版本号的典型症状）→ `docker tag` 两个 rollback tag 回 latest → sibling 执行 `compose up -d` 回滚 → `report("failed")`
+- direct 模式（`pending.IsDirect()`）：新进程能启动即视为生效，清除并上报
+- 注意：若新镜像**根本起不来**（无进程跑自检），只能宿主机手动回滚——见 deployment.md 排障表
 
 **关键设计**：
-- 第 3 步会重建 backend 容器自身，进程可能被中途 kill，`success` 上报不保证到达；推送后台会在实例重启后的下次轮询时按上报版本自动纠正状态
-- 轮询协程每 60s 一次（`updatePollInterval`），未配置 `server_url`/`token` 时静默跳过
+- `docker load` 放在本进程（不杀自身、可比对 ID）；只有 `compose up -d` 走 sibling 容器
+- 版本号入 tag/命令前过 `versionPattern`（`^[A-Za-z0-9][A-Za-z0-9._-]*$`）防注入
+- 轮询协程每 15s 一次（`updatePollInterval`），未配置 `server_url`/`token` 时静默跳过
 - 命令执行统一 30 分钟超时强杀；版本比较由推送后台负责（Beta1.0 数字段解析：Beta1.0 → [1,0]）
 
 **推送后台（D:\Update）**：独立 Go+Gin 单二进制服务（go:embed 内嵌管理页面），默认端口 9090，

@@ -31,6 +31,7 @@ const (
 	SettingUpdateAuto        = "update_auto"         // "true"/"false" 收到推送后是否自动执行更新
 	SettingUpdateRepoDir     = "update_repo_dir"     // 镜像包 git 仓库在服务器上的检出目录
 	SettingUpdateComposeFile = "update_compose_file" // 仓库内的 docker compose 编排文件名
+	SettingUpdateMirrorURLs  = "update_mirror_urls"  // 备用镜像仓库地址（origin 拉取失败时回退，分号分隔）
 	SettingUploadMaxMB       = "upload_max_mb"       // 文件管理：最大上传大小（MB）
 	SettingUploadSpeedKB     = "upload_speed_kb"     // 文件管理：上传限速（KB/s，0=不限）
 	SettingDownloadSpeedKB   = "download_speed_kb"   // 文件管理：下载限速（KB/s，0=不限）
@@ -86,9 +87,12 @@ var settingDefaults = map[string]string{
 	SettingUpdateAuto:        "true",
 	SettingUpdateRepoDir:     "/opt/inkstone-images",
 	SettingUpdateComposeFile: "docker-compose.offline.yml",
-	SettingUploadMaxMB:       "50",
-	SettingUploadSpeedKB:     "0",
-	SettingDownloadSpeedKB:   "0",
+	// 备用源：容器内 origin（file:///opt/repo.git）在宿主机上不可用；
+	// 宿主机路径对容器不可见——两端互为回退，任一可用即可拉取。
+	SettingUpdateMirrorURLs: "file:///srv/git/inkstone-images.git",
+	SettingUploadMaxMB:      "50",
+	SettingUploadSpeedKB:    "0",
+	SettingDownloadSpeedKB:  "0",
 
 	SettingSecurityEnabled:      "true",
 	SettingSecurityLoginMax:     "30",

@@ -24,3 +24,26 @@ export function htmlToMarkdown(html: string): string {
     return html
   }
 }
+
+export interface TocItem {
+  level: number // 1-6
+  text: string
+  /** 在 Markdown 源文本中的字符偏移，用于编辑器跳转 */
+  offset: number
+}
+
+/** 从 Markdown 提取标题大纲（忽略代码块内的 #） */
+export function extractToc(md: string): TocItem[] {
+  const items: TocItem[] = []
+  let inFence = false
+  let offset = 0
+  for (const line of md.split('\n')) {
+    if (/^\s*```/.test(line)) inFence = !inFence
+    if (!inFence) {
+      const m = line.match(/^(#{1,6})\s+(.+?)\s*#*\s*$/)
+      if (m) items.push({ level: m[1].length, text: m[2], offset })
+    }
+    offset += line.length + 1
+  }
+  return items
+}

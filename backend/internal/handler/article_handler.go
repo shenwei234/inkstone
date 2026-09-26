@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,10 +16,11 @@ import (
 
 type ArticleHandler struct {
 	articles *service.ArticleService
+	logs     *service.LogService
 }
 
-func NewArticleHandler(articles *service.ArticleService) *ArticleHandler {
-	return &ArticleHandler{articles: articles}
+func NewArticleHandler(articles *service.ArticleService, logs *service.LogService) *ArticleHandler {
+	return &ArticleHandler{articles: articles, logs: logs}
 }
 
 type articleRequest struct {
@@ -124,9 +126,12 @@ func (h *ArticleHandler) Create(c *gin.Context) {
 		Cover:      req.Cover,
 	})
 	if err != nil {
+		recordOp(h.logs, c, model.LogCategoryArticle, "创建文章", fmt.Sprintf("《%s》", req.Title), false)
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategoryArticle, "创建文章",
+		fmt.Sprintf("《%s》（#%d，%s）", article.Title, article.ID, statusLabel(article.Status)), true)
 	c.JSON(http.StatusCreated, gin.H{"article": toArticleResponse(article)})
 }
 
@@ -159,6 +164,7 @@ func (h *ArticleHandler) Update(c *gin.Context) {
 		Cover:      req.Cover,
 	})
 	if err != nil {
+		recordOp(h.logs, c, model.LogCategoryArticle, "更新文章", fmt.Sprintf("文章 #%d", id), false)
 		if errors.Is(err, repository.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "文章不存在或无权操作"})
 			return
@@ -166,6 +172,8 @@ func (h *ArticleHandler) Update(c *gin.Context) {
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategoryArticle, "更新文章",
+		fmt.Sprintf("《%s》（#%d%s）", article.Title, article.ID, changedDetail(req)), true)
 	c.JSON(http.StatusOK, gin.H{"article": toArticleResponse(article)})
 }
 
@@ -182,7 +190,13 @@ func (h *ArticleHandler) Delete(c *gin.Context) {
 		return
 	}
 
+	// 删除前先取标题，让审计日志记录删的是哪篇文章
+	title := ""
+	if article, err := h.articles.GetByID(uint(id)); err == nil {
+		title = article.Title
+	}
 	if err := h.articles.Delete(uint(id), current.ID); err != nil {
+		recordOp(h.logs, c, model.LogCategoryArticle, "删除文章", fmt.Sprintf("文章 #%d", id), false)
 		if errors.Is(err, repository.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "文章不存在或无权操作"})
 			return
@@ -190,6 +204,8 @@ func (h *ArticleHandler) Delete(c *gin.Context) {
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategoryArticle, "删除文章",
+		fmt.Sprintf("《%s》（#%d）", title, id), true)
 	c.Status(http.StatusNoContent)
 }
 

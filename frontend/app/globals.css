@@ -263,3 +263,168 @@ body.has-wallpaper header {
     transform: translateZ(0);
   }
 }
+
+/* ============ Markdown 编辑器增强 ============ */
+
+/* highlight.js 精简主题（亮色，跟随 zinc/蓝 accent 灰调） */
+.hljs {
+  color: var(--foreground);
+}
+.hljs-comment,
+.hljs-quote {
+  color: #6e7781;
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section,
+.hljs-doctag,
+.hljs-type,
+.hljs-name,
+.hljs-strong {
+  color: #cf222e;
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link,
+.hljs-number,
+.hljs-deletion {
+  color: #0a3069;
+}
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.function_,
+.hljs-built_in {
+  color: #8250df;
+}
+.hljs-attr,
+.hljs-attribute,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-selector-attr,
+.hljs-selector-pseudo {
+  color: #953800;
+}
+.hljs-meta {
+  color: #57606a;
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-addition {
+  color: #116329;
+  background: rgba(6, 197, 85, 0.12);
+}
+.hljs-deletion {
+  background: rgba(207, 34, 46, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  .hljs-comment,
+  .hljs-quote {
+    color: #8b949e;
+  }
+  .hljs-keyword,
+  .hljs-selector-tag,
+  .hljs-literal,
+  .hljs-section,
+  .hljs-doctag,
+  .hljs-type,
+  .hljs-name,
+  .hljs-strong {
+    color: #ff7b72;
+  }
+  .hljs-string,
+  .hljs-regexp,
+  .hljs-symbol,
+  .hljs-bullet,
+  .hljs-link,
+  .hljs-number {
+    color: #a5d6ff;
+  }
+  .hljs-title,
+  .hljs-title.class_,
+  .hljs-title.function_,
+  .hljs-built_in {
+    color: #d2a8ff;
+  }
+  .hljs-attr,
+  .hljs-attribute,
+  .hljs-variable,
+  .hljs-template-variable,
+  .hljs-selector-attr,
+  .hljs-selector-pseudo {
+    color: #ffa657;
+  }
+  .hljs-meta {
+    color: #8b949e;
+  }
+  .hljs-addition {
+    color: #7ee787;
+    background: rgba(46, 160, 67, 0.15);
+  }
+  .hljs-deletion {
+    color: #ffa198;
+    background: rgba(248, 81, 73, 0.15);
+  }
+}
+
+/* 代码块外框（header：语言标签 + 复制按钮，由预览 DOM 后处理注入） */
+.md-codeblock {
+  margin: 0;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background: var(--muted);
+}
+.md-codeblock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 12px;
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.md-codeblock-copy {
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  transition: color 0.15s, background 0.15s;
+}
+.md-codeblock-copy:hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+}
+.prose .md-codeblock pre {
+  margin: 0;
+  border-radius: 0;
+}
+
+/* 任务列表复选框可点击 */
+.md-task-checkbox {
+  cursor: pointer;
+  margin-right: 6px;
+  accent-color: var(--accent);
+}
+
+/* 拖拽图片进入编辑区时的整体高亮 */
+.md-dropzone-active {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+}
+
+/* TOC 目录大纲 */
+.md-toc-link.active {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* 查找替换面板输入框 */
+.md-find-input:focus {
+  border-color: var(--accent);
+}

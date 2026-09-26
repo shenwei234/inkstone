@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -10,10 +11,11 @@ import (
 
 type LinkHandler struct {
 	links *service.LinkService
+	logs  *service.LogService
 }
 
-func NewLinkHandler(links *service.LinkService) *LinkHandler {
-	return &LinkHandler{links: links}
+func NewLinkHandler(links *service.LinkService, logs *service.LogService) *LinkHandler {
+	return &LinkHandler{links: links, logs: logs}
 }
 
 // publicLinkResponse hides the real URL when a link is unreachable.
@@ -116,9 +118,12 @@ func (h *LinkHandler) Create(c *gin.Context) {
 		SortOrder:   req.SortOrder,
 	})
 	if err != nil {
+		recordOp(h.logs, c, model.LogCategoryLink, "添加友链", fmt.Sprintf("%s（%s）", req.Name, req.URL), false)
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategoryLink, "添加友链",
+		fmt.Sprintf("%s（#%d，%s）", link.Name, link.ID, link.URL), true)
 	c.JSON(http.StatusCreated, gin.H{"link": adminLinkResponse(link)})
 }
 
@@ -142,9 +147,12 @@ func (h *LinkHandler) Update(c *gin.Context) {
 		SortOrder:   req.SortOrder,
 	})
 	if err != nil {
+		recordOp(h.logs, c, model.LogCategoryLink, "更新友链", fmt.Sprintf("友链 #%d", id), false)
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategoryLink, "更新友链",
+		fmt.Sprintf("%s（#%d，%s）", link.Name, link.ID, link.URL), true)
 	c.JSON(http.StatusOK, gin.H{"link": adminLinkResponse(link)})
 }
 
@@ -154,10 +162,23 @@ func (h *LinkHandler) Delete(c *gin.Context) {
 	if !ok {
 		return
 	}
+	// 删除前先取名称，让审计日志记录删的是哪条友链
+	name := ""
+	if links, err := h.links.List(); err == nil {
+		for i := range links {
+			if links[i].ID == uint(id) {
+				name = links[i].Name
+				break
+			}
+		}
+	}
 	if err := h.links.Delete(uint(id)); err != nil {
+		recordOp(h.logs, c, model.LogCategoryLink, "删除友链", fmt.Sprintf("友链 #%d", id), false)
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategoryLink, "删除友链",
+		fmt.Sprintf("%s（#%d）", name, id), true)
 	c.Status(http.StatusNoContent)
 }
 

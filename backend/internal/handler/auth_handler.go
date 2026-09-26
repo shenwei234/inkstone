@@ -166,6 +166,8 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 
 	user, pair, err := h.auth.Refresh(req.RefreshToken)
 	if err != nil {
+		// 刷新令牌失败值得记录：可能是 token 伪造 / 过期重放的信号
+		recordOp(h.logs, c, model.LogCategoryAuth, "刷新令牌失败", "refresh token 无效或已过期", false)
 		errorResponse(c, err)
 		return
 	}
@@ -208,9 +210,11 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 	if err := h.auth.ChangePassword(current.ID, req.CurrentPassword, req.NewPassword); err != nil {
+		recordOp(h.logs, c, model.LogCategoryAuth, "修改密码", "修改自己的登录密码", false)
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategoryAuth, "修改密码", "修改了自己的登录密码", true)
 	c.JSON(http.StatusOK, gin.H{"message": "密码已更新"})
 }
 
@@ -231,9 +235,11 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 	if err := h.auth.UpdateUsername(current.ID, req.Username); err != nil {
+		recordOp(h.logs, c, model.LogCategoryAuth, "修改个人资料", "用户名改为 "+req.Username, false)
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategoryAuth, "修改个人资料", "用户名改为 "+req.Username, true)
 	user, err := h.auth.GetUserByID(current.ID)
 	if err != nil {
 		errorResponse(c, err)

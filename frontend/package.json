@@ -18,6 +18,7 @@
     "@tiptap/suggestion": "^3.31.3",
     "framer-motion": "^13.2.0",
     "gsap": "^3.15.0",
+    "highlight.js": "^11.12.0",
     "lucide-react": "^1.42.0",
     "marked": "^18.0.14",
     "next": "16.3.4",

@@ -84,7 +84,7 @@ func (s *AuthService) Register(input RegisterInput) (*model.User, *TokenPair, er
 		return nil, nil, err
 	}
 
-	pair, err := s.tokens.GeneratePair(user.ID, user.Role)
+	pair, err := s.tokens.GeneratePair(user.ID, user.Username, user.Role)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -106,7 +106,7 @@ func (s *AuthService) Login(identifier, password string) (*model.User, *TokenPai
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 		return nil, nil, ErrInvalidCredentials
 	}
-	pair, err := s.tokens.GeneratePair(user.ID, user.Role)
+	pair, err := s.tokens.GeneratePair(user.ID, user.Username, user.Role)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -125,7 +125,7 @@ func (s *AuthService) Refresh(refreshToken string) (*model.User, *TokenPair, err
 	if user.IsBanned() {
 		return nil, nil, ErrUserBanned
 	}
-	pair, err := s.tokens.GeneratePair(user.ID, user.Role)
+	pair, err := s.tokens.GeneratePair(user.ID, user.Username, user.Role)
 	if err != nil {
 		return nil, nil, err
 	}

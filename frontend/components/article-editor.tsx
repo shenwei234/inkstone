@@ -453,7 +453,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
           </div>
 
           <div className="mt-6 border-t border-border pt-2">
-            <MarkdownEditor value={markdown} onChange={setMarkdown} />
+            <MarkdownEditor value={markdown} onChange={setMarkdown} onSaveRequest={() => { if (!publish.isPending) doPublish() }} />
           </div>
 
           <div className="mt-8 flex items-center justify-between border-t border-border pt-4 text-xs text-muted-foreground">
@@ -491,7 +491,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
           transition={{ delay: 0.4 }}
           className="mt-8 text-center text-xs text-muted-foreground"
         >
-          {`提示：写完点右上角「${primaryLabel}」就能发表。草稿每 2 秒自动保存，不用怕丢。`}
+          {`提示：写完点右上角「${primaryLabel}」就能发表。草稿每 2 秒自动保存，Ctrl+S 可随时保存，不用怕丢。`}
         </motion.p>
       </div>
       {/* 全屏实时预览 */}

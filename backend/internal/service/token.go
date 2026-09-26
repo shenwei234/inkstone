@@ -13,9 +13,10 @@ const (
 )
 
 type Claims struct {
-	UserID uint   `json:"uid"`
-	Role   string `json:"role"`
-	Type   string `json:"typ"`
+	UserID   uint   `json:"uid"`
+	Username string `json:"uname"`
+	Role     string `json:"role"`
+	Type     string `json:"typ"`
 	jwt.RegisteredClaims
 }
 
@@ -35,12 +36,12 @@ func NewTokenManager(secret string, accessTTL, refreshTTL time.Duration) *TokenM
 	return &TokenManager{secret: []byte(secret), accessTTL: accessTTL, refreshTTL: refreshTTL}
 }
 
-func (m *TokenManager) GeneratePair(userID uint, role string) (*TokenPair, error) {
-	access, err := m.generate(userID, role, TokenTypeAccess, m.accessTTL)
+func (m *TokenManager) GeneratePair(userID uint, username, role string) (*TokenPair, error) {
+	access, err := m.generate(userID, username, role, TokenTypeAccess, m.accessTTL)
 	if err != nil {
 		return nil, err
 	}
-	refresh, err := m.generate(userID, role, TokenTypeRefresh, m.refreshTTL)
+	refresh, err := m.generate(userID, username, role, TokenTypeRefresh, m.refreshTTL)
 	if err != nil {
 		return nil, err
 	}
@@ -51,11 +52,12 @@ func (m *TokenManager) GeneratePair(userID uint, role string) (*TokenPair, error
 	}, nil
 }
 
-func (m *TokenManager) generate(userID uint, role, typ string, ttl time.Duration) (string, error) {
+func (m *TokenManager) generate(userID uint, username, role, typ string, ttl time.Duration) (string, error) {
 	claims := Claims{
-		UserID: userID,
-		Role:   role,
-		Type:   typ,
+		UserID:   userID,
+		Username: username,
+		Role:     role,
+		Type:     typ,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

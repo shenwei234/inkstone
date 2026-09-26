@@ -15,10 +15,11 @@ import (
 type FileHandler struct {
 	files     *service.FileService
 	publicURL string
+	logs      *service.LogService
 }
 
-func NewFileHandler(files *service.FileService, publicURL string) *FileHandler {
-	return &FileHandler{files: files, publicURL: publicURL}
+func NewFileHandler(files *service.FileService, publicURL string, logs *service.LogService) *FileHandler {
+	return &FileHandler{files: files, publicURL: publicURL, logs: logs}
 }
 
 func (h *FileHandler) toResponse(asset *model.FileAsset) gin.H {
@@ -90,9 +91,12 @@ func (h *FileHandler) Upload(c *gin.Context) {
 
 	asset, err := h.files.Save(fileHeader.Filename, fileHeader.Size, src, current.ID)
 	if err != nil {
+		recordOp(h.logs, c, model.LogCategoryFile, "上传文件", fmt.Sprintf("%s（%.1f KB）", fileHeader.Filename, float64(fileHeader.Size)/1024), false)
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategoryFile, "上传文件",
+		fmt.Sprintf("%s（%.1f KB，#%d）", asset.OriginalName, float64(asset.Size)/1024, asset.ID), true)
 	c.JSON(http.StatusCreated, gin.H{"file": h.toResponse(asset)})
 }
 
@@ -131,10 +135,18 @@ func (h *FileHandler) Delete(c *gin.Context) {
 	if !ok {
 		return
 	}
+	// 删除前先取文件名，让审计日志记录删的是哪个文件
+	name := ""
+	if asset, err := h.files.Get(uint(id)); err == nil {
+		name = asset.OriginalName
+	}
 	if err := h.files.Delete(uint(id)); err != nil {
+		recordOp(h.logs, c, model.LogCategoryFile, "删除文件", fmt.Sprintf("文件 #%d", id), false)
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategoryFile, "删除文件",
+		fmt.Sprintf("%s（#%d）", name, id), true)
 	c.Status(http.StatusNoContent)
 }
 

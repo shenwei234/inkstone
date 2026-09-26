@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -10,10 +11,11 @@ import (
 
 type PageHandler struct {
 	pages *service.PageService
+	logs  *service.LogService
 }
 
-func NewPageHandler(pages *service.PageService) *PageHandler {
-	return &PageHandler{pages: pages}
+func NewPageHandler(pages *service.PageService, logs *service.LogService) *PageHandler {
+	return &PageHandler{pages: pages, logs: logs}
 }
 
 func toPageResponse(p *model.Page) gin.H {
@@ -56,9 +58,12 @@ func (h *PageHandler) Create(c *gin.Context) {
 		ShowInNav: req.ShowInNav,
 	})
 	if err != nil {
+		recordOp(h.logs, c, model.LogCategoryPage, "创建页面", fmt.Sprintf("《%s》", req.Title), false)
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategoryPage, "创建页面",
+		fmt.Sprintf("《%s》（#%d）", page.Title, page.ID), true)
 	c.JSON(http.StatusCreated, gin.H{"page": toPageResponse(page)})
 }
 
@@ -82,9 +87,12 @@ func (h *PageHandler) Update(c *gin.Context) {
 		ShowInNav: req.ShowInNav,
 	})
 	if err != nil {
+		recordOp(h.logs, c, model.LogCategoryPage, "更新页面", fmt.Sprintf("页面 #%d", id), false)
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategoryPage, "更新页面",
+		fmt.Sprintf("《%s》（#%d）", page.Title, page.ID), true)
 	c.JSON(http.StatusOK, gin.H{"page": toPageResponse(page)})
 }
 
@@ -94,7 +102,13 @@ func (h *PageHandler) Delete(c *gin.Context) {
 	if !ok {
 		return
 	}
+	// 删除前先取标题，让审计日志记录删的是哪个页面
+	title := ""
+	if page, err := h.pages.GetByID(uint(id)); err == nil {
+		title = page.Title
+	}
 	if err := h.pages.Delete(uint(id)); err != nil {
+		recordOp(h.logs, c, model.LogCategoryPage, "删除页面", fmt.Sprintf("页面 #%d", id), false)
 		if err.Error() == "record not found" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "页面不存在"})
 			return
@@ -102,6 +116,8 @@ func (h *PageHandler) Delete(c *gin.Context) {
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategoryPage, "删除页面",
+		fmt.Sprintf("《%s》（#%d）", title, id), true)
 	c.Status(http.StatusNoContent)
 }
 

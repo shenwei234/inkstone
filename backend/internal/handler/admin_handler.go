@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -18,10 +19,11 @@ type AdminHandler struct {
 	articles    *service.ArticleService
 	articleRepo *repository.ArticleRepository
 	comments    *service.CommentService
+	logs        *service.LogService
 }
 
-func NewAdminHandler(admin *service.AdminService, users *repository.UserRepository, articles *service.ArticleService, articleRepo *repository.ArticleRepository, comments *service.CommentService) *AdminHandler {
-	return &AdminHandler{admin: admin, users: users, articles: articles, articleRepo: articleRepo, comments: comments}
+func NewAdminHandler(admin *service.AdminService, users *repository.UserRepository, articles *service.ArticleService, articleRepo *repository.ArticleRepository, comments *service.CommentService, logs *service.LogService) *AdminHandler {
+	return &AdminHandler{admin: admin, users: users, articles: articles, articleRepo: articleRepo, comments: comments, logs: logs}
 }
 
 // Stats handles GET /admin/stats.
@@ -79,10 +81,13 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 		Role:     req.Role,
 	})
 	if err != nil {
+		recordOp(h.logs, c, model.LogCategoryUser, "创建用户", fmt.Sprintf("用户名 %s（%s）", req.Username, req.Email), false)
 		errorResponse(c, err)
 		return
 	}
 
+	recordOp(h.logs, c, model.LogCategoryUser, "创建用户",
+		fmt.Sprintf("%s（#%d，角色：%s）", user.Username, user.ID, user.Role), true)
 	c.JSON(http.StatusCreated, gin.H{
 		"user": gin.H{
 			"id":       user.ID,
@@ -117,9 +122,12 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 		Password: req.Password,
 	})
 	if err != nil {
+		recordOp(h.logs, c, model.LogCategoryUser, "修改用户资料", fmt.Sprintf("用户 #%d", id), false)
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategoryUser, "修改用户资料",
+		fmt.Sprintf("%s（#%d）", user.Username, user.ID), true)
 	c.JSON(http.StatusOK, gin.H{
 		"user": gin.H{
 			"id":       user.ID,
@@ -151,9 +159,15 @@ func (h *AdminHandler) UpdateUserStatus(c *gin.Context) {
 	}
 
 	if err := h.admin.SetUserStatus(uint(id), req.Status); err != nil {
+		recordOp(h.logs, c, model.LogCategoryUser, "修改用户状态", fmt.Sprintf("用户 #%d → %s", id, req.Status), false)
 		errorResponse(c, err)
 		return
 	}
+	action := "解禁用户"
+	if req.Status == model.StatusBanned {
+		action = "封禁用户"
+	}
+	recordOp(h.logs, c, model.LogCategoryUser, action, fmt.Sprintf("用户 #%d", id), true)
 	c.JSON(http.StatusOK, gin.H{"message": "状态已更新"})
 }
 
@@ -185,6 +199,7 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 	}
 
 	if err := h.users.UpdateRole(uint(id), req.Role); err != nil {
+		recordOp(h.logs, c, model.LogCategoryUser, "修改用户角色", fmt.Sprintf("用户 #%d → %s", id, req.Role), false)
 		if errors.Is(err, repository.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 			return
@@ -192,6 +207,8 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategoryUser, "修改用户角色",
+		fmt.Sprintf("用户 #%d → %s", id, req.Role), true)
 	c.JSON(http.StatusOK, gin.H{"message": "角色已更新"})
 }
 
@@ -209,10 +226,12 @@ func (h *AdminHandler) DeleteUser(c *gin.Context) {
 	}
 
 	if err := h.articleRepo.DeleteByAuthor(uint(id)); err != nil {
+		recordOp(h.logs, c, model.LogCategoryUser, "删除用户", fmt.Sprintf("用户 #%d", id), false)
 		errorResponse(c, err)
 		return
 	}
 	if err := h.users.Delete(uint(id)); err != nil {
+		recordOp(h.logs, c, model.LogCategoryUser, "删除用户", fmt.Sprintf("用户 #%d", id), false)
 		if errors.Is(err, repository.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
 			return
@@ -220,6 +239,8 @@ func (h *AdminHandler) DeleteUser(c *gin.Context) {
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategoryUser, "删除用户",
+		fmt.Sprintf("用户 #%d（连同其文章一并删除）", id), true)
 	c.Status(http.StatusNoContent)
 }
 
@@ -260,9 +281,12 @@ func (h *AdminHandler) SetArticleStatus(c *gin.Context) {
 
 	article, err := h.admin.SetArticleStatus(uint(id), req.Status)
 	if err != nil {
+		recordOp(h.logs, c, model.LogCategoryArticle, "修改文章状态", fmt.Sprintf("文章 #%d → %s", id, req.Status), false)
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategoryArticle, "修改文章状态",
+		fmt.Sprintf("《%s》（#%d → %s）", article.Title, id, statusLabel(article.Status)), true)
 	c.JSON(http.StatusOK, gin.H{"article": toArticleResponse(article)})
 }
 
@@ -289,6 +313,7 @@ func (h *AdminHandler) DeleteComment(c *gin.Context) {
 		return
 	}
 	if err := h.comments.DeleteAny(uint(id)); err != nil {
+		recordOp(h.logs, c, model.LogCategoryComment, "删除评论", fmt.Sprintf("评论 #%d", id), false)
 		if errors.Is(err, repository.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "评论不存在"})
 			return
@@ -296,6 +321,7 @@ func (h *AdminHandler) DeleteComment(c *gin.Context) {
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategoryComment, "删除评论", fmt.Sprintf("评论 #%d", id), true)
 	c.Status(http.StatusNoContent)
 }
 
@@ -305,7 +331,13 @@ func (h *AdminHandler) DeleteArticle(c *gin.Context) {
 	if !ok {
 		return
 	}
+	// 删除前先取标题，让审计日志记录删的是哪篇文章
+	title := ""
+	if article, err := h.articles.GetByID(uint(id)); err == nil {
+		title = article.Title
+	}
 	if err := h.articleRepo.DeleteAny(uint(id)); err != nil {
+		recordOp(h.logs, c, model.LogCategoryArticle, "删除文章", fmt.Sprintf("文章 #%d", id), false)
 		if errors.Is(err, repository.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "文章不存在"})
 			return
@@ -313,5 +345,7 @@ func (h *AdminHandler) DeleteArticle(c *gin.Context) {
 		errorResponse(c, err)
 		return
 	}
+	recordOp(h.logs, c, model.LogCategoryArticle, "删除文章",
+		fmt.Sprintf("《%s》（#%d）", title, id), true)
 	c.Status(http.StatusNoContent)
 }

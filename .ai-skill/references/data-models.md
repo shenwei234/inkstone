@@ -196,6 +196,26 @@ type VisitorDay struct {
 
 > 隐私：IP 只存哈希，90 天后自动清理。
 
+## OperationLog（操作日志，Beta1.12 增强）
+
+```go
+type OperationLog struct {
+    ID        uint
+    UserID    uint      // 操作者（登录失败等匿名场景为 0）
+    Username  string    // 操作者用户名（固化快照，用户改名/删除后仍可追溯）
+    Category  string    // auth/article/user/comment/setting/file/link/page/taxonomy/system/other
+    Action    string    // 操作名，如「创建文章」「封禁用户」
+    Detail    string    // 详情（截断 500 字符）；设置类只记 key 名，绝口不提值
+    IP        string    // 客户端 IP
+    UserAgent string    // UA（截断 250 字符）
+    Success   bool      // 失败操作也留痕
+    CreatedAt time.Time
+}
+```
+
+**行为**：异步入队（1024 缓冲，满丢弃）→ worker 落库；每 24h 清理 90 天前记录。
+后台页面 `/admin/logs`，导出走 `GET /admin/logs/export`（CSV，UTF-8 BOM，上限 5 万条）。
+
 ---
 
 ## 关系图

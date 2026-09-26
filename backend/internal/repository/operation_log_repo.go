@@ -1,14 +1,22 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/shenwei/inkstone/backend/internal/model"
 	"gorm.io/gorm"
 )
+
+// maxExportLogs 限制一次导出的最大条数，避免超大数据量把内存和下载撑爆。
+const maxExportLogs = 50000
 
 type OperationLogQuery struct {
 	Category string
 	Username string
 	Keyword  string
+	From     *time.Time
+	To       *time.Time
+	Success  *bool
 	Page     int
 	PageSize int
 }
@@ -25,9 +33,8 @@ func (r *OperationLogRepository) Create(log *model.OperationLog) error {
 	return r.db.Create(log).Error
 }
 
-func (r *OperationLogRepository) List(q OperationLogQuery) ([]model.OperationLog, int64, error) {
-	db := r.db.Model(&model.OperationLog{})
-
+// applyFilters 应用筛选条件（分页除外），List / Export / 统计共用。
+func (r *OperationLogRepository) applyFilters(db *gorm.DB, q OperationLogQuery) *gorm.DB {
 	if q.Category != "" {
 		db = db.Where("category = ?", q.Category)
 	}
@@ -40,6 +47,20 @@ func (r *OperationLogRepository) List(q OperationLogQuery) ([]model.OperationLog
 		db = db.Where("action ILIKE ? OR detail ILIKE ? OR ip ILIKE ?",
 			"%"+escaped+"%", "%"+escaped+"%", "%"+escaped+"%")
 	}
+	if q.From != nil {
+		db = db.Where("created_at >= ?", *q.From)
+	}
+	if q.To != nil {
+		db = db.Where("created_at <= ?", *q.To)
+	}
+	if q.Success != nil {
+		db = db.Where("success = ?", *q.Success)
+	}
+	return db
+}
+
+func (r *OperationLogRepository) List(q OperationLogQuery) ([]model.OperationLog, int64, error) {
+	db := r.applyFilters(r.db.Model(&model.OperationLog{}), q)
 
 	var total int64
 	if err := db.Count(&total).Error; err != nil {
@@ -59,6 +80,16 @@ func (r *OperationLogRepository) List(q OperationLogQuery) ([]model.OperationLog
 		Limit(q.PageSize).
 		Find(&logs).Error
 	return logs, total, err
+}
+
+// Export returns filtered logs for CSV download (no pagination, capped).
+func (r *OperationLogRepository) Export(q OperationLogQuery) ([]model.OperationLog, error) {
+	db := r.applyFilters(r.db.Model(&model.OperationLog{}), q)
+	var logs []model.OperationLog
+	err := db.Order("created_at DESC, id DESC").
+		Limit(maxExportLogs).
+		Find(&logs).Error
+	return logs, err
 }
 
 // Cleanup removes logs older than the given time.
@@ -85,4 +116,27 @@ func (r *OperationLogRepository) CountByCategory() (map[string]int64, error) {
 		out[r.Category] = r.Count
 	}
 	return out, nil
+}
+
+func (r *OperationLogRepository) countWhere(query interface{}, args ...interface{}) (int64, error) {
+	var count int64
+	err := r.db.Model(&model.OperationLog{}).Where(query, args...).Count(&count).Error
+	return count, err
+}
+
+// CountAll returns the total number of retained logs.
+func (r *OperationLogRepository) CountAll() (int64, error) {
+	return r.countWhere("1 = 1")
+}
+
+// CountToday returns logs created since local midnight.
+func (r *OperationLogRepository) CountToday() (int64, error) {
+	now := time.Now()
+	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	return r.countWhere("created_at >= ?", midnight)
+}
+
+// CountFailed returns logs recorded with success = false.
+func (r *OperationLogRepository) CountFailed() (int64, error) {
+	return r.countWhere("success = ?", false)
 }

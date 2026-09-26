@@ -12,7 +12,7 @@ Go + Gin + GORM + PostgreSQL 后端，Next.js 15 + React 19 前端，Docker 部�
 | 项目 | 值 |
 |---|---|
 | 模块名 | `github.com/shenwei/inkstone/backend` |
-| 当前版本 | `Beta1.1`（推送后台发起，见「更新推送后台」） |
+| 当前版本 | `Beta1.12`（推送后台发起，见「更新推送后台」） |
 | 后端端口 | `8080`（API 前缀 `/api/v1`） |
 | 前端端口 | `3000`（Next.js App Router） |
 | 数据库 | PostgreSQL 16（GORM AutoMigrate 自动建表） |
@@ -22,6 +22,7 @@ Go + Gin + GORM + PostgreSQL 后端，Next.js 15 + React 19 前端，Docker 部�
 | 文章状态 | `draft` / `published` |
 | 敏感字段 | SMTP 密码、验证码密钥、更新令牌（API 只返回 `xxx_set` 布尔值，不下发明文） |
 | 更新推送后台 | `D:\Update`（独立 Go+Gin 单二进制服务，默认端口 9090，数据在 `data/store.json`） |
+| Markdown 渲染 | 编辑前端 `marked` → 保存 HTML（后端 bluemonday 消毒）；预览高亮用 `highlight.js/lib/common`（主题在 `globals.css`，仅前端 DOM 后处理，不入库） |
 
 ## 目录导航
 
@@ -29,6 +30,7 @@ Go + Gin + GORM + PostgreSQL 后端，Next.js 15 + React 19 前端，Docker 部�
 backend/
   cmd/server/main.go              # 入口：依赖注入 + 全部路由注册
   internal/handler/               # HTTP 层：参数绑定、调用 service、错误映射
+  internal/handler/log_record.go  # recordOp：操作日志辅助（自动带当前用户/IP/UA）
   internal/service/               # 业务逻辑层（update_agent.go = 更新推送实例端）
   internal/repository/            # GORM 数据访问层
   internal/middleware/            # Auth / CORS / 限流 / 安全头 / 流量统计
@@ -168,5 +170,16 @@ cd frontend && npm run build && npx eslint app components lib --ext .ts,.tsx
 | alpine 缺 tzdata 连不上库 | 运行阶段 `apk add tzdata`，否则 DSN 的 `TimeZone=Asia/Shanghai` 报 `unknown time zone`，容器反复重启 |
 | alpine apk 官方源被墙 | `dl-cdn.alpinelinux.org` Permission denied；`sed` 换 `mirrors.aliyun.com/alpine` 再 apk add |
 | 更新时容器自重建 | `docker compose up -d` 会替换 backend 容器自身，进程日志可能中断，最终版本以推送后台显示为准；`git reset --hard` 不动未跟踪文件（服务器 `.env` 安全） |
+| 检出目录 origin 是容器内路径 | 服务器 `/opt/inkstone-images/repo` 的 origin 是 `file:///opt/repo.git`（容器内挂载路径），**宿主机上 fetch 会失败**；宿主手动同步用 `git fetch file:///srv/git/inkstone-images.git main` 绕过，不要改 origin（会破坏容器内更新代理） |
+| 发版必改 AppVersion | `internal/service/system_service.go` 的 `AppVersion` 与 changelog 必须同步改；漏改会导致心跳上报旧版本、推送后台反复下发更新任务 |
+| 更新「成功」但没生效 | 实例 git fetch 到的 commit 不含新镜像（push 没到服务器裸仓库）→ load 旧 tar → 镜像 ID 不变 → compose 不重建。看更新日志 `HEAD is now at <sha>` 与本地 commit 对比即可判断（Beta1.9 起 load 后会自动比对镜像 ID，一致直接报错终止） |
+| PowerShell 跑 .ps1 中文乱码/解析错 | PS 5.1 需要 **UTF-8 BOM** 才能解析中文；用 Write/Edit 工具写 .ps1 后要用 .NET 补 BOM：`[System.IO.File]::WriteAllText($p,$raw,(New-Object System.Text.UTF8Encoding($true)))` |
+| PS 脚本 here-string 易碎 | `@"..."@` 内嵌 `$(if ... {...})`、反引号转义易触发 ParserError；输出优先用逐行 Write-Host，逻辑用简单字符串 Contains 代替复杂正则 |
 | 推送后台必须 https | 博客站点是 https 时，页面请求 http 推送后台会被浏览器混合内容策略拦截 |
 | 服务器 curl 自己公网域名 000 | 阿里云 hairpin NAT 限制，**不是服务故障**；验证用外网客户端或本地 `curl -H Host:` |
+| 任务列表需要 checkbox 白名单 | Markdown `- [x]` 渲染出 `<input type="checkbox">`，bluemonday 默认剥离；`sanitize.go` 已单独放行 `input[type=checkbox][checked][disabled]` |
+| 编辑器 setState-in-effect | 项目 ESLint 开启 `react-hooks/set-state-in-effect`，effect 内直接 setState 会报错；把清理动作移到事件回调里 |
+| JWT 签发参数变了 | `GeneratePair(userID, username, role)`：Claims 有 `uname` 声明；改 `Auth` 中间件或签发逻辑时，`Register`/`Login`/`Refresh` 三处调用要同步 |
+| 操作日志禁止记录值 | 设置更新等日志只记 key 名列表（`settingDetail`），**绝不能把 SMTP 密码/验证码密钥等 value 写进日志** |
+| CSV 导出必须 BOM | `c.Writer` 先写 `0xEF 0xBB 0xBF` 再写 csv，否则 Excel 打开中文乱码；`csv.Writer.UseCRLF=true` |
+| blob 下载不能走 api() | `api()` 客户端只会 `res.json()`；文件下载要单独 `fetch + Bearer`（401 刷新重试）+ `URL.createObjectURL` |

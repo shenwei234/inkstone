@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"path/filepath"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -56,23 +57,24 @@ func main() {
 	apiLimiter := middleware.NewSlidingLimiter()
 
 	authHandler := handler.NewAuthHandler(authSvc, emailCodeSvc, geetestSvc, apiLimiter, logSvc)
-	articleHandler := handler.NewArticleHandler(articleSvc)
-	adminHandler := handler.NewAdminHandler(adminSvc, userRepo, articleSvc, articleRepo, commentSvc)
+	articleHandler := handler.NewArticleHandler(articleSvc, logSvc)
+	adminHandler := handler.NewAdminHandler(adminSvc, userRepo, articleSvc, articleRepo, commentSvc, logSvc)
 	taxonomyHandler := handler.NewTaxonomyHandler(taxonomyRepo)
-	commentHandler := handler.NewCommentHandler(commentSvc, tokens, geetestSvc, apiLimiter)
+	commentHandler := handler.NewCommentHandler(commentSvc, tokens, geetestSvc, apiLimiter, logSvc)
 	reactionHandler := handler.NewReactionHandler(reactionSvc)
 	rssHandler := handler.NewRSSHandler(articleSvc, cfg.FrontendURL)
 	sitemapHandler := handler.NewSitemapHandler(articleSvc, pageSvc, taxonomyRepo, cfg.FrontendURL)
-	settingsHandler := handler.NewSettingsHandler(settingsSvc, mailer, emailCodeSvc, geetestSvc)
-	pageHandler := handler.NewPageHandler(pageSvc)
-	updateAgent := service.NewUpdateAgent(settingsSvc, cfg.FrontendURL)
-	systemHandler := handler.NewSystemHandler(settingsSvc, updateAgent)
-	linkHandler := handler.NewLinkHandler(linkSvc)
-	fileHandler := handler.NewFileHandler(fileSvc, cfg.PublicAPIURL)
+	settingsHandler := handler.NewSettingsHandler(settingsSvc, mailer, emailCodeSvc, geetestSvc, logSvc)
+	pageHandler := handler.NewPageHandler(pageSvc, logSvc)
+	// dataDir 持久化更新验证状态（随 uploads_data 卷跨容器重建保留）
+	updateAgent := service.NewUpdateAgent(settingsSvc, cfg.FrontendURL, filepath.Dir(cfg.UploadDir))
+	systemHandler := handler.NewSystemHandler(settingsSvc, updateAgent, logSvc)
+	linkHandler := handler.NewLinkHandler(linkSvc, logSvc)
+	fileHandler := handler.NewFileHandler(fileSvc, cfg.PublicAPIURL, logSvc)
 	statHandler := handler.NewStatHandler(statSvc)
 	logHandler := handler.NewLogHandler(logSvc)
 	emailCodeHandler := handler.NewEmailCodeHandler(emailCodeSvc)
-	adminTagHandler := handler.NewAdminTagHandler(taxonomyRepo)
+	adminTagHandler := handler.NewAdminTagHandler(taxonomyRepo, logSvc)
 
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
@@ -144,9 +146,12 @@ func main() {
 		Message: "comment",
 	})
 
-	userStatusOK := func(id uint) bool {
+	userStatusOK := func(id uint) (string, bool) {
 		u, err := userRepo.FindByID(id)
-		return err == nil && !u.IsBanned()
+		if err != nil || u.IsBanned() {
+			return "", false
+		}
+		return u.Username, true
 	}
 
 	router.GET("/healthz", func(c *gin.Context) {
@@ -223,7 +228,9 @@ func main() {
 			admin.GET("/stats/traffic", statHandler.Traffic)
 			admin.GET("/stats/resources", statHandler.Resources)
 			admin.GET("/logs", logHandler.List)
+			admin.GET("/logs/overview", logHandler.Overview)
 			admin.GET("/logs/stats", logHandler.Stats)
+			admin.GET("/logs/export", logHandler.Export)
 			admin.GET("/users", adminHandler.ListUsers)
 			admin.POST("/users", adminHandler.CreateUser)
 			admin.PUT("/users/:id/role", adminHandler.UpdateUserRole)

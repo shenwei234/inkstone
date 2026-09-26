@@ -1,6 +1,7 @@
 package service
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/microcosm-cc/bluemonday"
@@ -19,6 +20,10 @@ var sanitizePolicy = func() *bluemonday.Policy {
 	p.AllowAttrs("alt", "width", "height").OnElements("img")
 	// 表格支持
 	p.AllowElements("table", "thead", "tbody", "tr", "td", "th")
+	// 任务列表复选框（仅允许 type=checkbox，配合 Markdown 的 - [x] 语法）
+	p.AllowElements("input")
+	p.AllowAttrs("type").Matching(regexp.MustCompile(`^checkbox$`)).OnElements("input")
+	p.AllowAttrs("checked", "disabled").OnElements("input")
 	// 音视频（仅允许站内/常见源，但默认 UGC 已限制协议为 http/https）
 	p.AllowAttrs("controls", "src").OnElements("video", "audio")
 	return p

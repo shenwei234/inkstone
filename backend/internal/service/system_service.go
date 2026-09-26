@@ -7,7 +7,7 @@ import (
 )
 
 // AppVersion is the current backend release version.
-const AppVersion = "Beta1.8"
+const AppVersion = "Beta1.14"
 
 var appStartTime = time.Now()
 
@@ -18,6 +18,57 @@ type ChangelogEntry struct {
 }
 
 var changelog = []ChangelogEntry{
+	{
+		Version: "Beta1.14",
+		Date:    "2026-09-26",
+		Items: []string{
+			"系统更新设置简化：移除「收到推送后自动更新」「仓库自治模式」两个选项，合并为单一「开启自动更新」开关",
+			"移除仓库自治模式相关代码（绕过推送后台直巡镜像仓库），统一走「推送后台发布 → 实例自动更新」标准流程",
+		},
+	},
+	{
+		Version: "Beta1.13",
+		Date:    "2026-09-26",
+		Items: []string{
+			"操作日志全覆盖：文章/用户/评论/设置/文件/友链/页面/标签/系统更新等关键操作均记录，含变更字段明细，失败操作同样留痕",
+			"日志页新增统计卡片（总数 / 今日新增 / 失败操作）与时间范围、操作结果筛选",
+			"新增日志导出：按当前筛选条件一键下载 CSV（UTF-8 BOM，Excel 打开中文不乱码）",
+			"JWT 令牌内置用户名声明（uname），操作日志可固化操作者名称",
+		},
+	},
+	{
+		Version: "Beta1.11",
+		Date:    "2026-09-26",
+		Items: []string{
+			"发布即自动更新：轮询间隔 60s → 15s，推送后台发版后实例无需任何点击自动更新",
+			"更新防呆：docker load 后比对镜像 ID，无变化直接报错终止，杜绝「假更新」",
+			"更新回滚：每次更新前自动打 rollback 回滚镜像，重启后自检运行版本，不符自动回滚并上报",
+			"多仓库源回退：git 拉取 origin 失败时自动切换备用镜像仓库地址（新设置项 update_mirror_urls）",
+			"新增一键发布脚本 scripts/release.ps1（自动改版本号 + 预检 + 打包 + 提交推送）",
+			"backend 容器增加 /healthz 健康检查",
+		},
+	},
+	{
+		Version: "Beta1.10",
+		Date:    "2026-09-26",
+		Items: []string{
+			"更新防呆：docker load 后比对镜像 ID，与当前一致直接报错终止，杜绝「假更新」",
+			"更新回滚：每次更新前自动打 rollback 回滚镜像，重启后自检运行版本，不符自动回滚并上报",
+			"多仓库源回退：git 拉取 origin 失败时自动切换备用镜像仓库地址（新设置项 update_mirror_urls）",
+			"新增一键发布脚本 scripts/release.ps1（自动改版本号 + 预检 + 打包 + 提交推送）",
+			"backend 容器增加 /healthz 健康检查",
+		},
+	},
+	{
+		Version: "Beta1.9",
+		Date:    "2026-09-26",
+		Items: []string{
+			"Markdown 编辑器升级：快捷键（Ctrl+B/I/K/U/S/F）、回车续写列表、Tab 缩进",
+			"编辑器新增：表格/任务列表工具、粘贴与拖拽上传图片、全屏专注模式",
+			"预览支持代码块语法高亮与一键复制、任务列表可勾选并反向改写源码",
+			"编辑器新增目录大纲 TOC、查找替换面板、滚动同步与状态栏",
+		},
+	},
 	{
 		Version: "Beta1.8",
 		Date:    "2026-09-26",

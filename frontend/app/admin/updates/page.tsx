@@ -40,6 +40,7 @@ export default function AdminUpdatesPage() {
   const [auto, setAuto] = useState(true)
   const [repoDir, setRepoDir] = useState('/opt/inkstone-images')
   const [composeFile, setComposeFile] = useState('docker-compose.offline.yml')
+  const [mirrorURLs, setMirrorURLs] = useState('')
 
   const infoQuery = useQuery({ queryKey: ['admin', 'updates'], queryFn: fetchUpdateInfo })
   const statusQuery = useQuery({
@@ -63,6 +64,7 @@ export default function AdminUpdatesPage() {
       setAuto(config.auto ?? true)
       setRepoDir(config.repo_dir ?? '')
       setComposeFile(config.compose_file ?? '')
+      setMirrorURLs((config.mirror_urls ?? []).join(';'))
       setToken('')
     }, 0)
     return () => clearTimeout(t)
@@ -118,6 +120,7 @@ export default function AdminUpdatesPage() {
         auto,
         repo_dir: repoDir,
         compose_file: composeFile,
+        mirror_urls: mirrorURLs,
       }),
     onSuccess: () => {
       invalidateAll()
@@ -328,8 +331,10 @@ export default function AdminUpdatesPage() {
             <span>编排：{task.compose_file}</span>
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
-            更新流程：git 拉取/更新镜像包仓库 → <span className="font-mono">docker load</span> 镜像包 →{' '}
-            <span className="font-mono">docker compose up -d</span> 替换部署
+            更新流程：git 同步（origin 失败自动回退备用源）→ 校验镜像包 sha256 →{' '}
+            <span className="font-mono">docker load</span>（与当前镜像对比，无变化将直接报错）→{' '}
+            打回滚点 + 记录待验证状态 → <span className="font-mono">docker compose up -d</span>{' '}
+            替换部署 → 重启后自动校验版本（不符将自动回滚）
           </p>
         </GsapReveal>
       )}
@@ -422,6 +427,18 @@ export default function AdminUpdatesPage() {
                   className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20"
                 />
               </label>
+              <label className="block sm:col-span-2">
+                <span className="text-xs text-muted-foreground">
+                  备用镜像仓库地址（origin 拉取失败时按顺序回退，分号分隔）
+                </span>
+                <input
+                  type="text"
+                  value={mirrorURLs}
+                  onChange={(e) => setMirrorURLs(e.target.value)}
+                  placeholder="file:///srv/git/inkstone-images.git"
+                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20"
+                />
+              </label>
             </div>
 
             <div className="flex flex-wrap items-center gap-4">
@@ -432,7 +449,7 @@ export default function AdminUpdatesPage() {
                   onChange={(e) => setAuto(e.target.checked)}
                   className="h-4 w-4 accent-[var(--accent)]"
                 />
-                收到新版本后自动更新（关闭则只提醒，需手动点击「立即更新」）
+                开启自动更新（推送后台一发版，本站自动完成更新，无需任何操作；关闭则只在后台提醒、需手动「立即更新」）
               </label>
               <button
                 type="button"
@@ -446,7 +463,8 @@ export default function AdminUpdatesPage() {
 
             <p className="text-xs leading-relaxed text-muted-foreground">
               说明：保存后每隔 60 秒自动向推送后台轮询一次；更新执行时服务自身会被替换重启，日志可能随进程重启清空，
-              最终状态以推送后台「客户端实例」页显示的版本为准。
+              最终状态以推送后台「客户端实例」页显示的版本为准。每次更新前会自动打{' '}
+              <span className="font-mono">rollback-日期时间</span> 回滚镜像；若新镜像版本与发布版本不符，重启后将自动回滚。
             </p>
           </div>
         </details>
