@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -30,6 +30,10 @@ import { useAuth } from '@/lib/auth-context'
 import { useNotify } from '@/components/toast'
 import { useSiteConfig } from '@/components/site-config-context'
 import { useGeetestCaptcha } from '@/components/geetest-captcha'
+import { useIsMounted } from '@/lib/use-mounted'
+import { ArticleToc, parseToc } from '@/components/article-toc'
+import { ArticleShare } from '@/components/article-share'
+import { BackToTop } from '@/components/back-to-top'
 import { PageTransition, easeOut } from '@/components/motion'
 import { SiteSidebar } from '@/components/site-sidebar'
 
@@ -91,8 +95,14 @@ export function PostDetail({ slug }: { slug: string }) {
       queryClient.invalidateQueries({ queryKey: ['comments', articleId] })
       notify.success('评论已删除')
     },
-    onError: (e) => notify.error(e instanceof Error ? e.message : '删除失败'),
+    onError: (e) => notify.error(e instanceof Error ? e.message : '删除评论失败'),
   })
+
+  // 文章目录：挂载后从正文 HTML 提取（SSR 无 document 返回空，避免 hydration 差异）
+  const contentRef = useRef<HTMLDivElement>(null)
+  const isMounted = useIsMounted()
+  const articleHtml = data?.article.content ?? ''
+  const tocItems = useMemo(() => (isMounted ? parseToc(articleHtml) : []), [isMounted, articleHtml])
 
   if (isLoading) {
     return (
@@ -152,19 +162,31 @@ export function PostDetail({ slug }: { slug: string }) {
   const widgets = site.widgets.filter((w) => w.type && w.title)
   const showSidebar = site.articleSidebar && widgets.length > 0
 
+  // 目录贴「没有侧边栏的一侧」：无侧边栏→右侧；侧边栏在右→目录在左；侧边栏在左→目录在右
+  const showToc = tocItems.length > 0
+  const tocPosition: 'left' | 'right' =
+    showSidebar && site.sidebarPosition === 'left' ? 'right' : 'left'
+
+  const layoutClass = showSidebar
+    ? showToc
+      ? site.sidebarPosition === 'left'
+        ? 'max-w-7xl lg:grid lg:grid-cols-[280px_minmax(0,1fr)_220px] lg:gap-8'
+        : 'max-w-7xl lg:grid lg:grid-cols-[220px_minmax(0,1fr)_280px] lg:gap-8'
+      : site.sidebarPosition === 'left'
+        ? 'max-w-7xl lg:grid lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-10'
+        : 'max-w-7xl lg:grid lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-10'
+    : showToc
+      ? 'max-w-5xl lg:grid lg:grid-cols-[minmax(0,1fr)_220px] lg:gap-8'
+      : 'max-w-4xl'
+
   return (
     <PageTransition>
-      <div
-        className={`mx-auto px-4 py-12 ${
-          showSidebar
-            ? site.sidebarPosition === 'left'
-              ? 'max-w-7xl lg:grid lg:grid-cols-[280px_1fr] lg:gap-10'
-              : 'max-w-7xl lg:grid lg:grid-cols-[1fr_280px] lg:gap-10'
-            : 'max-w-4xl'
-        }`}
-      >
+      <div className={`mx-auto px-4 py-12 ${layoutClass}`}>
       {showSidebar && site.sidebarPosition === 'left' && (
         <SiteSidebar widgets={widgets} position="left" />
+      )}
+      {showToc && tocPosition === 'left' && (
+        <ArticleToc items={tocItems} contentRef={contentRef} />
       )}
       <div className="min-w-0">
         {/* 顶部标题区：蓝色竖线 + 标题 + 三图标信息栏（圆角卡片） */}
@@ -230,6 +252,7 @@ export function PostDetail({ slug }: { slug: string }) {
           </div>
 
           <motion.article
+            ref={contentRef}
             initial={false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: easeOut }}
@@ -289,6 +312,7 @@ export function PostDetail({ slug }: { slug: string }) {
             <Star className={`h-4 w-4 ${reactions?.favorited ? 'fill-current' : ''}`} />
             {reactions?.favorites ?? 0}
           </button>
+          <ArticleShare title={article.title} />
           <Link
             href="/"
             className="ml-auto flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-accent"
@@ -409,7 +433,11 @@ export function PostDetail({ slug }: { slug: string }) {
       {showSidebar && site.sidebarPosition !== 'left' && (
         <SiteSidebar widgets={widgets} position="right" />
       )}
+      {showToc && tocPosition === 'right' && (
+        <ArticleToc items={tocItems} contentRef={contentRef} />
+      )}
       {captcha.dialog}
+      <BackToTop />
       </div>
     </PageTransition>
   )
