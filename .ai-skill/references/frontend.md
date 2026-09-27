@@ -159,7 +159,7 @@ export function downloadFile(id: number, filename: string)  // 鉴权下载
 文章正文编辑器（textarea 自研方案，保存时转 HTML）。
 
 ```tsx
-<MarkdownEditor value={markdown} onChange={setMarkdown} onSaveRequest={() => doPublish()} />
+<MarkdownEditor value={markdown} onChange={setMarkdown} onSaveRequest={() => saveDraft.mutate()} />
 ```
 
 功能清单：
@@ -186,17 +186,33 @@ export function downloadFile(id: number, filename: string)  // 鉴权下载
 - **自动保存**：草稿模式停手 2 秒自动保存（开关可记忆）
 - **标签选择器**：点选已有标签 or 手输新建
 - **封面设置**：上传/URL，留空自动取正文首图
-- **发布**：`publish` mutation，触发人机验证；`Ctrl+S` 或编辑器保存按钮同样触发
+- **保存草稿**（Beta1.15 改语义）：`saveDraft` mutation（status: draft）；
+  - 工具条「存草稿」按钮 + `Ctrl+S`（编辑器保存按钮）均触发它，**不再直接发布**（旧行为会把草稿直接发布，易惊吓）
+  - new 模式：先落库为 draft，`router.replace` 跳转编辑页，之后由自动保存接管
+- **本地草稿**（new 模式）：标题/正文等变更防抖 800ms 写入 `localStorage.blog_article_new_draft`；
+  刷新/误关后进入新建页自动恢复并显示提示条（可一键丢弃）；成功创建/发布/删除草稿时清除
+- **离开保护**：表单与「上次保存快照」（baseline state）比对，dirty 时刷新/关窗前弹浏览器确认；
+  点「文章列表」返回时用 `notify.confirm` 拦截 Next 客户端路由
 - 内部用 Markdown 状态，保存/自动保存时经 `markdownToHtml()` 转 HTML
 
-### 人机验证（`components/captcha.tsx`）
+> baseline 快照含 `{t, c, g, s, v}`（title/content/category/tags/cover），
+> 任何保存动作（自动保存/存草稿/发布）成功后刷新，避免误报 dirty。
+
+### 人机验证（`components/geetest-captcha.tsx`）
+极验 GT4 hook（旧版 `components/captcha.tsx` 已被替换）：
+
 ```tsx
-<Captcha config={site.captcha} action="comment" onChange={setCaptchaResult} />
+const captcha = useGeetestCaptcha('login') // 'login' | 'register' | 'comment'
+{...}
+{captcha.dialog}  // 常驻 DOM 的验证弹窗（display 切换显隐）
 ```
-- `action`: `"register" | "login" | "comment" | "article"`
-- 自动按 `site.captcha` 配置选择组件（Turnstile / 极验弹窗 / 算式）
-- **加载失败自动降级为算式验证**（带提示）
-- 回调 `onChange({ captcha_token, captcha_answer })`
+
+- 弹窗**必须 `createPortal` 到 `document.body`**：调用方页面（如友链申请表单）外层常是
+  带 `transform` 动画的 `motion.div`，内联渲染 `fixed inset-0` 会被 transform 包含块困住，
+  遮罩只覆盖表单卡片区域 → 「只有提交窗口模糊」。portal 用 `useSyncExternalStore`
+  感知挂载（SSR 首帧 false，hydration 后 true），避免 hydration mismatch 与
+  `react-hooks/set-state-in-effect` 规则
+- 开关由 `site-config` 的 `geetest.on_login/on_register/on_comment` 按场景控制
 
 ### 侧边栏小工具（`components/sidebar-widgets.tsx`）
 11 种小工具，通过 `type` 分发：

@@ -230,11 +230,20 @@ create（原始 body 与 inspect 复用两种）/ start / stop / remove。**没�
 1. 并发探测版本清单源（raw.githubusercontent.com 直连 + jsDelivr + 各加速源），第一个成功即用，缓存 5 分钟
 2. 下载镜像包：加速源 HEAD 测速排序 → 顺序尝试 → 失败自动切换；流式下载同时算 SHA256 并回调进度
 3. SHA256 校验（清单未提供则跳过）
-4. `docker load` → **镜像 ID 比对**（与 load 前一致 = 假更新，报错终止）
-5. 按 load 前的旧镜像 ID 打 `rollback-<recordID>` tag
+4. `docker load` → **镜像 ID 比对**（与「当前运行容器」的镜像一致 = 假更新，报错终止；
+   比的是运行容器而非宿主机 `latest`——上次失败的更新可能已把 latest 残留成新镜像）
+5. 按「当前运行镜像」ID 打 `rollback-<recordID>` tag（回滚要回到正在跑的版本）
 6. `spawnAgent`：用**当前 backend 镜像**创建一次性 agent 容器（`/app/server update-agent`，
    AutoRemove、只挂 docker.sock、不绑端口、继承 compose 网络与 DB 环境变量）
 7. 记录 `deploying` → `docker stop` 自身（30s）——此后 backend 进程死亡，由 agent 收尾
+
+**latest 残留防护（Beta1.21 事故后修复）**：`docker load` 会无条件把宿主机 `latest` 改写为新镜像。
+load 之后、agent 接管之前的任何同步失败（打 tag 失败/spawnAgent 失败）或进程中断，
+都会留下「latest=新镜像、运行容器=旧版本」的残留，导致重试更新被防呆误判「假更新」而永久卡死。防护：
+- load 前把宿主机 latest 镜像 ID 快照写入 `UpdateRecord.OldImages`（JSON: repo→ID）
+- performUpdate 的所有 load 后失败路径先调 `restoreLatestFromRecord(rec)` 还原 latest 再记失败
+- `recoverInterrupted` 对「未打 rollback tag 就中断」的记录同样先还原再记失败
+- 回滚素材改用**运行容器**镜像 ID（原来用宿主机 latest，残留场景会回滚错版本）
 
 **agent 流程**（daemon 托管，backend 停掉后仍存活）：
 1. sleep 5s → 先 recreate frontend → 再 rm 旧 backend + create 新 backend + start
@@ -340,3 +349,15 @@ Stats()                   // 各分类计数（旧接口）
 ```bash
 docker exec blog-postgres psql -U blog -d blog_platform -c "SELECT * FROM settings LIMIT 10;"
 ```
+## 下载慢的治理（Beta1.20）
+
+实例端下载 109MB 镜像包慢的根因与对策：
+
+1. **GitHub 直连被 QoS 限速**（实测服务器出口下载仅 ~3KB/s）
+2. **选源逻辑曾经按 RTT 排序**：直连 RTT ~300ms 排第一，但它带宽 KB/s；加速源 RTT 略高但带宽 MB/s → 持续选中慢源
+3. **修复**：`rankSourcesBySpeed` 每个源 GET Range 取 4MB 实测带宽，按速度降序选源
+4. **断流卡死修复**：`idleTimeoutReader` 2 分钟无数据即失败换源（原来 body 传输无超时会永久挂起）
+5. **自检误杀修复**：本进程任务由 `updating` 标志豁免；跨进程残留窗口 10 分钟
+6. 加速源均不可达时（如当前资产 404），更新会快速失败并在「更新历史」展示真实原因，不再假死
+
+**若仍慢**：更新设置里只留实测最快的 1-2 个加速源（设置页「测试延迟」有下载延迟参考）；或将清单 asset.url 指向自有服务器（走 update_mirror_urls 同级机制）。
