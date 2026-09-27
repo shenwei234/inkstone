@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import {
   CalendarDays,
@@ -24,10 +23,7 @@ import {
 import { downloadLogs, fetchLogOverview, fetchLogs } from '@/lib/api'
 import type { OperationLog } from '@/lib/api'
 import { useNotify } from '@/components/toast'
-import { PageTransition, StaggerList, StaggerItem } from '@/components/motion'
-import { truncate } from '@/lib/ui'
-
-const easeOut = [0.16, 1, 0.3, 1] as const
+import { PageTransition } from '@/components/motion'
 
 const PAGE_SIZE = 30
 
@@ -273,11 +269,11 @@ export default function AdminLogsPage() {
         </div>
       </div>
 
-      {/* 日志列表 */}
+      {/* 日志列表（紧凑列表样式：每行一条，点击展开完整详情与 UA） */}
       {logsQuery.isLoading ? (
         <div className="mt-5 space-y-2">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="skeleton h-16 rounded-xl" />
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="skeleton h-12 rounded-lg" />
           ))}
         </div>
       ) : logs.length === 0 ? (
@@ -286,85 +282,88 @@ export default function AdminLogsPage() {
           <p className="mt-4 text-muted-foreground">暂无符合条件的日志记录</p>
         </div>
       ) : (
-        <StaggerList className="mt-5 space-y-2">
-          {logs.map((log: OperationLog, i: number) => {
-            const expanded = expandedID === log.id
-            const longDetail = log.detail.length > 48
-            return (
-              <StaggerItem key={log.id}>
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: Math.min(i * 0.02, 0.3), duration: 0.25, ease: easeOut }}
-                  className="rounded-2xl border border-border bg-card px-4 py-3 transition-colors hover:border-accent/30"
+        <div className="mt-5 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+          {/* 表头（桌面端） */}
+          <div className="hidden border-b border-border bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground md:grid md:grid-cols-[18px_minmax(0,1fr)_150px_110px_130px] md:gap-3">
+            <span />
+            <span>操作</span>
+            <span>时间</span>
+            <span>用户</span>
+            <span>IP</span>
+          </div>
+          <div className="divide-y divide-border/60">
+            {logs.map((log: OperationLog) => {
+              const expanded = expandedID === log.id
+              return (
+                <div
+                  key={log.id}
+                  onClick={() => setExpandedID(expanded ? null : log.id)}
+                  className="cursor-pointer px-4 py-2.5 transition-colors hover:bg-muted/40 md:grid md:grid-cols-[18px_minmax(0,1fr)_150px_110px_130px] md:items-center md:gap-3"
                 >
-                  <div className="flex items-start gap-3">
-                    <span
-                      className={`mt-0.5 shrink-0 ${
-                        log.success ? 'text-emerald-500' : 'text-red-500'
-                      }`}
-                    >
-                      {log.success ? (
-                        <CheckCircle2 className="h-4 w-4" />
-                      ) : (
-                        <XCircle className="h-4 w-4" />
-                      )}
-                    </span>
+                  {/* 状态图标 */}
+                  <span className={`hidden md:inline-flex ${log.success ? 'text-emerald-500' : 'text-red-500'}`}>
+                    {log.success ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                  </span>
 
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-medium">{log.action}</span>
-                        <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                          {categoryLabel(log.category)}
+                  {/* 操作 + 分类 + 失败徽章 + 详情 */}
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span className={`md:hidden ${log.success ? 'text-emerald-500' : 'text-red-500'}`}>
+                        {log.success ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
+                      </span>
+                      <span className="truncate text-sm font-medium">{log.action}</span>
+                      <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                        {categoryLabel(log.category)}
+                      </span>
+                      {!log.success && (
+                        <span className="shrink-0 rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-500">
+                          失败
                         </span>
-                        {!log.success && (
-                          <span className="rounded-md bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-500">
-                            失败
-                          </span>
-                        )}
-                      </div>
-
-                      {log.detail && (
-                        <p className="mt-1 break-all text-xs text-muted-foreground">
-                          {expanded || !longDetail ? log.detail : truncate(log.detail, 48)}
-                          {longDetail && (
-                            <button
-                              onClick={() => setExpandedID(expanded ? null : log.id)}
-                              className="ml-1.5 text-accent hover:underline"
-                            >
-                              {expanded ? '收起' : '展开'}
-                            </button>
-                          )}
-                        </p>
-                      )}
-
-                      <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground/80">
-                        {log.username && (
-                          <span className="inline-flex items-center gap-1">
-                            <User className="h-3 w-3" />
-                            {log.username}
-                            <span className="opacity-60">#{log.user_id}</span>
-                          </span>
-                        )}
-                        {log.ip && <span>IP：{log.ip}</span>}
-                        <span>{new Date(log.created_at).toLocaleString('zh-CN')}</span>
-                      </p>
-
-                      {log.user_agent && (
-                        <p
-                          className="mt-0.5 truncate text-[10px] text-muted-foreground/60"
-                          title={log.user_agent}
-                        >
-                          UA：{log.user_agent}
-                        </p>
                       )}
                     </div>
+                    {log.detail && (
+                      <p
+                        className={`mt-0.5 text-xs text-muted-foreground ${
+                          expanded ? 'whitespace-pre-wrap break-all' : 'truncate'
+                        }`}
+                        title={expanded ? undefined : log.detail}
+                      >
+                        {log.detail}
+                      </p>
+                    )}
+                    {expanded && log.user_agent && (
+                      <p className="mt-0.5 break-all text-[10px] text-muted-foreground/60">
+                        UA：{log.user_agent}
+                      </p>
+                    )}
                   </div>
-                </motion.div>
-              </StaggerItem>
-            )
-          })}
-        </StaggerList>
+
+                  {/* 时间 */}
+                  <span className="mt-1 block text-xs tabular-nums text-muted-foreground md:mt-0 md:text-[13px]">
+                    {new Date(log.created_at).toLocaleString('zh-CN')}
+                  </span>
+
+                  {/* 用户 */}
+                  <span className="mt-0.5 block truncate text-xs text-muted-foreground md:mt-0 md:text-[13px]">
+                    {log.username ? (
+                      <>
+                        {log.username}
+                        <span className="opacity-60"> #{log.user_id}</span>
+                      </>
+                    ) : (
+                      '—'
+                    )}
+                  </span>
+
+                  {/* IP */}
+                  <span className="mt-0.5 block truncate font-mono text-xs text-muted-foreground md:mt-0">
+                    {log.ip || '—'}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
       )}
 
       {/* 分页 */}
