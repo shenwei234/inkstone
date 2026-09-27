@@ -74,6 +74,11 @@ server {
     location /uploads/ { proxy_pass http://127.0.0.1:8080; include /etc/nginx/proxy_params; }
     location /files/   { proxy_pass http://127.0.0.1:8080; include /etc/nginx/proxy_params; }
 
+    # SEO feeds（后端 gin 根路由；精确匹配，避免落入前端 catch-all 404）
+    location = /sitemap.xml { proxy_pass http://127.0.0.1:8080; include /etc/nginx/proxy_params; }
+    location = /robots.txt  { proxy_pass http://127.0.0.1:8080; include /etc/nginx/proxy_params; }
+    location = /feed.xml    { proxy_pass http://127.0.0.1:8080; include /etc/nginx/proxy_params; }
+
     # 其余 → 前端
     location / { proxy_pass http://127.0.0.1:3000; include /etc/nginx/proxy_params; }
 }
@@ -81,6 +86,10 @@ server {
 
 **关键点**：
 - `/api`、`/uploads`、`/files` **必须**指到后端 8080（否则图片 404、接口不通）
+- `/sitemap.xml`、`/robots.txt`、`/feed.xml` 用 **`location =` 精确匹配**指到后端 8080
+  （gin 根路由提供这三个 SEO 端点；若漏配会落进 `location /` → Next.js 无此路由 → 404，
+  robots.txt 里宣传的 sitemap 地址失效、搜索引擎收录与 RSS 订阅全断）
+- 完整可复制配置见仓库 `deploy/nginx/inkstone.conf`（与线上一致，改动先改仓库再同步服务器）
 - 前端容器端口只绑 `127.0.0.1`（`FRONTEND_BIND=127.0.0.1`），由 Nginx 对外
 - 阿里云等要放行安全组 `80` + `443`
 
