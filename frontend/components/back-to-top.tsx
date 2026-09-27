@@ -7,7 +7,6 @@ import { easeOut } from './motion'
 
 /**
  * 回到顶部悬浮按钮：滚动超过一屏后出现，点击平滑回顶。
- * 默认隐藏在移动端底部导航之上，不打磨交互细节，仅保证可用。
  */
 export function BackToTop() {
   const [show, setShow] = useState(false)

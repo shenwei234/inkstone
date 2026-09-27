@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CheckCircle2, ShieldCheck } from 'lucide-react'
 import { useSiteConfig } from './site-config-context'
+import { useIsMounted } from '@/lib/use-mounted'
 import type { GeetestCredential } from '@/lib/api'
 
 /** 极验 gt4.js 验证实例暴露的最小接口 */
@@ -36,23 +37,6 @@ interface Pending {
 const INIT_RETRY_MS = 50
 const INIT_MAX_TRIES = 200 // 50ms × 200 次 ≈ 10 秒仍未就绪则放弃，调用方会提示刷新
 
-/** 空订阅：挂载状态不会变化，只需挂载后读一次 */
-const subscribeNoop = () => () => {}
-
-/**
- * SSR 首帧为 false、挂载后为 true。
- * 验证弹窗要 createPortal 到 document.body（见 dialog 注释），
- * 首帧不能直接访问 body（SSR 无 document，且会 hydration mismatch）；
- * 用 useSyncExternalStore 感知挂载比 effect 内 setState 更干净，
- * 也不会触发项目的 react-hooks/set-state-in-effect 规则。
- */
-const useIsMounted = () =>
-  useSyncExternalStore(
-    subscribeNoop,
-    () => true,
-    () => false,
-  )
-
 /**
  * 人机验证（极验第四代行为验证）
  *
@@ -79,7 +63,6 @@ export function useGeetestCaptcha(scene: GeetestScene) {
 
   const instanceRef = useRef<GeetestInstance | null>(null)
   const pendingRef = useRef<Pending | null>(null)
-  const [ready, setReady] = useState(false)
   const [open, setOpen] = useState(false)
   const [succeeded, setSucceeded] = useState(false)
   const [closing, setClosing] = useState(false)
@@ -134,7 +117,6 @@ export function useGeetestCaptcha(scene: GeetestScene) {
               closeDialog()
               pending?.reject(new Error('人机验证已取消'))
             })
-            setReady(true)
           },
         )
         return
@@ -154,7 +136,7 @@ export function useGeetestCaptcha(scene: GeetestScene) {
   // 会访问已清空的内部属性而抛错；reset 后入口 DOM 仍保留，恢复为未验证态。
   const appendedRef = useRef(false)
   useEffect(() => {
-    if (!open || !ready) return
+    if (!open) return
     const captcha = instanceRef.current
     const box = boxRef.current
     if (!captcha || !box) return
@@ -164,7 +146,7 @@ export function useGeetestCaptcha(scene: GeetestScene) {
     if (appendedRef.current && !hasEntry) appendedRef.current = false
     captcha.appendTo(box)
     appendedRef.current = true
-  }, [open, ready])
+  }, [open])
 
   // 弹窗打开时锁 body 滚动 + ESC 关闭（与全站 Modal 体验一致）
   useEffect(() => {
@@ -252,7 +234,6 @@ export function useGeetestCaptcha(scene: GeetestScene) {
 
   return {
     enabled,
-    ready,
     run,
     // 必须 portal 到 body：调用方页面（如友链申请表单）外层常是带 transform 动画的
     // motion.div，内联渲染 fixed 遮罩会被 transform 包含块困住——inset-0 只覆盖

@@ -20,7 +20,7 @@ import { useNotify } from '@/components/toast'
 import { PageTransition, easeOut } from '@/components/motion'
 import { inputClass } from '@/lib/ui'
 
-/** 常用于提示可复制的小按钮（复制成功→对勾 1.5s） */
+/** 复制按钮：复制成功显示对勾 1.5s */
 function CopyButton({ text, label }: { text: string; label?: string }) {
   const notify = useNotify()
   const [done, setDone] = useState(false)

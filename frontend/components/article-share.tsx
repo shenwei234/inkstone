@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Check, Copy, Link2, Mail, Share2 } from 'lucide-react'
+import { Check, Link2, Mail, Send, Share2 } from 'lucide-react'
 import { useNotify } from './toast'
 
 /**
@@ -90,7 +90,7 @@ export function ArticleShare({ title }: { title: string }) {
             onClick={() => openExternal(`https://service.weibo.com/share/share.php?url=${enc(url)}&title=${enc(title)}`)}
             className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            <Copy className="h-4 w-4" />
+            <Send className="h-4 w-4" />
             分享到微博
           </button>
           <button
@@ -98,7 +98,7 @@ export function ArticleShare({ title }: { title: string }) {
             onClick={() => openExternal(`https://twitter.com/intent/tweet?url=${enc(url)}&text=${enc(title)}`)}
             className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            <Copy className="h-4 w-4" />
+            <Send className="h-4 w-4" />
             分享到 Twitter
           </button>
           <a
