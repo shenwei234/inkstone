@@ -192,6 +192,7 @@ cd frontend && npm run build && npx eslint app components lib --ext .ts,.tsx
 | update-hub 上传依赖 browser_download_url | GitHub Contents API 限 100MB，大镜像包必须走 Release assets API（XHR 支持上传进度）；同名资产先 DELETE 再传 |
 | joinMirror 不能剥协议 | `mirror + "/" + target` 保留完整 `https://`，ghproxy 系（ghfast/gh-proxy 等）按完整 URL 解析；剥掉协议会下载失败（有单测锁定） |
 | agent 容器要剥 compose labels + 禁重启 | 复用 backend 配置创建 agent 时必须删除 `com.docker.compose.*` labels（否则 compose up -d 误管）、`RestartPolicy=no`、`AutoRemove=true`、不绑端口 |
+| 线上 nginx conf 与仓库漏同步 | `deploy/nginx/inkstone.conf` 一直有 SEO location（`= /sitemap.xml`、`= /robots.txt`、`= /feed.xml` 精确匹配转 8080），但服务器 `/etc/nginx/conf.d/inkstone.conf` 是漏同步的旧版（缺三个 location），`/sitemap.xml` 落进 `location /` 被 Next 当页面路由 → 404。修复：仓库 conf base64 推服务器 → `nginx -t` → `nginx -s reload`。**改 nginx 先改仓库再同步服务器**；验证用外网 curl（服务器 curl 自己域名受阿里云 hairpin NAT 限制恒返回 000，别误判故障） |
 | agent 删 backend 前必须暂存 inspect | rm 旧容器后 create/start 失败时回滚要能重建：`savedIns` 快照 + `agentRollbackFrom(fallbackIns)`，否则 compose 里无 backend 容器 = 站点挂 |
 | 自更新进程内互斥 | `tryBeginUpdate/endUpdate` 与 DB `FindRunning` 双保险，防并发启动两个更新/回滚 |
 | 前端表单防轮询覆盖 | 用 `initializedRef` 做「只初始化一次」，否则 30s 轮询的新对象引用会把用户编辑中的表单重置 |
