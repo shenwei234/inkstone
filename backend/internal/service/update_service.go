@@ -50,6 +50,11 @@ const (
 	// fetchManifestTotalTimeout 清单探测总时限（多源并行，最坏等待）
 	fetchManifestTotalTimeout = 20 * time.Second
 
+	// speedProbe 下载带宽探测：每源取 4MB 实测速度（探测流量小、结论可靠），
+	// 用于镜像包下载前的选源（带宽优先于延迟，GitHub 直连被限速时关键）
+	speedProbeTimeout = 25 * time.Second
+	speedProbeBytes   = 4 << 20
+
 	// 镜像包体积上限（GitHub Release 单资产上限 2GB）
 	maxAssetSize = int64(2) << 30
 
@@ -774,57 +779,38 @@ func fetchManifestURLWithCtx(ctx context.Context, url string) (*UpdateManifest, 
 
 // ---------- 镜像包下载（加速源测速 + 失败切换） ----------
 
-// rankedSource 测速后的候选源。
-type rankedSource struct {
-	url     string
-	latency time.Duration
-	failed  bool
+// speedSource 带宽探测后的候选源。
+type speedSource struct {
+	url         string
+	bytesPerSec int64 // 探测实测下载速度（B/s）；0 = 探测失败
 }
 
-// rankSources 并发探测候选源可用性与延迟，按延迟升序返回（探测失败的排最后）。
-func rankSources(urls []string, timeout time.Duration) []rankedSource {
-	client := &http.Client{Timeout: timeout}
-	out := make([]rankedSource, len(urls))
+// rankSourcesBySpeed 并发探测候选源的**下载带宽**（GET Range 取前 probeBytes 字节测速），
+// 按速度降序返回。选源看带宽而非 RTT：GitHub 直连延迟低但被 QoS 限速（3KB/s），
+// 加速源延迟略高但带宽数 MB/s——按延迟排会持续选中慢源。
+func rankSourcesBySpeed(urls []string, timeout time.Duration, probeBytes int64) []speedSource {
+	out := make([]speedSource, len(urls))
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	for i, u := range urls {
 		wg.Add(1)
 		go func(i int, u string) {
 			defer wg.Done()
-			start := time.Now()
-			req, err := http.NewRequest("HEAD", u, nil)
-			if err != nil {
-				mu.Lock()
-				out[i] = rankedSource{url: u, failed: true}
-				mu.Unlock()
-				return
-			}
-			req.Header.Set("User-Agent", "inkstone-updater")
-			resp, err := client.Do(req)
+			speed := probeDownloadSpeed(u, timeout, probeBytes)
 			mu.Lock()
-			defer mu.Unlock()
-			if err != nil {
-				out[i] = rankedSource{url: u, failed: true}
-				return
-			}
-			resp.Body.Close()
-			// 405（不允许 HEAD）也视为源可用
-			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusMethodNotAllowed {
-				out[i] = rankedSource{url: u, failed: true}
-				return
-			}
-			out[i] = rankedSource{url: u, latency: time.Since(start)}
+			out[i] = speedSource{url: u, bytesPerSec: speed}
+			mu.Unlock()
 		}(i, u)
 	}
 	wg.Wait()
-	// 稳定排序：可用（未失败）按延迟升序，失败源按原顺序排最后
+	// 可用源按带宽降序，失败（0）排最后
 	for i := 1; i < len(out); i++ {
 		for j := i; j > 0; j-- {
 			a, b := out[j-1], out[j]
-			if b.failed {
+			if b.bytesPerSec == 0 {
 				break
 			}
-			if a.failed || b.latency < a.latency {
+			if a.bytesPerSec == 0 || b.bytesPerSec > a.bytesPerSec {
 				out[j-1], out[j] = b, a
 				continue
 			}
@@ -832,6 +818,32 @@ func rankSources(urls []string, timeout time.Duration) []rankedSource {
 		}
 	}
 	return out
+}
+
+// probeDownloadSpeed 实测单个 URL 的下载速度（字节/秒）；失败返回 0。
+func probeDownloadSpeed(url string, timeout time.Duration, probeBytes int64) int64 {
+	client := &http.Client{Timeout: timeout}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return 0
+	}
+	req.Header.Set("User-Agent", "inkstone-updater")
+	req.Header.Set("Range", fmt.Sprintf("bytes=0-%d", probeBytes-1))
+	start := time.Now()
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent && resp.StatusCode != http.StatusMethodNotAllowed {
+		return 0
+	}
+	n, _ := io.Copy(io.Discard, io.LimitReader(resp.Body, probeBytes))
+	elapsed := time.Since(start)
+	if n <= 0 || elapsed <= 0 {
+		return 0
+	}
+	return int64(float64(n) / elapsed.Seconds())
 }
 
 // assetCandidates 生成镜像包下载候选地址（直连 + 加速源）。
@@ -869,12 +881,10 @@ func (s *UpdateService) downloadAsset(asset ManifestAsset, onProgress func(int))
 	}
 	dest := filepath.Join(updateTempDir, asset.Name)
 
-	ranked := rankSources(s.assetCandidates(asset.URL), probeTimeout)
-	// 即使全部探测失败也尝试一遍（有些源禁 HEAD）
+	// 按实测下载带宽排序选源（带宽优先于延迟， GitHub 直连限速场景关键）
+	ranked := rankSourcesBySpeed(s.assetCandidates(asset.URL), speedProbeTimeout, speedProbeBytes)
 	var lastErr error
-	tried := 0
 	for _, src := range ranked {
-		tried++
 		sha, err = downloadFile(src.url, dest, asset.Size, onProgress)
 		if err == nil {
 			return dest, src.url, sha, nil
@@ -932,7 +942,7 @@ func downloadFile(url, dest string, total int64, onProgress func(int)) (sha stri
 				resp.Body.Close()
 				return "", err
 			}
-			sha, err = pump(resp.Body, f, hasher, counter, total, resumeFrom)
+			sha, err = pump(newIdleTimeoutReader(resp.Body, downloadIdleTimeout), f, hasher, counter, total, resumeFrom)
 			resp.Body.Close()
 			return sha, err
 		}
@@ -954,8 +964,50 @@ func downloadFile(url, dest string, total int64, onProgress func(int)) (sha stri
 		return "", err
 	}
 	defer resp.Body.Close()
-	sha, err = pump(resp.Body, f, hasher, counter, total, 0)
+	// 空闲读超时：慢速/断流的源 2 分钟无数据即失败（调用方换源重试），不再永久挂起
+	idleBody := newIdleTimeoutReader(resp.Body, downloadIdleTimeout)
+	sha, err = pump(idleBody, f, hasher, counter, total, 0)
 	return sha, err
+}
+
+// downloadIdleTimeout 下载空闲读超时：超过该时长无新数据即视为断流。
+const downloadIdleTimeout = 2 * time.Minute
+
+// idleTimeoutReader 为底层 reader 的每次 Read 设置空闲超时。
+// 慢网持续有数据时不会误杀；断流/挂起 2 分钟无数据返回超时错误。
+type idleTimeoutReader struct {
+	r    io.ReadCloser
+	idle time.Duration
+}
+
+func newIdleTimeoutReader(r io.ReadCloser, idle time.Duration) *idleTimeoutReader {
+	return &idleTimeoutReader{r: r, idle: idle}
+}
+
+func (t *idleTimeoutReader) Read(p []byte) (int, error) {
+	type result struct {
+		n   int
+		err error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		n, err := t.r.Read(p)
+		ch <- result{n: n, err: err}
+	}()
+	timer := time.NewTimer(t.idle)
+	defer timer.Stop()
+	select {
+	case res := <-ch:
+		return res.n, res.err
+	case <-timer.C:
+		// 关闭底层连接，阻止泄漏的 goroutine 继续读
+		t.r.Close()
+		return 0, fmt.Errorf("下载空闲超时（%v 无数据）", t.idle)
+	}
+}
+
+func (t *idleTimeoutReader) Close() error {
+	return t.r.Close()
 }
 
 // doDownload 发起下载请求（resumeFrom>0 时带 Range 头）。
@@ -1277,8 +1329,15 @@ func (s *UpdateService) RecoverInterruptedUpdate() {
 // recoverInterrupted 中断自检：非正常结束的更新（残留 running 记录）自动回滚或标记失败。
 // 被「启动时」与「调度周期」两处调用，保证 agent 崩溃后状态最终一致。
 func (s *UpdateService) recoverInterrupted() {
-	// 3 分钟窗口：正常部署（agent 收尾）远快于此；超过即视为 goroutine 已死
-	rec, ok := s.repo.FindInterrupted(time.Now().Add(-3 * time.Minute))
+	// 本进程仍有更新任务在跑（如下载大包耗时较长）→ 不是中断，跳过
+	s.updateMu.Lock()
+	busy := s.updating
+	s.updateMu.Unlock()
+	if busy {
+		return
+	}
+	// 10 分钟窗口：跨进程/重启后的残留记录才认定中断（本进程任务由上面的 busy 判断豁免）
+	rec, ok := s.repo.FindInterrupted(time.Now().Add(-10 * time.Minute))
 	if !ok {
 		return
 	}

@@ -7,7 +7,7 @@ import (
 )
 
 // AppVersion is the current backend release version.
-const AppVersion = "Beta1.19"
+const AppVersion = "Beta1.20"
 
 var appStartTime = time.Now()
 
@@ -18,6 +18,15 @@ type ChangelogEntry struct {
 }
 
 var changelog = []ChangelogEntry{
+	{
+		Version: "Beta1.20",
+		Date:    "2026-09-27",
+		Items: []string{
+			"下载选源改为实测带宽排序（替代 RTT 排序）：GitHub 直连被限速至 KB/s 时自动优先走加速源，下载速度提升数量级",
+			"下载新增空闲读超时（2 分钟无数据即失败并自动换源），慢速/断流源不再永久卡死更新流程",
+			"中断自检防误杀：本进程更新任务运行中不判中断；跨进程残留窗口 3→10 分钟",
+		},
+	},
 	{
 		Version: "Beta1.19",
 		Date:    "2026-09-27",

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     InkStone 一键打包发布脚本（本地构建 → 镜像包）。
 
@@ -11,14 +11,14 @@
       5. docker save → inkstone-images.tar，复制到 image-repo 并 commit + push
       6. 版本化产物输出到 -ImagesDir（默认 D:\images）：
          - inkstone-images-<Version>.tar（分发用镜像包，含版本号）
-         - update-<Version>.md（更新说明：SHA256/大小/包含镜像/changelog/三种部署方式/回滚）
+         - release-notes-<Version>.md（更新说明：SHA256/大小/包含镜像/changelog/三种部署方式/回滚）
      完成后分发版本化 tar，或在更新推送后台发布（实例自动更新）。
 
 .PARAMETER Version
-    版本号，如 Beta1.19（必填）。仅允许字母、数字、点、下划线、连字符。
+    版本号，如 Beta1.20（必填）。仅允许字母、数字、点、下划线、连字符。
 
 .PARAMETER Notes
-    版本说明（可选；会写入产物 update-<Version>.md 的发布备注）。
+    版本说明（可选；会写入产物 release-notes-<Version>.md 的发布备注）。
 
 .PARAMETER ApiUrl
     前端构建注入的 API 地址，默认 https://blog.shenv.top/api/v1
@@ -29,17 +29,23 @@
 .PARAMETER DryRun
     预演模式：只做前置检查与改写预览，不构建、不改文件、不提交推送
 
+.PARAMETER ReleaseRoot
+    中转产物根目录，默认 D:\blog-platform-release
+
+.PARAMETER RepoRoot
+    源码仓库目录，默认 D:\blog-platform
+
 .PARAMETER ImagesDir
-    版本化产物目录，默认 D:\images。
+    版本化产物目录，默认 D:\images
 
 .EXAMPLE
-    .\scripts\release.ps1 -Version Beta1.10
+    .\scripts\release.ps1 -Version Beta1.20
 
 .EXAMPLE
-    .\scripts\release.ps1 -Version Beta1.10 -Notes "Markdown 编辑器升级" -SkipChecks
+    .\scripts\release.ps1 -Version Beta1.20 -Notes "编辑器升级" -SkipChecks
 
 .EXAMPLE
-    .\scripts\release.ps1 -Version Beta1.10 -DryRun
+    .\scripts\release.ps1 -Version Beta1.20 -DryRun
 #>
 [CmdletBinding()]
 param(
@@ -55,17 +61,16 @@ param(
     [switch]$DryRun,
 
     [string]$ReleaseRoot = "D:\blog-platform-release",
+
     [string]$RepoRoot = "D:\blog-platform",
 
-    # 版本化产物目录：inkstone-images-<Version>.tar + update-<Version>.md
-    [string]$ImagesDir = "D:\images",
+    [string]$ImagesDir = "D:\images"
 )
 
 $ErrorActionPreference = "Continue"  # native 命令的 stderr 告警不当致命错误；显式检查 $LASTEXITCODE
 Set-StrictMode -Version 2.0
 
-function Write-Step([string]$msg) { Write-Host "
-===== $msg =====" -ForegroundColor Cyan }
+function Write-Step([string]$msg) { Write-Host "`n===== $msg =====" -ForegroundColor Cyan }
 function Write-Ok([string]$msg) { Write-Host "  [OK] $msg" -ForegroundColor Green }
 function Write-Warn([string]$msg) { Write-Host "  [!] $msg" -ForegroundColor Yellow }
 
@@ -91,7 +96,7 @@ if ($dirty) {
 }
 
 $systemFile = Join-Path $backendDir "internal\service\system_service.go"
-$sysRaw = [System.IO.File]::ReadAllText($systemFile)
+$sysRaw = [System.IO.File]::ReadAllText($systemFile, [System.Text.Encoding]::UTF8)
 if ($sysRaw -notmatch '(?m)^const AppVersion = "([^"]+)"') { throw "未找到 AppVersion 定义: $systemFile" }
 $oldVersion = $Matches[1]
 $needle = 'Version: "' + $Version + '"'
@@ -156,7 +161,7 @@ else {
     Write-Ok "inkstone-backend:latest / inkstone-frontend:latest 构建完成（API=$ApiUrl）"
 }
 
-Write-Step "4/6 导出镜像包"
+Write-Step "4/6 导出镜像包 + 版本化产物"
 if ($DryRun) {
     Write-Warn "[DryRun] docker save -o $tarOut inkstone-backend:latest inkstone-frontend:latest"
     Write-Warn "[DryRun] 版本化产物将输出到 $ImagesDir\inkstone-images-$Version.tar 与 $ImagesDir\release-notes-$Version.md"
@@ -165,7 +170,8 @@ else {
     if (Test-Path -LiteralPath $tarOut) { Remove-Item -LiteralPath $tarOut -Force }
     & docker save -o $tarOut inkstone-backend:latest inkstone-frontend:latest
     if ($LASTEXITCODE -ne 0) { throw "docker save 失败" }
-    $sizeMB = [math]::Round((Get-Item -LiteralPath $tarOut).Length / 1MB, 1)
+    $sizeBytes = (Get-Item -LiteralPath $tarOut).Length
+    $sizeMB = [math]::Round($sizeBytes / 1MB, 1)
     Copy-Item -LiteralPath $tarOut -Destination (Join-Path $imageRepo "inkstone-images.tar") -Force
     Write-Ok "inkstone-images.tar（$sizeMB MB）已复制到 image-repo（固定名，服务器协作约定）"
 
@@ -175,31 +181,25 @@ else {
     Copy-Item -LiteralPath $tarOut -Destination $versionedTar -Force
     Write-Ok "版本化镜像包：$versionedTar（$sizeMB MB）"
 
-    $sizeBytes = (Get-Item -LiteralPath $tarOut).Length
     $sha256 = (Get-FileHash -LiteralPath $tarOut -Algorithm SHA256).Hash.ToLower()
-    $backendID = (& docker image inspect inkstone-backend:latest --format '{{.Id}}') -join ''
-    $frontendID = (& docker image inspect inkstone-frontend:latest --format '{{.Id}}') -join ''
+    $backendID = (& docker image inspect inkstone-backend:latest --format '{{.Id}}' 2>$null) -join ''
+    $frontendID = (& docker image inspect inkstone-frontend:latest --format '{{.Id}}' 2>$null) -join ''
 
-    $noteFile = Join-Path $ImagesDir "release-notes-$Version.md"
-    $changelogFile = Join-Path $RepoRoot "backend\internal\service\system_service.go"
+    # 从 changelog 提取本版本条目（[^}]* 不跨条目，条目内无右花括号）
     $changelogItems = @()
-    if (Test-Path -LiteralPath $changelogFile) {
-        $clRaw = [System.IO.File]::ReadAllText($changelogFile, [System.Text.Encoding]::UTF8)
-        $clMatch = [regex]::Match($clRaw, '(?s)Version:\s*"' + [regex]::Escape($Version) + '",\s*Date:\s*"[^"]*",\s*Items:\s*\[\]\s*\{(?<items>.*?)\}\s*\}')
-        if ($clMatch.Success) {
-            $clMatch.Groups['items'].Value -split "
-" | ForEach-Object {
-                if ($_ -match '"([^"]+)"') { $changelogItems += $Matches[1] }
-            }
+    $clMatch = [regex]::Match($sysRaw, '(?s)Version:\s*"' + [regex]::Escape($Version) + '".*?Items:\s*\[\]string\{(?<items>[^}]*)\}')
+    if ($clMatch.Success) {
+        $clMatch.Groups['items'].Value -split "`n" | ForEach-Object {
+            if ($_ -match '"([^"]+)"') { $changelogItems += $Matches[1] }
         }
     }
     $notesLines = @()
     foreach ($item in $changelogItems) { $notesLines += "- $item" }
-    if ($Notes) { $notesLines += "", "发布备注：$Notes" }
-    $notesBlock = ($notesLines -join "
-")
+    if ($Notes) { $notesLines += "" ; $notesLines += "发布备注：$Notes" }
+    $notesBlock = ($notesLines -join "`n")
 
-    @"
+    $noteFile = Join-Path $ImagesDir "release-notes-$Version.md"
+    $noteText = @"
 # InkStone $Version 更新包
 
 - 版本号：$Version
@@ -214,40 +214,39 @@ $notesBlock
 
 ## 部署方式（任选）
 
-### 方式一：服务器本地 git（image-repo，已在 release 时自动 push）
+### 方式一：服务器本地 git（image-repo，release 时已自动 push）
 
-```bash
+``````bash
 cd /opt/inkstone-images/repo
 git fetch --depth=1 /srv/git/inkstone-images.git main && git reset --hard FETCH_HEAD
 docker load -i inkstone-images.tar
 cd /opt/inkstone-deploy && docker compose -f docker-compose.yml up -d
-```
+``````
 
 ### 方式二：scp + docker load
 
-```powershell
+``````powershell
 scp "$versionedTar" root@<服务器IP>:/opt/
 ssh root@<服务器IP> "docker load -i /opt/inkstone-images-$Version.tar && cd /opt/inkstone-deploy && docker compose -f docker-compose.yml up -d"
-```
+``````
 
+### 方式三：GitHub Release + 更新推送后台（建议，全自动）
 
-### 方式三：GitHub Release + 更新推送后台（建议）
-
-在 https://update.shenv.top 发布新版本（版本号 $Version，上传 "$versionedTar"），
-各实例将在下一个检查周期（默认 15 分钟）自动完成 下载 → 校验 → 替换容器。
+在 https://update.shenv.top 发布新版本（版本号 $Version，上传本目录的 inkstone-images-$Version.tar），
+各实例将在下一个检查周期（默认 15 分钟）自动完成 下载 → SHA256 校验 → 容器替换，失败自动回滚。
 
 ## 回滚
 
-- 自动：部署阶段健康检查/版本核对失败，agent 自动回滚到更新前版本
-- 手动：任一站后台「系统更新 → 更新历史 → 回滚到上一版本」
+- 自动：部署阶段健康检查 / 运行版本核对失败 → agent 自动回滚到更新前版本
+- 手动：任一站后台「系统更新 → 更新历史 → 回滚到上一版本」，无需登录服务器
 
-部署前建议备份数据库：
+部署前建议先备份数据库：
 
-```bash
+``````bash
 docker exec inkstone-postgres pg_dump -U blog blog_platform > /opt/backup_blog_pre-$Version.sql
-```
-
-"@ | Out-File -FilePath $noteFile -Encoding utf8
+``````
+"@
+    [System.IO.File]::WriteAllText($noteFile, $noteText, (New-Object System.Text.UTF8Encoding($false)))
     Write-Ok "更新说明：$noteFile"
 }
 
@@ -257,7 +256,7 @@ if ($DryRun) {
     Write-Warn "[DryRun] 将提交并推送 image-repo：$commitMsg"
 }
 else {
-    # -A 会同时带上 docker-compose.offline.yml 等仓库文件的改动（.env 被 .gitignore 排除）
+    # -A 会同时带上仓库文件的改动（.env 被 .gitignore 排除）
     & git -C $imageRepo add -A
     & git -C $imageRepo commit -m $commitMsg
     if ($LASTEXITCODE -ne 0) { throw "image-repo commit 失败（tar 无变化？）" }
@@ -283,7 +282,7 @@ Write-Host "  说明            : $notesText"
 Write-Host ""
 Write-Host "  后续步骤："
 Write-Host "   1. 提交源码仓库改动（AppVersion / changelog / 功能代码）：git add -A; git commit; git push"
-Write-Host "   2. 分发镜像：D:\images\ 下的 inkstone-images-$Version.tar + release-notes-$Version.md（说明含 SHA256 与部署命令）"
+Write-Host "   2. 分发镜像：$ImagesDir\ 下的 inkstone-images-$Version.tar + release-notes-$Version.md（说明含 SHA256 与部署命令）"
 Write-Host "   3. 或打开更新推送后台 update-hub → 发布新版本（版本号 $Version，上传版本化 tar）"
 Write-Host "   4. 发布后各实例在下一个检查周期（默认 15 分钟）内自动完成 下载→校验→替换容器"
 Write-Host "   5. 紧急回滚：任一站后台「系统更新 → 更新历史 → 回滚到上一版本」，无需登录服务器"

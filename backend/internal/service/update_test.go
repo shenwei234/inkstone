@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -124,24 +125,36 @@ func TestFetchManifestURL(t *testing.T) {
 	}
 }
 
-func TestRankSources(t *testing.T) {
+func TestRankSourcesBySpeed(t *testing.T) {
+	chunk := make([]byte, 256<<10)
+	// 快源：立即写 4MB+
 	fast := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		for i := 0; i < 20; i++ {
+			w.Write(chunk)
+		}
 	}))
 	defer fast.Close()
+	// 慢源：每 64KB 停 40ms（4MB ≈ 2.5s，明显慢于快源）
 	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(300 * time.Millisecond)
-		w.WriteHeader(http.StatusOK)
+		small := chunk[:64<<10]
+		for i := 0; i < 40; i++ {
+			w.Write(small)
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+			time.Sleep(40 * time.Millisecond)
+		}
 	}))
 	defer slow.Close()
+	// 坏源：503
 	broken := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
 	defer broken.Close()
 
-	ranked := rankSources([]string{slow.URL, broken.URL, fast.URL}, 3*time.Second)
+	ranked := rankSourcesBySpeed([]string{slow.URL, broken.URL, fast.URL}, 20*time.Second, 4<<20)
 	if len(ranked) != 3 {
-		t.Fatalf("rankSources 返回数量错误: %d", len(ranked))
+		t.Fatalf("返回数量错误: %d", len(ranked))
 	}
 	if ranked[0].url != fast.URL {
 		t.Errorf("最快源应排第一，实际 %q", ranked[0].url)
@@ -149,8 +162,11 @@ func TestRankSources(t *testing.T) {
 	if ranked[1].url != slow.URL {
 		t.Errorf("慢源应排第二，实际 %q", ranked[1].url)
 	}
-	if !ranked[2].failed {
-		t.Errorf("失败源应排最后，实际 %+v", ranked[2])
+	if ranked[2].bytesPerSec != 0 {
+		t.Errorf("坏源应排最后且速度为 0，实际 %+v", ranked[2])
+	}
+	if ranked[0].bytesPerSec <= ranked[1].bytesPerSec {
+		t.Errorf("排序不符合带宽降序: %d <= %d", ranked[0].bytesPerSec, ranked[1].bytesPerSec)
 	}
 }
 
@@ -248,6 +264,54 @@ func TestValidateUpdateSettings(t *testing.T) {
 		SettingUpdateMirrorURLs: []any{"ftp://x", "not-a-url"},
 	}); err == nil {
 		t.Error("非 http 加速源应被拒绝")
+	}
+}
+
+func TestIdleTimeoutReader(t *testing.T) {
+	// 正常持续有数据的读取不受影响
+	fast := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(bytes.Repeat([]byte("x"), 4096))
+	}))
+	defer fast.Close()
+	resp, err := http.Get(fast.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body := newIdleTimeoutReader(resp.Body, 500*time.Millisecond)
+	buf := make([]byte, 4096)
+	n, err := body.Read(buf)
+	// HTTP body 允许 (n>0, io.EOF) 合并返回，这里都算正常读到
+	if n != 4096 || (err != nil && err != io.EOF) {
+		t.Errorf("快速响应不应误超时: n=%d err=%v", n, err)
+	}
+
+	// 中途断流：超过 idle 时长无数据应返回超时错误
+	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("hello"))
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		time.Sleep(1500 * time.Millisecond) // 超过测试用 300ms 空闲超时
+		w.Write([]byte("world"))
+	}))
+	defer slow.Close()
+	resp2, err := http.Get(slow.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp2.Body.Close()
+	body2 := newIdleTimeoutReader(resp2.Body, 300*time.Millisecond)
+	buf2 := make([]byte, 16)
+	if _, err := body2.Read(buf2); err != nil {
+		t.Fatalf("首包应成功: %v", err)
+	}
+	start := time.Now()
+	if _, err := body2.Read(buf2); err == nil {
+		t.Error("断流后应返回超时错误")
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Errorf("超时触发太慢: %v", elapsed)
 	}
 }
 
