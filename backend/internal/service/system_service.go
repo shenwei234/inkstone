@@ -7,7 +7,7 @@ import (
 )
 
 // AppVersion is the current backend release version.
-const AppVersion = "Beta1.16"
+const AppVersion = "Beta1.17"
 
 var appStartTime = time.Now()
 
@@ -18,6 +18,15 @@ type ChangelogEntry struct {
 }
 
 var changelog = []ChangelogEntry{
+	{
+		Version: "Beta1.17",
+		Date:    "2026-09-27",
+		Items: []string{
+			"周期中断自检（每 5 分钟）：agent 崩溃或残留 running 记录自动清理/回滚，不再永久挡住手动更新",
+			"健康检查发现容器已退出立即失败，坏版本 crash 时快速回滚（不再等满 150 秒）",
+			"加速源测速同时探测镜像包下载延迟（前端双徽章），下载前检查磁盘余量",
+		},
+	},
 	{
 		Version: "Beta1.16",
 		Date:    "2026-09-27",
