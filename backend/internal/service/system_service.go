@@ -7,7 +7,7 @@ import (
 )
 
 // AppVersion is the current backend release version.
-const AppVersion = "Beta1.20"
+const AppVersion = "Beta1.22"
 
 var appStartTime = time.Now()
 
@@ -18,6 +18,23 @@ type ChangelogEntry struct {
 }
 
 var changelog = []ChangelogEntry{
+	{
+		Version: "Beta1.22",
+		Date:    "2026-09-27",
+		Items: []string{
+			"修复更新失败/中断后重试被误判「疑似假更新」：docker load 会把宿主机 latest 改写为新镜像，残留导致重试永久卡死；现在防呆比对改为「当前运行容器」镜像 ID，且失败/中断时自动还原 latest，回滚 tag 素材改用运行容器镜像",
+			"修复友链页提交申请人机验证弹窗「只有提交窗口模糊」：验证弹窗改为 createPortal 挂载到 body，不再被申请表单卡片的 transform 动画困住",
+			"文章编辑器优化：Ctrl+S 与新增「存草稿」按钮统一为保存草稿（不再把草稿直接发布）；新建文章内容自动缓存到本地，刷新/误关后可一键恢复；有未保存更改时离开页面弹出提醒",
+		},
+	},
+	{
+		Version: "Beta1.21",
+		Date:    "2026-09-27",
+		Items: []string{
+			"修复友链页提交申请人机验证弹窗「只有提交窗口模糊」：验证弹窗改为 createPortal 挂载到 body，不再被申请表单卡片的 transform 动画困住",
+			"文章编辑器优化：Ctrl+S 与新增「存草稿」按钮统一为保存草稿（不再把草稿直接发布）；新建文章内容自动缓存到本地，刷新/误关后可一键恢复；有未保存更改时离开页面弹出提醒",
+		},
+	},
 	{
 		Version: "Beta1.20",
 		Date:    "2026-09-27",

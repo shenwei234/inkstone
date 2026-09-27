@@ -1187,15 +1187,32 @@ func (s *UpdateService) performUpdate(rec *model.UpdateRecord, m *UpdateManifest
 		return
 	}
 
-	// 3. 记录旧镜像 ID（防假更新 + 打回滚 tag 用）
+	// 3. 记录两套基线：
+	//    runningIDs  当前运行容器的镜像 ID —— 防呆比对与回滚 tag 的素材（回滚要回到「正在跑的版本」；
+	//               不能用宿主机 latest：上次失败的更新可能已把 latest 残留成新镜像）
+	//    oldLatestIDs 宿主机 latest 的镜像 ID —— load 之后任何同步失败/中断，用它把 latest 还原，
+	//               否则 latest 停留在新镜像，重试更新会被防呆误判「假更新」
 	rec.Phase = model.UpdatePhaseLoading
 	s.saveRecord(rec)
-	oldIDs := map[string]string{}
+	runningIDs := map[string]string{}
 	for _, img := range m.Images {
-		if id, err := s.docker.ImageID(img.imageRef()); err == nil {
-			oldIDs[img.Repo] = id
+		if ct, err := s.docker.FindContainerByService(img.Service); err == nil && ct != nil && ct.ImageID != "" {
+			runningIDs[img.Repo] = ct.ImageID
 		}
 	}
+	oldLatestIDs := map[string]string{}
+	for _, img := range m.Images {
+		if id, err := s.docker.ImageID(img.imageRef()); err == nil && id != "" {
+			oldLatestIDs[img.Repo] = id
+		}
+	}
+	// 快照持久化到记录：进程在 load 后被杀（来不及还原）时，recoverInterrupted 靠它恢复
+	if raw, err := json.Marshal(oldLatestIDs); err == nil {
+		rec.OldImages = string(raw)
+		s.saveRecord(rec)
+	}
+	// load 之后（latest 已被改写）的同步失败路径统一先还原 latest，再记失败
+	restoreLatest := func() { s.restoreLatestFromRecord(rec) }
 	if err := s.docker.LoadImage(path, func(log string) {
 		_ = log
 	}); err != nil {
@@ -1203,35 +1220,38 @@ func (s *UpdateService) performUpdate(rec *model.UpdateRecord, m *UpdateManifest
 		return
 	}
 
-	// 4. 防呆：镜像 ID 必须发生变化
+	// 4. 防呆：load 后的 latest 必须与「当前运行容器」不同
 	for _, img := range m.Images {
 		newID, err := s.docker.ImageID(img.imageRef())
 		if err != nil {
+			restoreLatest()
 			s.failRecord(rec, "校验新镜像失败："+err.Error())
 			return
 		}
 		if newID == "" {
+			restoreLatest()
 			s.failRecord(rec, "镜像包中未找到 "+img.imageRef()+"，请检查版本清单")
 			return
 		}
-		if oldIDs[img.Repo] != "" && newID == oldIDs[img.Repo] {
+		if runningIDs[img.Repo] != "" && newID == runningIDs[img.Repo] {
+			restoreLatest()
 			s.failRecord(rec, "新镜像与当前运行镜像一致（疑似假更新），已终止")
 			return
 		}
 	}
 
-	// 5. 打回滚 tag：把「旧镜像」按 ID tag 成 rollback-<recordID>
+	// 5. 打回滚 tag：把「当前运行镜像」按 ID tag 成 rollback-<recordID>
 	rollbackTag := fmt.Sprintf("rollback-%d", rec.ID)
 	tagged := 0
 	for _, img := range m.Images {
-		if oldID := oldIDs[img.Repo]; oldID != "" {
+		if oldID := runningIDs[img.Repo]; oldID != "" {
 			if err := s.docker.TagImage(oldID, img.Repo, rollbackTag); err == nil {
 				tagged++
 			}
 		}
 	}
 	if tagged == 0 {
-		rec.Detail = "本地未找到旧镜像，本次更新不可回滚"
+		rec.Detail = "本地未找到运行中的旧镜像，本次更新不可回滚"
 	} else {
 		rec.RollbackTag = rollbackTag
 	}
@@ -1239,6 +1259,8 @@ func (s *UpdateService) performUpdate(rec *model.UpdateRecord, m *UpdateManifest
 	// 6. 派发一次性更新代理（agent），由它完成容器替换/健康检查/失败回滚。
 	//    agent 使用「当前运行镜像」创建，命令由 daemon 守护，backend 停掉后仍能执行。
 	if err := s.spawnAgent(rec, m, "deploy"); err != nil {
+		// 部署尚未开始：latest 必须还原，否则重试更新被防呆误杀
+		restoreLatest()
 		s.failRecord(rec, "启动更新代理失败："+err.Error())
 		return
 	}
@@ -1251,6 +1273,34 @@ func (s *UpdateService) performUpdate(rec *model.UpdateRecord, m *UpdateManifest
 
 	// 停止自身（30 秒优雅退出）。返回前进程可能已被终止，属预期行为。
 	_ = s.docker.StopContainer(s.docker.SelfContainerID(), 30)
+}
+
+// restoreLatestFromRecord 用记录里的 OldImages 快照，把宿主机 latest 还原为 load 前的镜像。
+// docker load 会把 latest 改写成新镜像；同步失败/进程中断后若不还原，
+// 重试更新会被防呆判「假更新」误杀（load 前后镜像 ID 相同）。
+// 返回成功还原（确发生变化）的镜像数。
+func (s *UpdateService) restoreLatestFromRecord(rec *model.UpdateRecord) int {
+	if rec.OldImages == "" {
+		return 0
+	}
+	saved := map[string]string{}
+	if json.Unmarshal([]byte(rec.OldImages), &saved) != nil {
+		return 0
+	}
+	n := 0
+	for repo, id := range saved {
+		if id == "" {
+			continue
+		}
+		// latest 已指向目标镜像（从未被改写，或残留场景本就是新版）→ 无需动作
+		if cur, err := s.docker.ImageID(repo + ":latest"); err == nil && cur == id {
+			continue
+		}
+		if err := s.docker.TagImage(id, repo, "latest"); err == nil {
+			n++
+		}
+	}
+	return n
 }
 
 // saveRecord 静默保存记录（更新失败不阻断主流程）。
@@ -1353,6 +1403,12 @@ func (s *UpdateService) recoverInterrupted() {
 	}
 	// 更新部署被中断：自动回滚
 	if rec.RollbackTag == "" {
+		// load 之后、打 tag 之前被打断：宿主机 latest 可能已被 load 改写为新镜像。
+		// 先按 OldImages 快照还原再记失败，否则重试更新会被防呆误判「假更新」。
+		if n := s.restoreLatestFromRecord(rec); n > 0 {
+			s.failRecord(rec, fmt.Sprintf("更新部署过程被中断：已还原 %d 个 latest 镜像标签，请手动重新发起更新", n))
+			return
+		}
 		s.failRecord(rec, "更新部署过程被中断（未打回滚 tag，已保持当前版本，请手动检查）")
 		return
 	}
