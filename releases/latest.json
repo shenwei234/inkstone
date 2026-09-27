@@ -1,16 +1,17 @@
 {
-  "version": "Beta1.16",
+  "version": "Beta1.18",
   "released_at": "2026-09-27T00:00:00Z",
   "min_version": "Beta1.0",
-  "notes": "Beta1.16：更新记录查询改用 Limit(1).Find，无记录时不再打出 not-found 日志噪音。",
+  "notes": "Beta1.18 安全防护加固：更新链路强制 https、镜像包强制 SHA256 校验、镜像白名单、更新接口独立限流、更新代理与 backend 容器最小权限（CapDrop ALL + no-new-privileges）、安全头补 HSTS、JWT 弱密钥告警。",
   "images": [
     { "repo": "inkstone-backend", "tag": "latest", "service": "backend" },
     { "repo": "inkstone-frontend", "tag": "latest", "service": "frontend" }
   ],
   "asset": {
     "name": "inkstone-images.tar",
-    "url": "https://github.com/shenwei234/inkstone/releases/download/Beta1.16/inkstone-images.tar",
+    "url": "https://github.com/shenwei234/inkstone/releases/download/Beta1.18/inkstone-images.tar",
     "sha256": "",
     "size": 0
   }
 }
+
