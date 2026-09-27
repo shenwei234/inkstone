@@ -12,7 +12,7 @@ Go + Gin + GORM + PostgreSQL 后端，Next.js 15 + React 19 前端，Docker 部�
 | 项目 | 值 |
 |---|---|
 | 模块名 | `github.com/shenwei/inkstone/backend` |
-| 当前版本 | `Beta1.14`（推送后台发起，见「更新推送后台」） |
+| 当前版本 | `Beta1.15` |
 | 后端端口 | `8080`（API 前缀 `/api/v1`） |
 | 前端端口 | `3000`（Next.js App Router） |
 | 数据库 | PostgreSQL 16（GORM AutoMigrate 自动建表） |
@@ -20,24 +20,27 @@ Go + Gin + GORM + PostgreSQL 后端，Next.js 15 + React 19 前端，Docker 部�
 | 角色 | `admin` / `user`（RBAC 中间件） |
 | 用户状态 | `active` / `banned` |
 | 文章状态 | `draft` / `published` |
-| 敏感字段 | SMTP 密码、验证码密钥、更新令牌（API 只返回 `xxx_set` 布尔值，不下发明文） |
-| 更新推送后台 | `D:\Update`（独立 Go+Gin 单二进制服务，默认端口 9090，数据在 `data/store.json`） |
+| 敏感字段 | SMTP 密码、验证码密钥（API 只返回 `xxx_set` 布尔值，不下发明文） |
 | Markdown 渲染 | 编辑前端 `marked` → 保存 HTML（后端 bluemonday 消毒）；预览高亮用 `highlight.js/lib/common`（主题在 `globals.css`，仅前端 DOM 后处理，不入库） |
+| 自动更新 | backend 经 docker.sock 全自动更新（检查→下载→校验→部署→回滚），宿主机零操作 |
+| 更新代理 | `server update-agent` 子命令 = 一次性 agent 容器，负责容器替换与失败回滚 |
 
 ## 目录导航
 
 ```
 backend/
-  cmd/server/main.go              # 入口：依赖注入 + 全部路由注册
+  cmd/server/main.go              # 入口：依赖注入 + 全部路由注册（update-agent 子命令入口）
   internal/handler/               # HTTP 层：参数绑定、调用 service、错误映射
   internal/handler/log_record.go  # recordOp：操作日志辅助（自动带当前用户/IP/UA）
-  internal/service/               # 业务逻辑层（update_agent.go = 更新推送实例端）
+  internal/service/               # 业务逻辑层
+    update_service.go             # 系统更新：检查/下载/部署主流程 + 调度器
+    update_agent.go               # 一次性更新代理（容器替换/健康检查/回滚）
+    docker_engine.go              # Docker Engine API 客户端（unix socket，无第三方 SDK）
   internal/repository/            # GORM 数据访问层
   internal/middleware/            # Auth / CORS / 限流 / 安全头 / 流量统计
   internal/model/                 # 数据模型（GORM 结构体）
   pkg/config/                     # 环境变量配置
   pkg/mailer/                     # SMTP 发信
-D:\Update/                        # 更新推送后台（独立 Go+Gin 单二进制服务，非本仓库）
 frontend/
   app/                            # Next.js 路由（页面）
   components/                     # 可复用组件
@@ -45,6 +48,8 @@ frontend/
   lib/types.ts                    # 全部 TypeScript 类型
   lib/auth-context.tsx            # 认证上下文
   lib/ui.ts                       # 共享 UI 常量（inputClass、formatSize）
+update-hub/                       # 独立「更新推送后台」（Next.js 静态站，浏览器直连 GitHub）
+releases/latest.json              # 版本清单（实例端每 15 分钟自动检查）
   components/site-config-context.tsx  # 站点配置全局上下文
 ```
 
@@ -103,6 +108,13 @@ errorResponse(c, err)                  // 统一错误响应
 - 组件说明：`references/frontend.md`（新增/变更的组件、页面、状态管理逻辑）
 - 按改动范围联动：`references/api.md`（接口）、`references/settings.md`（设置项）、`references/data-models.md`（表结构）、`references/backend.md`（服务/中间件）
 - 全局 skill 目录与仓库内副本 `.ai-skill/` **两份都要改**，内容保持一致
+
+### 8. 系统更新体系铁律（Beta1.15 起）
+- 阶段状态机只能通过 `UpdateService`/`update_agent.go` 修改，**禁止在 handler 里直接写更新记录**
+- 更新自身容器必须走「spawnAgent → 停自身」路径：**backend 进程不能自己 rm/create 自己**（stop 一发进程即死，后续 API 无人执行），要由 Docker 守护进程托管的一次性 agent 容器收尾
+- `docker load` 后必须比对镜像 ID（防假更新）；部署后必须 `/healthz` + `/api/v1/system/info` 版本核对，失败自动回滚
+- 部署失败/实例重启留下 `running` 记录时，`RecoverInterruptedUpdate()` 启动 30s 自检自动回滚——这套保命逻辑不许删
+- 镜像包只进 GitHub Releases（2GB 上限），**不进 git 仓库**
 
 ## 前端约定
 
@@ -169,13 +181,22 @@ cd frontend && npm run build && npx eslint app components lib --ext .ts,.tsx
 | 部署镜像需用国内源 | Dockerfile 用 `docker.m.daocloud.io`，Go 用 goproxy.cn，npm 用 npmmirror |
 | alpine 缺 tzdata 连不上库 | 运行阶段 `apk add tzdata`，否则 DSN 的 `TimeZone=Asia/Shanghai` 报 `unknown time zone`，容器反复重启 |
 | alpine apk 官方源被墙 | `dl-cdn.alpinelinux.org` Permission denied；`sed` 换 `mirrors.aliyun.com/alpine` 再 apk add |
-| 更新时容器自重建 | `docker compose up -d` 会替换 backend 容器自身，进程日志可能中断，最终版本以推送后台显示为准；`git reset --hard` 不动未跟踪文件（服务器 `.env` 安全） |
-| 检出目录 origin 是容器内路径 | 服务器 `/opt/inkstone-images/repo` 的 origin 是 `file:///opt/repo.git`（容器内挂载路径），**宿主机上 fetch 会失败**；宿主手动同步用 `git fetch file:///srv/git/inkstone-images.git main` 绕过，不要改 origin（会破坏容器内更新代理） |
-| 发版必改 AppVersion | `internal/service/system_service.go` 的 `AppVersion` 与 changelog 必须同步改；漏改会导致心跳上报旧版本、推送后台反复下发更新任务 |
-| 更新「成功」但没生效 | 实例 git fetch 到的 commit 不含新镜像（push 没到服务器裸仓库）→ load 旧 tar → 镜像 ID 不变 → compose 不重建。看更新日志 `HEAD is now at <sha>` 与本地 commit 对比即可判断（Beta1.9 起 load 后会自动比对镜像 ID，一致直接报错终止） |
+| 部署时容器自重建 | `docker compose up -d` 会替换 backend 容器自身，进程日志可能中断，最终以 `docker ps` / 站点表现为准 |
+| 发版必改 AppVersion | `internal/service/system_service.go` 的 `AppVersion` 与 changelog 必须同步改，否则后台「关于系统」显示的版本与实际镜像不符 |
 | PowerShell 跑 .ps1 中文乱码/解析错 | PS 5.1 需要 **UTF-8 BOM** 才能解析中文；用 Write/Edit 工具写 .ps1 后要用 .NET 补 BOM：`[System.IO.File]::WriteAllText($p,$raw,(New-Object System.Text.UTF8Encoding($true)))` |
 | PS 脚本 here-string 易碎 | `@"..."@` 内嵌 `$(if ... {...})`、反引号转义易触发 ParserError；输出优先用逐行 Write-Host，逻辑用简单字符串 Contains 代替复杂正则 |
-| 推送后台必须 https | 博客站点是 https 时，页面请求 http 推送后台会被浏览器混合内容策略拦截 |
+| 自动更新必须挂 docker.sock | backend 容器不挂 `/var/run/docker.sock` 时 DockerEnvInfo 不可用，更新后台显示挂载指引；prod/offline compose 均已挂载（ro） |
+| backend 不能自删自身容器 | `docker stop` 自身一发 SIGTERM 进程即死，后续 rm/create/start 无人执行 → 必须由 agent 容器（daemon 托管）收尾，见 SKILL.md §8 |
+| 回滚 tag 按镜像 ID 打 | load 会覆盖 `latest` tag，回滚必须用 load 前记录的旧镜像 ID `docker tag <oldID> repo:rollback-<id>`，不能 tag latest |
+| update-hub 上传依赖 browser_download_url | GitHub Contents API 限 100MB，大镜像包必须走 Release assets API（XHR 支持上传进度）；同名资产先 DELETE 再传 |
+| joinMirror 不能剥协议 | `mirror + "/" + target` 保留完整 `https://`，ghproxy 系（ghfast/gh-proxy 等）按完整 URL 解析；剥掉协议会下载失败（有单测锁定） |
+| agent 容器要剥 compose labels + 禁重启 | 复用 backend 配置创建 agent 时必须删除 `com.docker.compose.*` labels（否则 compose up -d 误管）、`RestartPolicy=no`、`AutoRemove=true`、不绑端口 |
+| agent 删 backend 前必须暂存 inspect | rm 旧容器后 create/start 失败时回滚要能重建：`savedIns` 快照 + `agentRollbackFrom(fallbackIns)`，否则 compose 里无 backend 容器 = 站点挂 |
+| 自更新进程内互斥 | `tryBeginUpdate/endUpdate` 与 DB `FindRunning` 双保险，防并发启动两个更新/回滚 |
+| 前端表单防轮询覆盖 | 用 `initializedRef` 做「只初始化一次」，否则 30s 轮询的新对象引用会把用户编辑中的表单重置 |
+| update-hub 大文件不能整包 arrayBuffer | 500MB tar 读进内存峰值 1GB 会崩；用 `lib/sha256.ts` 流式分块（4MB/块）+ 进度回调；padding 公式 `zeros=(55-buffered+64)%64`（0x80 也占 1 字节，踩过） |
+| 续传哈希要先喂旧内容 | 断点续传时 `io.Copy(hasher, 旧文件)` 再追加新块，否则 SHA256 校验必失败；有对拍测试 `TestDownloadFileResume` |
+| service 包 probeClient 命名撞车 | `link_service.go` 已占用 `probeClient`，更新系统用 `updateProbeClient` |
 | 服务器 curl 自己公网域名 000 | 阿里云 hairpin NAT 限制，**不是服务故障**；验证用外网客户端或本地 `curl -H Host:` |
 | 任务列表需要 checkbox 白名单 | Markdown `- [x]` 渲染出 `<input type="checkbox">`，bluemonday 默认剥离；`sanitize.go` 已单独放行 `input[type=checkbox][checked][disabled]` |
 | 编辑器 setState-in-effect | 项目 ESLint 开启 `react-hooks/set-state-in-effect`，effect 内直接 setState 会报错；把清理动作移到事件回调里 |
@@ -183,6 +204,3 @@ cd frontend && npm run build && npx eslint app components lib --ext .ts,.tsx
 | 操作日志禁止记录值 | 设置更新等日志只记 key 名列表（`settingDetail`），**绝不能把 SMTP 密码/验证码密钥等 value 写进日志** |
 | CSV 导出必须 BOM | `c.Writer` 先写 `0xEF 0xBB 0xBF` 再写 csv，否则 Excel 打开中文乱码；`csv.Writer.UseCRLF=true` |
 | blob 下载不能走 api() | `api()` 客户端只会 `res.json()`；文件下载要单独 `fetch + Bearer`（401 刷新重试）+ `URL.createObjectURL` |
-| 更新链路版本号三处一致 | 推送后台发布版本 = 镜像包名版本 = 镜像内 `AppVersion`，任何一处不一致都会导致自检回滚或幂等跳过 |
-| 更新「假成功」 | 镜像仓库没有新 tar 时，实例会把「已部署 commit 幂等跳过」当 success 上报；发布前先确认服务器镜像仓库 HEAD 是新 commit |
-| 更新镜像交付规范 | Beta1.14 起：tar 命名 `inkstone-images-<版本号>.tar` 放 `D:\images`，配套 `release-notes-<版本号>.md`；推送由用户自行完成，AI 不 push 服务器仓库 |

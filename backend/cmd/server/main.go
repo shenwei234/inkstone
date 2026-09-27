@@ -1,8 +1,13 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
-	"path/filepath"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -16,6 +21,13 @@ import (
 )
 
 func main() {
+	// 更新代理子命令：以一次性容器运行（`/app/server update-agent`）。
+	// backend 容器停掉后由 Docker 守护进程保证它继续执行，完成容器替换与失败回滚。
+	if len(os.Args) > 1 && os.Args[1] == "update-agent" {
+		service.RunUpdateAgent()
+		return
+	}
+
 	cfg := config.Load()
 
 	db := repository.NewDB()
@@ -52,6 +64,15 @@ func main() {
 	logRepo := repository.NewOperationLogRepository(db)
 	logSvc := service.NewLogService(logRepo)
 
+	updateRepo := repository.NewUpdateRepository(db)
+	updateSvc := service.NewUpdateService(db, updateRepo, settingsSvc, logSvc, cfg.DockerSocketPath())
+	updateSvc.StartScheduler()
+	// 重启自检：上次更新若中断（留下 running 记录），稳定后自动回滚
+	go func() {
+		time.Sleep(30 * time.Second)
+		updateSvc.RecoverInterruptedUpdate()
+	}()
+
 	emailCodeSvc := service.NewEmailCodeService(settingsSvc, mailer)
 	geetestSvc := service.NewGeetestService(settingsSvc)
 	apiLimiter := middleware.NewSlidingLimiter()
@@ -66,13 +87,12 @@ func main() {
 	sitemapHandler := handler.NewSitemapHandler(articleSvc, pageSvc, taxonomyRepo, cfg.FrontendURL)
 	settingsHandler := handler.NewSettingsHandler(settingsSvc, mailer, emailCodeSvc, geetestSvc, logSvc)
 	pageHandler := handler.NewPageHandler(pageSvc, logSvc)
-	// dataDir 持久化更新验证状态（随 uploads_data 卷跨容器重建保留）
-	updateAgent := service.NewUpdateAgent(settingsSvc, cfg.FrontendURL, filepath.Dir(cfg.UploadDir))
-	systemHandler := handler.NewSystemHandler(settingsSvc, updateAgent, logSvc)
+	systemHandler := handler.NewSystemHandler(settingsSvc)
 	linkHandler := handler.NewLinkHandler(linkSvc, logSvc)
 	fileHandler := handler.NewFileHandler(fileSvc, cfg.PublicAPIURL, logSvc)
 	statHandler := handler.NewStatHandler(statSvc)
 	logHandler := handler.NewLogHandler(logSvc)
+	updateHandler := handler.NewUpdateHandler(updateSvc, logSvc)
 	emailCodeHandler := handler.NewEmailCodeHandler(emailCodeSvc)
 	adminTagHandler := handler.NewAdminTagHandler(taxonomyRepo, logSvc)
 
@@ -165,9 +185,6 @@ func main() {
 
 	uploadsHandler := handler.NewUploadsHandler(cfg)
 
-	// 启动更新代理：定时轮询「更新推送后台」，收到新版本后自动 git 拉镜像 → docker load → compose 替换部署。
-	updateAgent.Start()
-
 	api := router.Group("/api/v1", rateLimitMiddle)
 	{
 		uploads := api.Group("/uploads", middleware.Auth(tokens, userStatusOK))
@@ -249,10 +266,12 @@ func main() {
 			admin.PUT("/settings", settingsHandler.Update)
 			admin.POST("/settings/test-mail", settingsHandler.TestMail)
 			admin.GET("/updates", systemHandler.Changelog)
-			admin.GET("/updates/status", systemHandler.UpdateStatus)
-			admin.POST("/updates/check", systemHandler.CheckUpdates)
-			admin.POST("/updates/apply", systemHandler.ApplyUpdate)
-			admin.PUT("/updates/config", systemHandler.SaveUpdateConfig)
+			admin.GET("/updates/status", updateHandler.Status)
+			admin.POST("/updates/check", updateHandler.Check)
+			admin.POST("/updates/run", updateHandler.Run)
+			admin.POST("/updates/rollback", updateHandler.Rollback)
+			admin.PUT("/updates/settings", updateHandler.UpdateSettings)
+			admin.POST("/updates/mirror-test", updateHandler.MirrorTest)
 			admin.GET("/links", linkHandler.ListAdmin)
 			admin.POST("/links", linkHandler.Create)
 			admin.PUT("/links/:id", linkHandler.Update)
@@ -272,8 +291,25 @@ func main() {
 		}
 	}
 
-	log.Printf("server listening on :%s (env=%s)", cfg.Port, cfg.AppEnv)
-	if err := router.Run(":" + cfg.Port); err != nil {
-		log.Fatalf("failed to start server: %v", err)
+	srv := &http.Server{Addr: ":" + cfg.Port, Handler: router}
+	go func() {
+		log.Printf("server listening on :%s (env=%s)", cfg.Port, cfg.AppEnv)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("failed to start server: %v", err)
+		}
+	}()
+
+	// 优雅停机：容器更新/重启（SIGTERM）时先停止接收新请求并等待在途请求完成，
+	// 保证更新流程中「记录状态 → 停止自身」之间的操作完整落库。
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("shutting down server...")
+
+	updateSvc.StopScheduler()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("server shutdown: %v", err)
 	}
 }

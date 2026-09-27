@@ -7,7 +7,7 @@ import (
 )
 
 // AppVersion is the current backend release version.
-const AppVersion = "Beta1.14"
+const AppVersion = "Beta1.15"
 
 var appStartTime = time.Now()
 
@@ -18,6 +18,18 @@ type ChangelogEntry struct {
 }
 
 var changelog = []ChangelogEntry{
+	{
+		Version: "Beta1.15",
+		Date:    "2026-09-27",
+		Items: []string{
+			"全新系统更新体系：后台「系统更新」页实时查看版本、一键更新与回滚，全程无需登录服务器",
+			"全自动更新链路：定时检查 GitHub 版本清单 → 加速源测速下载镜像包 → SHA256 校验 → docker load → 一次性更新代理容器替换 backend/frontend",
+			"更新防呆：镜像 ID 比对杜绝假更新；部署后健康检查 + 运行版本核对，失败自动回滚",
+			"实例重启自检：上次更新若中断，自动回滚到更新前版本并记录原因",
+			"内置 GitHub 加速源（ghfast/gh-proxy 等）自动测速与失败切换，新设置项 update_enabled / update_check_interval / update_mirror_urls / update_repo",
+			"新增独立「更新推送后台」update-hub：发布版本、上传镜像包、维护加速源，发布后各实例自动拉取",
+		},
+	},
 	{
 		Version: "Beta1.14",
 		Date:    "2026-09-26",

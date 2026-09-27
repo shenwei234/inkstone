@@ -10,6 +10,11 @@ import type {
   CommentItem,
   ReactionStats,
   SiteSettings,
+  UpdateRemote,
+  UpdateState,
+  UpdateSettingsInput,
+  ChangelogEntry,
+  MirrorLatency,
 } from './types'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/api/v1'
@@ -706,93 +711,8 @@ export interface SystemInfo {
   author: string
 }
 
-export interface ChangelogEntry {
-  version: string
-  date: string
-  items: string[]
-}
-
 export function fetchSystemInfo() {
   return api<{ info: SystemInfo }>('/system/info')
-}
-
-// ---------- 系统更新（更新推送后台联动） ----------
-
-export interface UpdateTask {
-  version: string
-  notes: string
-  repo_url: string
-  branch: string
-  tar_name: string
-  compose_file: string
-}
-
-export interface UpdateConfig {
-  server_url: string
-  token_set: boolean
-  auto: boolean
-  repo_dir: string
-  compose_file: string
-  mirror_urls: string[]
-  configured: boolean
-}
-
-export type UpdatePhase = 'idle' | 'running' | 'success' | 'failed'
-
-export interface UpdateStatus {
-  phase: UpdatePhase
-  running: boolean
-  configured: boolean
-  online: boolean
-  message: string
-  task: UpdateTask | null
-  logs: string[]
-  started_at?: string
-  finished_at?: string
-  last_check_at?: string
-  last_error?: string
-}
-
-export function fetchUpdateInfo() {
-  return api<{
-    current: string
-    changelog: ChangelogEntry[]
-    config: UpdateConfig
-    status: UpdateStatus
-  }>('/admin/updates', { auth: true })
-}
-
-export function fetchUpdateStatus() {
-  return api<{ status: UpdateStatus }>('/admin/updates/status', { auth: true })
-}
-
-export function checkSystemUpdates() {
-  return api<{ task: UpdateTask | null; message: string }>('/admin/updates/check', {
-    method: 'POST',
-    auth: true,
-  })
-}
-
-export function applySystemUpdate() {
-  return api<{ status: UpdateStatus; message: string }>('/admin/updates/apply', {
-    method: 'POST',
-    auth: true,
-  })
-}
-
-export function saveUpdateConfig(payload: {
-  server_url?: string
-  token?: string
-  auto: boolean
-  repo_dir?: string
-  compose_file?: string
-  mirror_urls?: string
-}) {
-  return api<{ config: UpdateConfig; message: string }>('/admin/updates/config', {
-    method: 'PUT',
-    body: payload,
-    auth: true,
-  })
 }
 
 export function changePassword(currentPassword: string, newPassword: string) {
@@ -922,4 +842,45 @@ export function setAdminArticleStatus(id: number, status: 'draft' | 'published')
 
 export function deleteAdminArticle(id: number) {
   return api<void>(`/admin/articles/${id}`, { method: 'DELETE', auth: true })
+}
+
+// ---------- 系统更新 ----------
+
+/** 更新后台首页状态（含进行中任务与历史） */
+export function fetchUpdateStatus() {
+  return api<{ update: UpdateState }>('/admin/updates/status', { auth: true })
+}
+
+/** 立即检查远端版本 */
+export function checkUpdate() {
+  return api<{ remote: UpdateRemote }>('/admin/updates/check', { method: 'POST', auth: true })
+}
+
+/** 立即执行更新（异步，进度经 fetchUpdateStatus 轮询） */
+export function runUpdate() {
+  return api<{ message: string }>('/admin/updates/run', { method: 'POST', auth: true })
+}
+
+/** 回滚到上一次更新前的版本 */
+export function rollbackUpdate() {
+  return api<{ message: string }>('/admin/updates/rollback', { method: 'POST', auth: true })
+}
+
+/** 保存更新设置 */
+export function saveUpdateSettings(input: UpdateSettingsInput) {
+  return api<{ message: string }>('/admin/updates/settings', {
+    method: 'PUT',
+    body: input,
+    auth: true,
+  })
+}
+
+/** 测试各加速源延迟（后端并发探测，按延迟升序返回） */
+export function testUpdateMirrors() {
+  return api<{ mirrors: MirrorLatency[] }>('/admin/updates/mirror-test', { method: 'POST', auth: true })
+}
+
+/** 内置版本更新记录（changelog） */
+export function fetchChangelog() {
+  return api<{ current: string; changelog: ChangelogEntry[]; version: string }>('/admin/updates', { auth: true })
 }

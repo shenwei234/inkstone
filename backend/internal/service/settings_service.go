@@ -25,16 +25,10 @@ const (
 	SettingSMTPPort          = "smtp_port" // string digits
 	SettingSMTPUser          = "smtp_user"
 	SettingSMTPPass          = "smtp_pass"
-	SettingSMTPFrom          = "smtp_from"           // From header, e.g. "Blog <no-reply@x.com>"
-	SettingUpdateServerURL   = "update_server_url"   // 更新推送后台地址（D:\Update 部署的服务）
-	SettingUpdateToken       = "update_token"        // 推送后台颁发的客户端访问令牌（敏感字段）
-	SettingUpdateAuto        = "update_auto"         // "true"/"false" 收到推送后是否自动执行更新
-	SettingUpdateRepoDir     = "update_repo_dir"     // 镜像包 git 仓库在服务器上的检出目录
-	SettingUpdateComposeFile = "update_compose_file" // 仓库内的 docker compose 编排文件名
-	SettingUpdateMirrorURLs  = "update_mirror_urls"  // 备用镜像仓库地址（origin 拉取失败时回退，分号分隔）
-	SettingUploadMaxMB       = "upload_max_mb"       // 文件管理：最大上传大小（MB）
-	SettingUploadSpeedKB     = "upload_speed_kb"     // 文件管理：上传限速（KB/s，0=不限）
-	SettingDownloadSpeedKB   = "download_speed_kb"   // 文件管理：下载限速（KB/s，0=不限）
+	SettingSMTPFrom          = "smtp_from"         // From header, e.g. "Blog <no-reply@x.com>"
+	SettingUploadMaxMB       = "upload_max_mb"     // 文件管理：最大上传大小（MB）
+	SettingUploadSpeedKB     = "upload_speed_kb"   // 文件管理：上传限速（KB/s，0=不限）
+	SettingDownloadSpeedKB   = "download_speed_kb" // 文件管理：下载限速（KB/s，0=不限）
 
 	// 安全防护
 	SettingSecurityEnabled      = "security_enabled"       // 主开关
@@ -65,6 +59,12 @@ const (
 
 	// 站点状态
 	SettingMaintenanceMode = "maintenance_mode" // "true"/"false" 全站维护（关闭）模式
+
+	// 系统更新（自动更新，默认零配置全自动）
+	SettingUpdateEnabled       = "update_enabled"        // "true"/"false" 自动更新总开关
+	SettingUpdateCheckInterval = "update_check_interval" // 检查间隔（分钟）
+	SettingUpdateMirrorURLs    = "update_mirror_urls"    // GitHub 加速源 JSON 数组（留空用内置源）
+	SettingUpdateRepo          = "update_repo"           // 发布仓库 owner/repo
 )
 
 var settingDefaults = map[string]string{
@@ -82,17 +82,9 @@ var settingDefaults = map[string]string{
 	SettingSMTPUser:          "",
 	SettingSMTPPass:          "",
 	SettingSMTPFrom:          "",
-	SettingUpdateServerURL:   "",
-	SettingUpdateToken:       "",
-	SettingUpdateAuto:        "true",
-	SettingUpdateRepoDir:     "/opt/inkstone-images",
-	SettingUpdateComposeFile: "docker-compose.offline.yml",
-	// 备用源：容器内 origin（file:///opt/repo.git）在宿主机上不可用；
-	// 宿主机路径对容器不可见——两端互为回退，任一可用即可拉取。
-	SettingUpdateMirrorURLs: "file:///srv/git/inkstone-images.git",
-	SettingUploadMaxMB:      "50",
-	SettingUploadSpeedKB:    "0",
-	SettingDownloadSpeedKB:  "0",
+	SettingUploadMaxMB:       "50",
+	SettingUploadSpeedKB:     "0",
+	SettingDownloadSpeedKB:   "0",
 
 	SettingSecurityEnabled:      "true",
 	SettingSecurityLoginMax:     "30",
@@ -117,12 +109,19 @@ var settingDefaults = map[string]string{
 	SettingWallpaperBlur:    "0",
 	SettingArticleSidebar:   "true",
 	SettingMaintenanceMode:  "false",
+
+	// 系统更新：默认开启自动更新，检查间隔 15 分钟，加速源留空走内置列表
+	SettingUpdateEnabled:       "true",
+	SettingUpdateCheckInterval: "15",
+	SettingUpdateMirrorURLs:    "[]",
+	SettingUpdateRepo:          DefaultUpdateRepo,
 }
 
 // jsonSettingKeys hold JSON arrays; they are decoded before leaving the API.
 var jsonSettingKeys = map[string]bool{
-	SettingNavMenu:        true,
-	SettingSidebarWidgets: true,
+	SettingNavMenu:          true,
+	SettingSidebarWidgets:   true,
+	SettingUpdateMirrorURLs: true,
 }
 
 func decodeJSONSetting(value string) any {
@@ -140,7 +139,6 @@ func decodeJSONSetting(value string) any {
 var maskKeys = map[string]bool{
 	SettingSMTPPass:          true,
 	SettingGeetestCaptchaKey: true,
-	SettingUpdateToken:       true,
 }
 
 type SettingsService struct {

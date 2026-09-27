@@ -79,17 +79,15 @@
 | `upload_speed_kb` | `0` | 上传限速 KB/s（0=不限） |
 | `download_speed_kb` | `0` | 下载限速 KB/s（0=不限） |
 
-### 系统更新（推送后台联动）
-| Key | 默认值 | 说明 |
-|---|---|---|
-| `update_server_url` | `""` | 更新推送后台地址（D:\Update 部署的服务） |
-| `update_token` | `""` | 推送后台颁发的客户端访问令牌（**敏感字段**） |
-| `update_auto` | `true` | 收到新版本后是否自动执行更新 |
-| `update_repo_dir` | `/opt/inkstone-images` | 镜像包 git 仓库在服务器上的检出目录 |
-| `update_compose_file` | `docker-compose.offline.yml` | 仓库内的 docker compose 编排文件名 |
-| `update_mirror_urls` | `file:///srv/git/inkstone-images.git` | 备用镜像仓库地址（origin 拉取失败时回退，分号分隔）。检出目录 origin 常是容器内路径，宿主机不可用，故默认配宿主机裸仓库路径 |
+### 系统更新（Beta1.15，零配置默认全自动）
+| Key | 默认值 | 敏感 | 说明 |
+|---|---|---|---|
+| `update_enabled` | `true` | | 自动更新总开关（关闭后仅手动更新） |
+| `update_check_interval` | `15` | | 检查间隔（分钟，1-1440） |
+| `update_mirror_urls` | `[]` | | GitHub 加速源 JSON 数组；**留空走内置 5 个源**（ghfast/gh-proxy 等） |
+| `update_repo` | `shenwei234/inkstone` | | 发布仓库 owner/repo（fork 用户改为自己的） |
 
-> Beta1.14 起移除 `update_direct` / `update_direct_branch`（仓库自治模式），更新链路只走「推送后台发布 → 实例轮询执行」，由 `update_auto` 一个开关控制是否自动执行。
+`update_mirror_urls` 已登记 `jsonSettingKeys`（数组自动编解码）。
 
 ---
 

@@ -1,6 +1,7 @@
-# InkStone 生产编排（源码构建方式）。
-# 离线镜像方式：把 backend 的 build 换成 `image: inkstone-backend:latest`、frontend 同理即可。
-# 启动：cp .env.example .env && 填好 → docker compose --env-file .env -f docker-compose.prod.yml up -d --build
+# InkStone 一键离线部署编排（离线镜像方式）。
+# 用法：docker load -i inkstone-images.tar 后，
+#       cd <部署目录> && docker compose --env-file .env -f docker-compose.offline.yml up -d
+# backend 挂载 docker.sock 后，后台「系统更新」页即可全自动完成后续版本升级（无需登录服务器）。
 services:
   postgres:
     image: docker.m.daocloud.io/library/postgres:16-alpine
@@ -19,7 +20,7 @@ services:
     restart: unless-stopped
 
   backend:
-    build: ./backend
+    image: inkstone-backend:latest
     container_name: blog-backend
     depends_on:
       postgres:
@@ -35,6 +36,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:?请在 .env 设置 JWT_SECRET}
       FRONTEND_URL: ${FRONTEND_URL:-https://blog.shenv.top}
       PUBLIC_API_URL: ${PUBLIC_API_URL:-https://blog.shenv.top}
+      # 发布仓库（fork 用户改成自己的 owner/repo）
+      UPDATE_REPO: ${UPDATE_REPO:-shenwei234/inkstone}
     volumes:
       - uploads_data:/app/data
       # 自动更新：backend 经 Docker API 拉取镜像包并替换容器（只读挂载，宿主机零操作）
@@ -43,7 +46,6 @@ services:
       - "${BACKEND_BIND:-127.0.0.1}:8080:8080"
     restart: unless-stopped
     healthcheck:
-      # alpine 镜像自带 busybox wget；供 compose --wait / 外部探活使用
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz || exit 1"]
       interval: 10s
       timeout: 5s
@@ -51,10 +53,7 @@ services:
       start_period: 20s
 
   frontend:
-    build:
-      context: ./frontend
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://blog.shenv.top/api/v1}
+    image: inkstone-frontend:latest
     container_name: blog-frontend
     depends_on:
       - backend

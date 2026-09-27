@@ -206,6 +206,60 @@ AdminView()                    // 管理视图（maskKeys 转为 xxx_set）
 - `Trend(days)` — 返回 N 天趋势，**自动补零日期**
 - `SystemResources()` — 系统资源（跨平台：`stat_linux.go` 读 /proc，`stat_windows.go` 用 PowerShell CIM）
 
+### UpdateService（Beta1.15，系统更新核心）
+
+`internal/service/update_service.go` + `update_agent.go` + `docker_engine.go`。
+
+```
+StartScheduler()            启动每 30s tick 的调度循环（立即查一次，之后按 setting 间隔）
+                            发现新版本且 auto_update 开启 → 自动执行更新
+RecoverInterruptedUpdate()  启动 30s 后自检：上次更新中断（残留 running）→ 自动回滚
+State()                     更新后台首页状态（docker/settings/remote/task/history/rollback）
+CheckNow()                  立即检查（绕过 5 分钟缓存）
+StartUpdate(triggeredBy)    异步启动更新（auto/manual）
+StartRollback()             异步启动回滚
+ApplySettings(payload)      保存更新设置（委托 SettingsService）
+RunUpdateAgent()            子命令入口（`server update-agent`，由 agent 容器执行）
+```
+
+**docker_engine.go**：零依赖 Docker Engine API 客户端（`net/http` + unix socket，API v1.43）：
+ping / images load / images json（ID 查询）/ tag / containers json（compose label 定位）/ inspect /
+create（原始 body 与 inspect 复用两种）/ start / stop / remove。**没有引入 docker SDK**。
+
+**更新主流程**（`performUpdate`）：
+1. 并发探测版本清单源（raw.githubusercontent.com 直连 + jsDelivr + 各加速源），第一个成功即用，缓存 5 分钟
+2. 下载镜像包：加速源 HEAD 测速排序 → 顺序尝试 → 失败自动切换；流式下载同时算 SHA256 并回调进度
+3. SHA256 校验（清单未提供则跳过）
+4. `docker load` → **镜像 ID 比对**（与 load 前一致 = 假更新，报错终止）
+5. 按 load 前的旧镜像 ID 打 `rollback-<recordID>` tag
+6. `spawnAgent`：用**当前 backend 镜像**创建一次性 agent 容器（`/app/server update-agent`，
+   AutoRemove、只挂 docker.sock、不绑端口、继承 compose 网络与 DB 环境变量）
+7. 记录 `deploying` → `docker stop` 自身（30s）——此后 backend 进程死亡，由 agent 收尾
+
+**agent 流程**（daemon 托管，backend 停掉后仍存活）：
+1. sleep 5s → 先 recreate frontend → 再 rm 旧 backend + create 新 backend + start
+2. 健康检查：`http://<容器名>:8080/healthz` 轮询 150s + `/api/v1/system/info` 版本核对
+3. 任一失败 → `agentRollbackFrom`：rollback tag → latest → 重建两个容器 → 再健康检查
+4. 写终态记录后退出（AutoRemove 自动清理）
+
+**并发保护**：`FindRunning()` 查库判重；调度器与手动触发共用；更新期间禁回滚。
+
+**单测**（`internal/service/update_test.go`，16 个用例）：`compareVersion`（Beta1.14>Beta1.9 等字符串比较陷阱）、`versionNumbers`、`joinMirror`（**必须保留目标 URL 的 https://，ghproxy 系解析依赖**）、`manifestToRemote`、`fetchManifestURL`（合法/缺字段/非 JSON）、`rankSources`（httptest 快/慢/503 排序）、`probeLatency`、`progressWriter` 节流、清单 JSON 往返、`DockerClient` 不可用路径、`validateUpdateSettings`（repo 路径注入/间隔越界/非 http 加速源）、`tryBeginUpdate` 互斥。改更新链路先跑 `go test ./internal/service/`。
+
+**健壮性要点（Beta1.15 审查后补充）**：
+- 清单探测有 **20s 总时限**（多源并行，不会无限等）；镜像源下载失败自动切换下一个
+- `ApplySettings` 入库前校验 repo 格式（`owner/repo`，防 URL 注入）、间隔 1-1440、加速源必须 http(s)
+- `main.go` 优雅停机（SIGTERM → `srv.Shutdown` 30s），保证更新停容器期间在途请求落库
+- `docker load` 显式 `Content-Type: application/x-tar`；Docker 响应读取上限 32MB
+- agent 回滚支持「容器已删除」场景：用 rm 前暂存的 inspect 快照重建 backend，杜绝站点消失
+
+**性能要点（Beta1.15 审查后补充）**：
+- 下载/`docker load` 均用 **512KB buffer**（默认 32KB syscall 过多）；下载带 `ResponseHeaderTimeout=60s` 防挂死
+- **断点续传**：下载失败换源时带 `Range: bytes=N-` 续拉，旧内容先喂 SHA256 再追加（500MB 包慢网重下不从头）；服务端不支持 Range 自动从头
+- 清单/测速请求共享 `updateProbeClient`（连接池复用）+ `context` 取消（首源成功后其余请求立即中断，无 goroutine 泄漏）
+- `State()` 用**单次** `List(20)` 查询推导 task/rollback/history（轮询 30s 一次，避免 3 次 DB 往返）；`DockerEnvInfo` 10s 缓存
+- 测速用 `Range: bytes=0-2047` 只取 2KB，不为探测拉全量
+
 ### LogService（`service/log_service.go`，Beta1.12 增强）
 ```go
 Record(Entry)   // 异步入队（1024 缓冲，满丢弃；Detail 截 500、UserAgent 截 250）
@@ -238,45 +292,6 @@ Stats()                   // 各分类计数（旧接口）
 ### EmailCodeService
 - 内存存储（单实例），6 位数字，10 分钟过期，5 次错误锁定
 - 邮件发送通过 `MailSender` 接口注入（**避免 service → mailer 循环依赖**）
-
-### UpdateAgent（`service/update_agent.go`，更新推送后台实例端）
-博客实例侧自动更新编排，`main.go` 中 `NewUpdateAgent(settingsSvc, cfg.FrontendURL).Start()` 启动。
-
-```go
-Config()                    // 推送配置视图（token 只回传 token_set；含 mirror_urls）
-SaveConfig(UpdateConfigInput) // 保存（token 空 = 保持原值，走 maskKeys 机制）
-CheckOnce() (*UpdateTask, error) // 立即轮询一次（不执行）
-ApplyNow() error            // 轮询 + 执行；无可用更新返回 ValidationError
-Status() UpdateStatus       // phase/running/logs/task（每 2s 可轮询）
-VerifyPendingUpdate()       // 启动时自检上次更新（Start 内延迟 5s 调用）
-```
-
-**更新执行序列**（`runUpdateSteps`，每步输出实时进内存日志；Beta1.10 起重构为 5 步）：
-1. `syncRepo`：有 `.git` → `git fetch --depth 1 <源> <branch>`，源按 `[origin, mirror_urls...]` **依次回退**（origin 常是容器内路径 `file:///opt/repo.git`，宿主机场景自动切到备用源）；`git reset --hard FETCH_HEAD`（**不动未跟踪文件**，`.env` 安全）。无 `.git` → 首次 `git clone`
-2. 校验 tar 存在 + sha256（日志输出摘要与大小）
-3. 本进程执行 `docker load -i tar`，比对 `docker images --no-trunc` **前后镜像 ID**：backend/frontend 均无变化 → 该 commit 已部署过则幂等跳过，否则报错终止（防「假更新」：旧 tar 也 load 成功）
-4. 打 `rollback-日期时间` 回滚 tag（backend/frontend 各一个）+ 落盘 `<dataDir>/update-verify.json`（期望版本、回滚 tag、目录、编排）+ 记录已部署 commit（`deployed-commit.json`）
-5. sibling 容器（`inkstone-updater`）执行 `docker compose up -d`（第 5 步会重建 backend 自身，必须在独立容器）
-
-**自动更新触发**（`tick`，每 15s 一次）：
-- `poll()` 拿到任务 且 `update_auto=true` → **直接 execute，站长无需点击任何按钮**（`update_auto=false` 时仅在页面提醒、手动「立即更新」）
-- 成功后写 deployed commit；同一 commit 的重复任务幂等跳过（覆盖「更新成功→新版本上报」窗口期的补跑）
-- Beta1.14 起移除「仓库自治模式」（原 `update_direct`/`update_direct_branch`/`directTick`/`lsRemote`），统一只走推送后台链路
-
-**更新后自检与自动回滚**（`VerifyPendingUpdate`，服务启动时跑）：
-- 读 `update-verify.json`：无 → 跳过
-- `AppVersion == pending.Version` → 清除状态文件，`report("success")`；不一致（打包漏改版本号的典型症状）→ `docker tag` 两个 rollback tag 回 latest → sibling 执行 `compose up -d` 回滚 → `report("failed")`
-- 注意：若新镜像**根本起不来**（无进程跑自检），只能宿主机手动回滚——见 deployment.md 排障表
-
-**关键设计**：
-- `docker load` 放在本进程（不杀自身、可比对 ID）；只有 `compose up -d` 走 sibling 容器
-- 版本号入 tag/命令前过 `versionPattern`（`^[A-Za-z0-9][A-Za-z0-9._-]*$`）防注入
-- 轮询协程每 15s 一次（`updatePollInterval`），未配置 `server_url`/`token` 时静默跳过
-- 命令执行统一 30 分钟超时强杀；版本比较由推送后台负责（Beta1.0 数字段解析：Beta1.0 → [1,0]）
-
-**推送后台（D:\Update）**：独立 Go+Gin 单二进制服务（go:embed 内嵌管理页面），默认端口 9090，
-`DATA_DIR`（默认 ./data）下 `store.json` 存版本/实例/管理密码。其客户端 API 契约：
-`POST /api/client/poll`（心跳+取任务）、`POST /api/client/report`（进度上报），Bearer token 认证。
 
 ---
 

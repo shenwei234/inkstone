@@ -252,23 +252,27 @@ Body 字段：`{title, content, template, status, sort_order, show_in_nav}`
 | PUT | `/admin/settings` | 更新。Body: `{settings: {...}}`（**注意包装层**） |
 | POST | `/admin/settings/test-mail` | 发送测试邮件。Body: `{to}` |
 
-### 系统更新（更新推送后台联动）
-
-博客实例通过 `internal/service/UpdateAgent` 每 60 秒轮询「更新推送后台」（D:\Update 部署的独立服务），收到新版本任务后执行 `git 拉取镜像包仓库 → docker load → docker compose up -d`。
+### 系统更新（Beta1.15）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/admin/updates` | 当前版本 + 变更日志 + 推送配置 + 更新状态 |
-| GET | `/admin/updates/status` | 更新状态与运行日志（running 时前端 2s 轮询） |
-| POST | `/admin/updates/check` | 立即轮询一次推送后台，返回待更新任务（不执行） |
-| POST | `/admin/updates/apply` | 立即轮询并执行更新（无可用更新返回 400） |
-| PUT | `/admin/updates/config` | 保存推送配置。Body: `{server_url, token, auto, repo_dir, compose_file, mirror_urls}`（`token` 留空=保持原值；`mirror_urls` 分号分隔；`auto`=收到推送后是否自动执行更新，Beta1.14 起前台只有一个「开启自动更新」开关） |
+| GET | `/admin/updates/status` | 更新后台首页状态：Docker 环境、当前/远端版本、进行中任务、最近 10 条记录、可回滚 tag |
+| GET | `/admin/updates` | 当前版本 + changelog（systemHandler.Changelog） |
+| POST | `/admin/updates/check` | 立即检查远端版本。返回 `{remote: {version, notes, size, sha256, mirror, min_version}}` |
+| POST | `/admin/updates/run` | 立即执行更新（异步）。返回 202，进度经 status 轮询（task 存在时 2s / 否则 30s） |
+| POST | `/admin/updates/rollback` | 回滚到上一次更新前的版本（异步，agent 接管） |
+| PUT | `/admin/updates/settings` | 保存更新设置。Body: `{auto_update?, interval_mins?, repo?, mirrors?}` |
+| POST | `/admin/updates/mirror-test` | 并发探测各加速源延迟（探测目标为 latest.json），返回按延迟升序的 `[{url, latency_ms, direct, from}]`，`latency_ms<0`=不可达 |
 
-> 历史接口 `/admin/updates/manifest`、`/admin/updates/script` 已随旧版「远程 manifest + 预置脚本」方案移除。
+**更新生命周期**：`checking → downloading(progress%) → verifying → loading → deploying`，agent 完成后 `done`。
+错误时 `status=failed` 且 `detail` 为中文原因；失败自动回滚则在 detail 追加「已自动回滚到更新前版本」。
+
+**版本清单格式**（发布仓库 `releases/latest.json`）：见 `releases/README.md`，字段含
+`version / released_at / min_version / notes / images[{repo,tag,service}] / asset{name,url,sha256,size}`。
 
 ### 操作日志（Beta1.12 增强）
 
-所有写操作（文章/用户/评论/设置/文件/友链/页面/标签/系统更新/认证）均异步记录操作日志，**成功与失败都留痕**，保留最近 90 天。
+所有写操作（文章/用户/评论/设置/文件/友链/页面/标签/认证）均异步记录操作日志，**成功与失败都留痕**，保留最近 90 天。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|

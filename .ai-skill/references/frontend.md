@@ -27,7 +27,6 @@ app/                          # 路由（App Router）
     ├── appearance/           # 外观（菜单/小工具/侧边栏位置）
     ├── security/             # 安全防护（验证码/限流/邮箱验证）
     ├── settings/             # 网站管理（站点信息/壁纸/SMTP）
-    ├── updates/              # 系统更新（推送后台连接/检查/立即更新/日志/变更日志）
     ├── logs/                 # 网站日志（统计卡片/多维筛选/详情展开/CSV 导出）
     └── about/                # 关于系统
 
@@ -271,15 +270,7 @@ easeOut  // 统一缓动曲线 [0.16, 1, 0.3, 1]
 
 ### 管理后台（`app/admin/`）
 - `layout.tsx` 做**权限守卫**：未登录跳 `/login`，非管理员显示「需要管理员权限」
-- 侧边栏 11 个入口，用 `layoutId="admin-nav-pill"` 做滑动高亮
-
-#### 系统更新页（`app/admin/updates/page.tsx`）
-连接「更新推送后台」的实例端界面：
-- 主卡片：当前版本、推送后台在线状态（绿点）、「检查更新」/「立即更新」按钮（更新用 `notify.confirm` 二次确认）
-- 待更新任务卡：展示新版本号、更新说明（多行）、镜像仓库地址/分支/镜像包/编排文件名
-- 进度与日志：`GsapProgress` 不确定进度条 + 等宽字体日志框（running 时 2s 轮询并自动滚底）
-- 推送服务配置（折叠）：`server_url`、`token`（已设置显示占位符，留空=保持原值）、`auto` 自动更新开关（Beta1.14 起前台仅此一个开关：开启=推送后台发版即自动更新，关闭=只提醒、手动「立即更新」）、`repo_dir`、`compose_file`、`mirror_urls`（备用镜像仓库地址，分号分隔）
-- 底部：changelog 列表（来自 `GET /admin/updates`）
+- 侧边栏导航入口，用 `layoutId="admin-nav-pill"` 做滑动高亮
 
 #### 网站日志页（`app/admin/logs/page.tsx`，Beta1.12 增强）
 - 统计卡片：日志总数 / 今日新增 / 失败操作 / 当前筛选数（数据来自 `GET /admin/logs/overview`）
@@ -288,12 +279,39 @@ easeOut  // 统一缓动曲线 [0.16, 1, 0.3, 1]
 - 导出 CSV：`downloadLogs()` 用 `fetch + Bearer` 直接取 blob（**不能走 `api()` JSON 客户端**），401 时 `tryRefresh()` 刷新重试；通过 `a[download]` + `URL.createObjectURL` 触发浏览器下载
 - 分页：每页 30 条
 
+#### 系统更新页（`app/admin/updates/page.tsx`，Beta1.15）
+
+- 数据：`useQuery(['update','status'], fetchUpdateStatus)`，**进行中任务时 2s 轮询，否则 30s**（refetchInterval 回调按 `task` 是否存在切换）
+- 版本对比卡：当前运行版本（大字号 + 运行中徽章）vs 最新发布版本（发布时间/大小/SHA256 截断/清单来源/更新说明 pre-wrap），有新版时出主按钮「立即更新到 x.y.z」
+- 任务进度卡：phase 中文映射（checking/downloading/verifying/loading/deploying）+ `motion` 宽度进度条 + detail 说明
+- 更新历史：type 徽章（更新/回滚）+ `from → to` + 状态徽章 + 触发方式 + 时间（`relativeTime`）+ detail；`rollback_tag` 存在时出「回滚到上一版本」按钮
+- 更新设置卡：自动更新 Toggle、检查间隔、发布仓库、加速源 textarea（每行一个，保存时 split/filter）
+- Docker 未挂载警示卡：给出 compose volumes 片段 (`/var/run/docker.sock:/var/run/docker.sock:ro`)
+- 加速源为**列表编辑**（非 textarea）：每行一个源 + 延迟徽章（绿 `xxms` / 红「不可达」）+ 删除；「测试延迟」按钮调 `testUpdateMirrors()`（POST mirror-test），结果按 url 映射展示
+- 版本更新记录卡：`fetchChangelog()`（GET /admin/updates）展示内置 changelog 最近 6 条，当前版本带徽章；更新说明用 `NotesBlock` 组件按行渲染（`-`/`•`/`1.` 开头转列表项，不引入 markdown 依赖）
+- 危险操作全部走 `notify.confirm()`（立即更新/回滚），API 函数在 `lib/api.ts`：`fetchUpdateStatus / checkUpdate / runUpdate / rollbackUpdate / saveUpdateSettings / testUpdateMirrors / fetchChangelog`
+
 ### 用户中心（`app/me/page.tsx`）
 所有登录用户可用：账户安全（改用户名/密码）、我的文章、我的评论。
 
 ---
 
 ## 样式规范
+
+### 动画与感知性能（Beta1.15 更新页实践）
+- **进度条用 `scaleX` 不用 `width`**：`origin-left` + `animate={{scaleX: pct/100}}`，走合成层不触发 layout/paint
+- **纯 CSS 优先于 framer-motion**：列表逐项淡入（`.list-stagger > li` 30ms 阶梯）、骨架屏 shimmer（`.skeleton`）、tab 切换淡入（`.tab-enter`）全部是 keyframes，不为每项创建 motion 组件
+- **`prefers-reduced-motion: reduce` 全局降级**：`.animate-fade-*`/`.skeleton`/`.list-stagger`/`.tab-enter` 动画全部关闭（主 frontend 与 update-hub 两个 globals.css 均已加）
+- **渐进骨架**：首屏页头/按钮常驻，仅数据区 skeleton（`/admin/updates` loading 态），避免整页 skeleton → 整页内容的跳变
+- **轮询优化**：`refetchOnWindowFocus: false`（30s 轮询已保新鲜，切 tab 回来不再立即请求）；任务运行中 2s、空闲 30s
+- update-hub 是独立 Next 应用，globals.css 需自带上述 `.skeleton`/`.tab-enter`/`.list-stagger`（不与主 frontend 共享 CSS）
+
+### 视觉层次约定（Beta1.15 更新系统实践）
+- **状态可视化优先**：任务进度用「五阶段步骤条」`StepProgress`（当前步 `animate-pulse` + 完成步打勾）+ 进度条 shimmer 流光叠加（`.skeleton opacity-40`）；历史项左侧 6px 状态色条（成功 emerald/失败 red/进行 amber）
+- **单一主动线**：重要 CTA 只出现一次（`/admin/updates` 顶部「新版本横幅」放立即更新，卡片内按钮降为 ghost 次级），避免双按钮抢焦点
+- **渐变强调**：版本号大字用 `bg-gradient-to-r from-accent to-purple-500 bg-clip-text text-transparent`；Docker 运行状态用 ping 脉冲圆点
+- **入场时机**：Section 用 `whileInView` + `viewport={{once:true}}`（长页面进入视口才播）+ `whileHover={{y:-2}}` 微浮；framer `layoutId` 滑块只用于 tab 指示器（单个元素，非列表）
+- update-hub：登录页背景 blur-3xl 光斑 + 卡片 `bg-card/80 backdrop-blur-sm`；header `sticky backdrop-blur-md`；上传区支持点击/拖放（dragOver/drop 高亮）
 
 ### 统一的设计令牌（`app/globals.css`）
 ```css

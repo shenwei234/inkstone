@@ -12,7 +12,7 @@ const (
 	LogCategoryLink     = "link"     // 友链管理
 	LogCategoryPage     = "page"     // 页面管理
 	LogCategoryTaxonomy = "taxonomy" // 分类 / 标签管理
-	LogCategorySystem   = "system"   // 系统更新等高危操作
+	LogCategorySystem   = "system"   // 系统更新/检查/回滚等高危操作
 	LogCategoryOther    = "other"
 )
 

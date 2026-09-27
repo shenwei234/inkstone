@@ -57,6 +57,7 @@ func NewDB() *gorm.DB {
 		&model.DailyStat{},
 		&model.OperationLog{},
 		&model.VisitorDay{},
+		&model.UpdateRecord{},
 	); err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}

@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    InkStone 一键打包发布脚本（本地 → 镜像包 git 仓库）。
+    InkStone 一键打包发布脚本（本地构建 → 镜像包）。
 
 .DESCRIPTION
     按顺序执行：
@@ -9,7 +9,7 @@
       3. 代码预检：gofmt / go vet / go build / npm run build / eslint（可用 -SkipChecks 跳过）
       4. docker build backend + frontend（API 地址用 -ApiUrl 注入）
       5. docker save → inkstone-images.tar，复制到 image-repo 并 commit + push
-    完成后手动到推送后台「版本发布」页发布该版本。
+     完成后手动将镜像包上传到服务器并重新部署。
 
 .PARAMETER Version
     版本号，如 Beta1.10（必填）。仅允许字母、数字、点、下划线、连字符。
@@ -188,9 +188,8 @@ Write-Host "  提交   : $commitMsg"
 Write-Host "  说明   : $notesText"
 Write-Host ""
 Write-Host "  后续步骤："
-Write-Host "   1. 提交源码仓库改动（AppVersion / changelog / 功能代码）：git add -A; git commit"
-Write-Host "   2. 推送后台 https://update.shenv.top 「版本发布」页：创建并发布版本 $Version"
-Write-Host "      → 各实例 15 秒内自动完成更新（auto 开启时零人工；关闭时博客后台手动「立即更新」）"
-Write-Host "   3. 观察：博客后台「系统更新」页日志，或推送后台「客户端实例」页的心跳/状态"
-Write-Host "   4. 紧急回滚（服务器上）：docker tag inkstone-backend:rollback-<时间> inkstone-backend:latest && docker compose -f docker-compose.offline.yml up -d"
-Write-Host "      （正常情况下版本不符会自动回滚；此命令用于新镜像起不来等场景）"
+Write-Host "   1. 提交源码仓库改动（AppVersion / changelog / 功能代码）：git add -A; git commit; git push"
+Write-Host "   2. 打开更新推送后台 update-hub（npm run dev 或已部署的静态站）→ 发布新版本："
+Write-Host "      上传镜像包 $([System.IO.Path]::GetFileName($tarOut))，版本号 $Version，更新说明直接粘贴"
+Write-Host "   3. 发布后各实例在下一个检查周期（默认 15 分钟）内自动完成 下载→校验→替换容器"
+Write-Host "   4. 紧急回滚：任一站后台「系统更新 → 更新历史 → 回滚到上一版本」，无需登录服务器"

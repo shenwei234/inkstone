@@ -16,7 +16,7 @@ import {
   Menu,
   MessageSquare,
   Paintbrush,
-  RefreshCw,
+  Rocket,
   ScrollText,
   Settings,
   ShieldCheck,
@@ -38,8 +38,8 @@ const navItems = [
   { href: '/admin/appearance', label: '外观管理', icon: Paintbrush },
   { href: '/admin/security', label: '安全防护', icon: ShieldCheck },
   { href: '/admin/settings', label: '网站管理', icon: Settings },
+  { href: '/admin/updates', label: '系统更新', icon: Rocket },
   { href: '/admin/logs', label: '网站日志', icon: ScrollText },
-  { href: '/admin/updates', label: '系统更新', icon: RefreshCw },
   { href: '/admin/about', label: '关于系统', icon: Info },
 ]
 
