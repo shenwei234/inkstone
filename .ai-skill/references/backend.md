@@ -226,6 +226,10 @@ RunUpdateAgent()            子命令入口（`server update-agent`，由 agent 
 ping / images load / images json（ID 查询）/ tag / containers json（compose label 定位）/ inspect /
 create（原始 body 与 inspect 复用两种）/ start / stop / remove。**没有引入 docker SDK**。
 
+**请求头坑（Beta1.24 修复）**：Docker 新版 daemon 对带 body 的请求强制要求 `Content-Type: application/json`，
+缺失报 `malformed Content-Type header (): mime: no media type`（HTTP 400）。`doJSON` 在 body 非空时统一补该头；
+`docker load` 走 `doWithHeaders` 显式设 `application/x-tar`；无 body 的 POST（stop/start/tag）daemon 不校验。
+
 **更新主流程**（`performUpdate`）：
 1. 并发探测版本清单源（raw.githubusercontent.com 直连 + jsDelivr + 各加速源），第一个成功即用，缓存 5 分钟
 2. 下载镜像包：加速源 HEAD 测速排序 → 顺序尝试 → 失败自动切换；流式下载同时算 SHA256 并回调进度
