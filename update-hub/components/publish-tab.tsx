@@ -22,7 +22,7 @@ import {
 } from '@/lib/github'
 import type { Manifest } from '@/lib/types'
 import type { Session } from './login-card'
-import { Card, PrimaryButton, StepItem, inputClass } from './ui'
+import { Card, GhostButton, PrimaryButton, StepItem, inputClass } from './ui'
 
 type StepStatus = 'pending' | 'running' | 'done' | 'error'
 
@@ -290,6 +290,86 @@ export function PublishTab({
           )}
         </Card>
       )}
+
+      {/* 仅发布 Releases（不传镜像、不切清单）：弱网环境下先发版本公告 */}
+      <ReleaseOnlyCard session={session} manifest={manifest} version={version} notes={notes} />
     </div>
+  )
+}
+
+/** 仅创建/更新 GitHub Release：不传镜像包资产、不更新 latest.json。
+ *  适用：上传大镜像包网络失败时，先把版本与说明发布到 Releases 列表。 */
+function ReleaseOnlyCard({
+  session,
+  manifest,
+  version,
+  notes,
+}: {
+  session: Session
+  manifest: Manifest | null
+  version: string
+  notes: string
+}) {
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [msgType, setMsgType] = useState<'ok' | 'err'>('ok')
+
+  const publishRelease = async () => {
+    const v = version.trim()
+    if (!v || !notes.trim()) {
+      setMsgType('err')
+      setMsg('请先填写版本号与更新说明')
+      return
+    }
+    if (!versionPattern.test(v)) {
+      setMsgType('err')
+      setMsg('版本号仅允许字母、数字、点、下划线、连字符')
+      return
+    }
+    setBusy(true)
+    setMsg('')
+    try {
+      let release = await createRelease(session.token, session.repo, v, v, notes.trim())
+      release = await updateRelease(session.token, session.repo, release.id, { name: v, body: notes.trim() })
+      setMsgType('ok')
+      setMsg(
+        `Release ${release.tag_name} 已发布。注意：未上传镜像包、未切换 latest.json，实例不会自动更新——后续在 GitHub 网页给该 Release 补传 inkstone-images-${v}.tar，并发布完整版本切清单。`
+      )
+    } catch (e) {
+      setMsgType('err')
+      setMsg(e instanceof Error ? e.message : '发布失败')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card
+      icon={<Rocket className="h-4 w-4 text-muted-foreground" />}
+      title="仅发布 Releases（不传镜像 / 不切清单）"
+    >
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        只把版本号与更新说明创建为 GitHub Release（KB 级 API 调用，弱网也能成功），
+        <b>不上传镜像包资产、不更新 latest.json</b>。适合大镜像包上传失败时先发版本公告。
+        当前发布版本：{manifest?.version ?? '未发布'}。
+      </p>
+      <div className="mt-3 flex items-center gap-3">
+        <GhostButton onClick={publishRelease} disabled={busy}>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+          发布 Releases（{version.trim() || '未填版本号'}）
+        </GhostButton>
+      </div>
+      {msg && (
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className={`mt-3 text-xs leading-relaxed ${
+            msgType === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'
+          }`}
+        >
+          {msg}
+        </motion.p>
+      )}
+    </Card>
   )
 }

@@ -156,6 +156,8 @@ export function listReleases(token: string, repo: string): Promise<ReleaseInfo[]
 
 /**
  * 上传 Release 资产（XHR 以支持上传进度回调）。
+ * 内置自动重试：网络错误/5xx 时按 2s/5s/10s 退避重试（大文件上传遇网络抖动很常见），
+ * 4xx（如 422 同名冲突）不重试直接抛错。
  * uploadUrlTemplate 形如 https://uploads.github.com/.../assets{?name,label}
  */
 export function uploadReleaseAsset(
@@ -163,53 +165,83 @@ export function uploadReleaseAsset(
   uploadUrlTemplate: string,
   name: string,
   file: File,
-  onProgress?: (pct: number) => void
+  onProgress?: (pct: number) => void,
+  maxRetries = 3,
 ): Promise<ReleaseAssetInfo> {
   const url = `${uploadUrlTemplate.replace(/\{.*$/, '')}?name=${encodeURIComponent(name)}`
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest()
-    xhr.open('POST', url)
-    xhr.setRequestHeader('Authorization', `Bearer ${token}`)
-    xhr.setRequestHeader('Content-Type', 'application/octet-stream')
-    xhr.upload.onprogress = (e) => {
-      if (onProgress && e.lengthComputable && e.total > 0) {
-        onProgress(Math.round((e.loaded / e.total) * 100))
+  const attempt = (retriesLeft: number): Promise<ReleaseAssetInfo> =>
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', url)
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+      xhr.setRequestHeader('Content-Type', 'application/octet-stream')
+      xhr.timeout = 30 * 60 * 1000 // 30 分钟：大文件慢网不误杀
+      xhr.upload.onprogress = (e) => {
+        if (onProgress && e.lengthComputable && e.total > 0) {
+          onProgress(Math.round((e.loaded / e.total) * 100))
+        }
       }
-    }
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          const asset = JSON.parse(xhr.responseText) as {
-            id: number
-            name: string
-            size: number
-            browser_download_url: string
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const asset = JSON.parse(xhr.responseText) as {
+              id: number
+              name: string
+              size: number
+              browser_download_url: string
+            }
+            resolve({
+              id: asset.id,
+              name: asset.name,
+              size: asset.size,
+              download_count: 0,
+              url: asset.browser_download_url,
+            })
+          } catch {
+            reject(new Error('上传响应解析失败'))
           }
-          resolve({
-            id: asset.id,
-            name: asset.name,
-            size: asset.size,
-            download_count: 0,
-            url: asset.browser_download_url,
-          })
-        } catch {
-          reject(new Error('上传响应解析失败'))
+          return
         }
-      } else {
-        let msg = `上传失败（${xhr.status}）`
-        try {
-          const body = JSON.parse(xhr.responseText) as { message?: string }
-          if (body.message) msg = body.message
-          // 同名资产已存在时按已有资产跳过（重复发布场景）
-        } catch {
-          // 保留默认信息
+        // 4xx 不重试（422 同名资产等属于调用方逻辑问题）
+        if (xhr.status >= 400 && xhr.status < 500) {
+          let msg = `上传失败（${xhr.status}）`
+          try {
+            const body = JSON.parse(xhr.responseText) as { message?: string }
+            if (body.message) msg = body.message
+          } catch {
+            // 保留默认信息
+          }
+          reject(new Error(msg))
+          return
         }
-        reject(new Error(msg))
+        // 网络错误/5xx/超时：退避重试
+        if (retriesLeft > 0) {
+          const delay = [2000, 5000, 10000][Math.min(maxRetries - retriesLeft, 2)]
+          onProgress?.(0)
+          setTimeout(() => {
+            attempt(retriesLeft - 1).then(resolve, reject)
+          }, delay)
+          return
+        }
+        reject(new Error(`上传失败（${xhr.status || '网络错误'}），已重试 ${maxRetries} 次`))
       }
-    }
-    xhr.onerror = () => reject(new Error('网络错误，上传被中断'))
-    xhr.send(file)
-  })
+      xhr.onerror = () => {
+        if (retriesLeft > 0) {
+          const delay = [2000, 5000, 10000][Math.min(maxRetries - retriesLeft, 2)]
+          onProgress?.(0)
+          setTimeout(() => {
+            attempt(retriesLeft - 1).then(resolve, reject)
+          }, delay)
+          return
+        }
+        reject(new Error(`网络错误，上传被中断（已重试 ${maxRetries} 次）`))
+      }
+      xhr.ontimeout = () => {
+        reject(new Error('上传超时（30 分钟）'))
+      }
+      xhr.send(file)
+    })
+  return attempt(maxRetries)
 }
 
 /** 读取版本清单（不存在返回 null） */
