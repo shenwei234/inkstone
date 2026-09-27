@@ -248,6 +248,13 @@ D:\blog-platform\scripts\deploy-update-hub.ps1
   `/_next/static/` 一年 immutable 缓存
 - 旧版（Beta1.14 前的容器式推送后台）已下线：nginx 不再反代 9090，无残留服务
 
+**功能矩阵**（Beta1.18 update-hub）：
+- 发布新版本：版本号/min_version/说明/镜像包 → 建 Release → 传资产 → 回填 `latest.json`；**发布前清单预览**、SHA256 流式计算（4MB 分块）、上传进度、复用旧 Release 自动同步 name/body
+- 版本管理：当前清单详情（sha256/大小/直链/复制）、Releases 列表、**回退清单到历史版本**（自动下载资产算 SHA256，CORS/网络失败可拖本地 tar 兜底）、**下架 Release**（删 Release+tag）
+- 加速源：增删改 + **浏览器直连测试延迟**（Range 2KB 探测，`lib/mirror-probe.ts`）
+- 设置：账户/token 权限徽章（`x-oauth-scopes` 识别）、部署说明、实例对接指引
+- 组件拆分：`components/{ui,login-card,publish-tab,versions-tab,mirrors-tab,settings-tab}.tsx` + `lib/{github,mirror-probe,sha256}.ts`，入口 `app/page.tsx` 只做编排
+
 ### 手动兜底（不需要 SSH 也行，但保留）
 
 ```bash
