@@ -1,16 +1,16 @@
 {
-  "version": "Beta1.20",
-  "released_at": "2026-09-27T06:39:34Z",
+  "version": "Beta1.21",
+  "released_at": "2026-09-27T07:10:19Z",
   "min_version": "Beta1.10",
-  "notes": "Beta1.20 下载优化：按实测带宽选源（自动避开被限速的 GitHub 直连，优先加速源）；下载空闲 2 分钟无数据自动换源，断流不再卡死；中断自检防误杀（本进程任务豁免）。近期版本还包含：友链自助提交（前台申请+后台审核）、周期中断自检、快速回滚、强制 https 与 SHA256 校验、镜像白名单、更新接口独立限流、容器最小权限。",
+  "notes": "Beta1.21 修复与优化：友链页提交申请人机验证弹窗「只有提交窗口模糊」已修复（portal 挂载到 body，不再被表单卡片 transform 动画困住）；文章编辑器 Ctrl+S 与新增「存草稿」按钮统一为保存草稿（不再把草稿直接发布），新建文章本地草稿自动缓存可一键恢复，未保存更改离开页面弹出提醒。",
   "images": [
     { "repo": "inkstone-backend", "tag": "latest", "service": "backend" },
     { "repo": "inkstone-frontend", "tag": "latest", "service": "frontend" }
   ],
   "asset": {
-    "name": "inkstone-images-Beta1.20.tar",
-    "url": "https://github.com/shenwei234/inkstone/releases/download/Beta1.20/inkstone-images-Beta1.20.tar",
-    "sha256": "ee15c32a7d0e5a0ce7109926bd16f97e8b05c37f949c134f09c58c903f97ddcb",
-    "size": 115049472
+    "name": "inkstone-images-Beta1.21.tar",
+    "url": "https://github.com/shenwei234/inkstone/releases/download/Beta1.21/inkstone-images-Beta1.21.tar",
+    "sha256": "c233fb4418eef0128db2279fc63e7b562f89b784def1e192e82e245dc707c9ce",
+    "size": 115044864
   }
 }
