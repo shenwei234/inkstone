@@ -6,13 +6,13 @@ Next.js（App Router）+ React 19 + TypeScript + Tailwind CSS v4 + React Query +
 
 ```
 app/                          # 路由（App Router）
-├── layout.tsx                # 根布局：Providers + Navbar + 壁纸 + Footer
+├── layout.tsx                # 根布局：Providers + Navbar + 壁纸 + Footer + SiteHead
 ├── page.tsx                  # 首页（文章列表 + 侧边栏小工具）
 ├── login/page.tsx            # 登录
 ├── register/page.tsx         # 注册
 ├── me/page.tsx               # 用户中心（账户/我的文章/我的评论）
 ├── links/page.tsx            # 友情链接页
-├── posts/[slug]/page.tsx     # 文章详情
+├── posts/[slug]/page.tsx     # 文章详情（正文 + 目录 + 分享 + 回顶）
 ├── p/[slug]/page.tsx         # 独立页面（3 种模板）
 └── admin/                    # 管理后台（独立布局）
     ├── layout.tsx            # 侧边栏 + 权限守卫
@@ -23,6 +23,7 @@ app/                          # 路由（App Router）
     ├── pages/                # 页面管理
     ├── comments/             # 评论管理
     ├── files/                # 文件管理
+    ├── sitemap/              # 站点地图（URL 列表 + 统计 + robots 预览）
     ├── links/                # 友情链接
     ├── appearance/           # 外观（菜单/小工具/侧边栏位置）
     ├── security/             # 安全防护（验证码/限流/邮箱验证）
@@ -56,6 +57,8 @@ captcha: {
   ...
 }
 ```
+
+> 浏览器标题与标签页图标（favicon）由 `components/site-head.tsx` 以 React 19 metadata hoist 渲染；原来在 context 里运行时改 DOM link 的方式在 React 19 下会被覆盖，导致后台改了 favicon 前台不生效。
 
 ### 2. AuthProvider（`lib/auth-context.tsx`）
 ```tsx
@@ -279,14 +282,37 @@ easeOut  // 统一缓动曲线 [0.16, 1, 0.3, 1]
 ### 文章详情（`app/posts/[slug]/page.tsx`）
 三层卡片结构：
 1. **正文卡片**：分类 + 标题 + 元信息 + 标签 + 正文（`prose` 样式）
-2. **互动卡片**：点赞 / 收藏 / 返回
+2. **互动卡片**：点赞 / 收藏 / 分享（`ArticleShare`）/ 返回
 3. **评论卡片**：输入框 + 评论列表
 
 宽度：`max-w-4xl`（无侧栏）/ `max-w-7xl`（有侧栏，两列）
 
+**文章目录（`components/article-toc.tsx`）**：`parseToc()` 在 `useMemo` 里对正文 HTML 做 DOMParser 提取 h1-h3
+（`useIsMounted` gate：SSR 无 document 返回空，hydration 后出现），ArticleToc 组件负责补锚点 id + 滚动高亮 +
+点击跳转。布局联动：**目录贴「没有侧边栏的一侧」**——无侧栏→右侧（`max-w-5xl` 两列）、侧栏在右→目录在左、
+侧栏在左→目录在右（`max-w-7xl` 三列）；正文无标题则整列隐藏退回两列/单列。
+
+**分享（`components/article-share.tsx`）**：移动端优先 `navigator.share` 原生面板，桌面端下拉菜单
+（复制链接/微博/Twitter/邮件）；`useIsMounted` 不需要——`navigator.share` 运行时判定即可。
+
+**回顶（`components/back-to-top.tsx`）**：滚动超过 480px 显示 `fixed bottom-6 right-6` 悬浮按钮，
+`AnimatePresence` 出入场，点击平滑回顶。目前挂在文章页（组件通用，可按需全局挂载）。
+
+### 站点 head（`components/site-head.tsx`）
+在根布局渲染 `<title>` / `<link rel="icon">`（React 19 metadata hoist 到 head），
+`site_favicon` 有值用自定义图标、为空回退 `/icon.svg`。
+**不要再在 site-config-context 里用 querySelector/appendChild 改 favicon**——运行时 DOM 操作会被
+React 19 metadata 管理覆盖/清理，后台改了前台不生效（踩过）。
+
 ### 管理后台（`app/admin/`）
 - `layout.tsx` 做**权限守卫**：未登录跳 `/login`，非管理员显示「需要管理员权限」
 - 侧边栏导航入口，用 `layoutId="admin-nav-pill"` 做滑动高亮
+
+#### 站点地图页（`app/admin/sitemap/page.tsx`）
+- 数据：`useQuery(['admin','sitemap'], fetchSitemapData)`（GET `/admin/sitemap`）
+- 统计卡：URL 总数 + 分组计数徽章；sitemap.xml 入口卡（打开/复制地址）；robots.txt 预览卡（复制内容）
+- 分组列表：基础页面/文章/独立页/分类/标签（后端 `collectEntries()` 分组顺序），条目表格（名称/地址/频率/权重/最后更新）
+- 顶部搜索框按名称或地址前端过滤（服务端数据一次性拿全）
 
 #### 网站日志页（`app/admin/logs/page.tsx`，Beta1.12 增强）
 - 统计卡片：日志总数 / 今日新增 / 失败操作 / 当前筛选数（数据来自 `GET /admin/logs/overview`）

@@ -150,6 +150,34 @@ Body 字段：`{title, content, template, status, sort_order, show_in_nav}`
 
 ---
 
+## 站点地图 `/admin/sitemap`
+
+| 方法 | 路径 | 鉴权 | 说明 |
+|---|---|---|---|
+| GET | `/admin/sitemap` | 管理员 | 站点地图数据：分组 URL 列表 + robots.txt 预览 + 统计 |
+
+返回结构：
+```json
+{
+  "data": {
+    "frontend_url": "https://blog.shenv.top",
+    "sitemap_url": "https://blog.shenv.top/sitemap.xml",
+    "robots": "User-agent: *\nDisallow: /admin\nDisallow: /me\nSitemap: ...\n",
+    "groups": [
+      { "type": "article", "label": "文章", "count": 12, "entries": [
+        { "type": "article", "label": "文章标题", "loc": ".../posts/xxx", "lastmod": "2026-09-27T00:00:00+08:00", "changefreq": "weekly", "priority": "0.8" }
+      ]}
+    ],
+    "total": 30
+  }
+}
+```
+
+> 数据来源与公开的 `GET /sitemap.xml` 完全一致（handler 内 `collectEntries()` 单一数据源），
+> 分组顺序：基础页面/文章/独立页/分类/标签。
+
+---
+
 ## 站点配置 `/site-config`
 
 | 方法 | 路径 | 鉴权 | 说明 |

@@ -318,6 +318,13 @@ Stats()                   // 各分类计数（旧接口）
 - 内存存储（单实例），6 位数字，10 分钟过期，5 次错误锁定
 - 邮件发送通过 `MailSender` 接口注入（**避免 service → mailer 循环依赖**）
 
+### SitemapHandler（`handler/sitemap_handler.go`）
+- `collectEntries()` — **单一数据源**：首页/友链/文章(已发布)/独立页(已发布)/分类(有文章)/标签(有文章)，
+  返回带 `type/label/loc/lastmod/changefreq/priority` 的条目列表
+- `Sitemap`（`GET /sitemap.xml`，公开）与 `SiteMapData`（`GET /api/v1/admin/sitemap`，管理员）共用它
+- `robotsBody()` — robots.txt 内容（放行 crawling、屏蔽 /admin 与 /me、指向 sitemap）
+- 后台「站点地图」页只读展示，无写操作；内容随文章/页面发布动态变化，无需手动重建
+
 ---
 
 ## 已知设计取舍
