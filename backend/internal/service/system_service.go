@@ -7,7 +7,7 @@ import (
 )
 
 // AppVersion is the current backend release version.
-const AppVersion = "Beta1.15"
+const AppVersion = "Beta1.16"
 
 var appStartTime = time.Now()
 
@@ -18,6 +18,13 @@ type ChangelogEntry struct {
 }
 
 var changelog = []ChangelogEntry{
+	{
+		Version: "Beta1.16",
+		Date:    "2026-09-27",
+		Items: []string{
+			"更新记录查询改用 Limit(1).Find：无记录时不再打出 not-found 日志噪音",
+		},
+	},
 	{
 		Version: "Beta1.15",
 		Date:    "2026-09-27",
