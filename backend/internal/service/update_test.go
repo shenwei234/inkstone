@@ -251,6 +251,27 @@ func TestValidateUpdateSettings(t *testing.T) {
 	}
 }
 
+func TestNormalizeApplyURL(t *testing.T) {
+	cases := map[string]string{
+		"https://Example.COM/":     "https://example.com",
+		"HTTPS://example.com":      "https://example.com",
+		"http://example.com/blog/": "http://example.com/blog",
+		"https://a.cn/b/c":         "https://a.cn/b/c",
+		"https://a.cn/":            "https://a.cn",
+	}
+	for in, want := range cases {
+		if got := normalizeApplyURL(in); got != want {
+			t.Errorf("normalizeApplyURL(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestFriendApplySettingDefault(t *testing.T) {
+	if v, ok := settingDefaults[SettingFriendApplyEnabled]; !ok || v != "true" {
+		t.Errorf("friend_apply_enabled 默认应为 true，得到 %q", v)
+	}
+}
+
 func TestTryBeginUpdateMutex(t *testing.T) {
 	s := &UpdateService{}
 	if !s.tryBeginUpdate() {

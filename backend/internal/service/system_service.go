@@ -7,7 +7,7 @@ import (
 )
 
 // AppVersion is the current backend release version.
-const AppVersion = "Beta1.18"
+const AppVersion = "Beta1.19"
 
 var appStartTime = time.Now()
 
@@ -18,6 +18,15 @@ type ChangelogEntry struct {
 }
 
 var changelog = []ChangelogEntry{
+	{
+		Version: "Beta1.19",
+		Date:    "2026-09-27",
+		Items: []string{
+			"新增友链自助提交：前台「友情链接」页开放申请表单（名称/地址/简介/图标/邮箱），人机验证复用评论场景，IP 限流 5 次/小时",
+			"后台「友情链接 → 申请审核」tab：待审核/已通过/已拒绝筛选，通过自动转为正式友链并后台探测可达性，拒绝需填原因，可删除记录",
+			"申请防呆：URL 规范化去重（pending/已是友链均拦截）、IP 仅存 SHA256 哈希、可经设置项 friend_apply_enabled 一键关闭",
+		},
+	},
 	{
 		Version: "Beta1.18",
 		Date:    "2026-09-27",

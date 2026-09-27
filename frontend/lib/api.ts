@@ -15,6 +15,8 @@ import type {
   UpdateSettingsInput,
   ChangelogEntry,
   MirrorLatency,
+  LinkApplication,
+  SubmitLinkApplicationInput,
 } from './types'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/api/v1'
@@ -883,4 +885,42 @@ export function testUpdateMirrors() {
 /** 内置版本更新记录（changelog） */
 export function fetchChangelog() {
   return api<{ current: string; changelog: ChangelogEntry[]; version: string }>('/admin/updates', { auth: true })
+}
+
+// ---------- 友链自助申请 ----------
+
+/** 访客提交友链申请（公开；人机验证凭证复用评论场景） */
+export function submitLinkApplication(input: SubmitLinkApplicationInput, credential?: Partial<GeetestCredential>) {
+  return api<{ message: string }>('/link-applications', {
+    method: 'POST',
+    body: { ...input, ...credential },
+  })
+}
+
+/** 审核列表（status: pending/approved/rejected，空为全部） */
+export function fetchLinkApplications(status?: string) {
+  const qs = status ? `?status=${status}` : ''
+  return api<{ applications: LinkApplication[]; pending: number }>(`/admin/link-applications${qs}`, { auth: true })
+}
+
+/** 通过申请（自动转为正式友链） */
+export function approveLinkApplication(id: number) {
+  return api<{ application: LinkApplication }>(`/admin/link-applications/${id}/approve`, {
+    method: 'POST',
+    auth: true,
+  })
+}
+
+/** 拒绝申请（需填原因） */
+export function rejectLinkApplication(id: number, reason: string) {
+  return api<{ application: LinkApplication }>(`/admin/link-applications/${id}/reject`, {
+    method: 'POST',
+    body: { reason },
+    auth: true,
+  })
+}
+
+/** 删除申请记录 */
+export function deleteLinkApplication(id: number) {
+  return api<void>(`/admin/link-applications/${id}`, { method: 'DELETE', auth: true })
 }

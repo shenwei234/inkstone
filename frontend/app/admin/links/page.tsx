@@ -9,6 +9,8 @@ import {
   CheckCircle2,
   ExternalLink,
   ImagePlus,
+  Inbox,
+  Link2,
   Pencil,
   Plus,
   RefreshCw,
@@ -16,26 +18,37 @@ import {
   XCircle,
 } from 'lucide-react'
 import {
+  approveLinkApplication,
   checkAllFriendLinks,
   checkFriendLink,
   createFriendLink,
   deleteFriendLink,
+  deleteLinkApplication,
   fetchAdminLinks,
+  fetchLinkApplications,
+  rejectLinkApplication,
   updateFriendLink,
   uploadImage,
   validateFriendLink,
   ApiError,
 } from '@/lib/api'
-import type { AdminFriendLink, FriendLinkInput, LinkValidation } from '@/lib/api'
+import type {
+  AdminFriendLink,
+  FriendLinkInput,
+  LinkValidation,
+} from '@/lib/api'
+import type { LinkApplication } from '@/lib/types'
 import { useNotify } from '@/components/toast'
 import { PageTransition } from '@/components/motion'
 import { Modal } from '@/components/modal'
-import { inputClass } from '@/lib/ui'
+import { inputClass, badgeSuccess, badgeWarning, badgeDanger } from '@/lib/ui'
 
 interface DialogState {
   open: boolean
   editing: AdminFriendLink | null
 }
+
+type AdminTab = 'links' | 'applications'
 
 function LinkDialog({
   editing,
@@ -288,16 +301,221 @@ function LinkDialog({
   )
 }
 
+/** 友链申请审核面板（通过→自动建链 / 拒绝（需原因）/ 删除） */
+function LinkApplicationsPanel() {
+  const notify = useNotify()
+  const queryClient = useQueryClient()
+  const [filter, setFilter] = useState<'pending' | 'approved' | 'rejected' | ''>('')
+  const [rejecting, setRejecting] = useState<LinkApplication | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin', 'link-applications', filter],
+    queryFn: () => fetchLinkApplications(filter || undefined),
+    refetchInterval: 30000,
+    refetchOnWindowFocus: false,
+  })
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['admin', 'link-applications'] })
+    queryClient.invalidateQueries({ queryKey: ['admin', 'links'] })
+  }
+
+  const approve = useMutation({
+    mutationFn: (id: number) => approveLinkApplication(id),
+    onSuccess: () => {
+      invalidate()
+      notify.success('已通过，友链已自动添加（后台探测可达性）')
+    },
+    onError: (e) => notify.error(e instanceof ApiError ? e.message : '操作失败'),
+  })
+
+  const reject = useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) => rejectLinkApplication(id, reason),
+    onSuccess: () => {
+      invalidate()
+      setRejecting(null)
+      setRejectReason('')
+      notify.success('已拒绝该申请')
+    },
+    onError: (e) => notify.error(e instanceof ApiError ? e.message : '操作失败'),
+  })
+
+  const remove = useMutation({
+    mutationFn: (id: number) => deleteLinkApplication(id),
+    onSuccess: () => {
+      invalidate()
+      notify.success('申请记录已删除')
+    },
+    onError: (e) => notify.error(e instanceof ApiError ? e.message : '删除失败'),
+  })
+
+  const apps = data?.applications ?? []
+  const statusBadge = (status: LinkApplication['status']) =>
+    status === 'pending' ? badgeWarning : status === 'approved' ? badgeSuccess : badgeDanger
+  const statusText = (status: LinkApplication['status']) =>
+    status === 'pending' ? '待审核' : status === 'approved' ? '已通过' : '已拒绝'
+
+  const tabs: { key: typeof filter; label: string }[] = [
+    { key: 'pending', label: '待审核' },
+    { key: 'approved', label: '已通过' },
+    { key: 'rejected', label: '已拒绝' },
+    { key: '', label: '全部' },
+  ]
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">
+          待审核 <b className="text-foreground">{data?.pending ?? 0}</b> 条
+        </span>
+        <div className="ml-auto flex flex-wrap gap-1 rounded-lg border border-border bg-muted/60 p-1">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setFilter(t.key)}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                filter === t.key ? 'bg-card text-accent shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="mt-4 space-y-2">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="skeleton h-20 rounded-xl" />
+          ))}
+        </div>
+      ) : apps.length === 0 ? (
+        <div className="mt-4 rounded-xl border border-dashed p-16 text-center">
+          <Inbox className="mx-auto h-10 w-10 text-muted-foreground/50" />
+          <p className="mt-4 text-muted-foreground">没有{filter ? '该状态的' : ''}申请记录</p>
+        </div>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {apps.map((app: LinkApplication) => (
+            <motion.div
+              key={app.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-2xl border border-border bg-card p-4 transition-colors hover:border-accent/30"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-medium">{app.site_name}</p>
+                <span className={statusBadge(app.status)}>{statusText(app.status)}</span>
+                <span className="text-xs text-muted-foreground">
+                  {new Date(app.created_at).toLocaleString('zh-CN')}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {app.url}
+                {app.email && ` · 联系：${app.email}`}
+              </p>
+              {app.description && <p className="mt-1 text-xs text-muted-foreground/80">{app.description}</p>}
+              {app.status === 'rejected' && app.reason && (
+                <p className="mt-1 text-xs text-red-500">拒绝原因：{app.reason}</p>
+              )}
+              <div className="mt-3 flex items-center gap-2">
+                {app.status === 'pending' && (
+                  <>
+                    <button
+                      onClick={() => approve.mutate(app.id)}
+                      disabled={approve.isPending}
+                      className="inline-flex items-center gap-1 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white shadow-sm shadow-accent/25 transition-opacity hover:opacity-95 disabled:opacity-50"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      通过并添加
+                    </button>
+                    <button
+                      onClick={() => {
+                        setRejecting(app)
+                        setRejectReason('')
+                      }}
+                      className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-red-500/40 hover:text-red-500"
+                    >
+                      <XCircle className="h-3.5 w-3.5" />
+                      拒绝
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={async () => {
+                    const ok = await notify.confirm({
+                      title: `删除申请「${app.site_name}」？`,
+                      message: '删除后无法恢复。',
+                      confirmText: '删除',
+                      danger: true,
+                    })
+                    if (ok) remove.mutate(app.id)
+                  }}
+                  className="ml-auto inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-500"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  删除记录
+                </button>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      {rejecting && (
+        <Modal open onClose={() => setRejecting(null)} title={`拒绝「${rejecting.site_name}」的申请`}>
+          <div className="space-y-4">
+            <label className="block">
+              <span className="text-sm font-medium">拒绝原因（将展示给申请人）</span>
+              <input
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="如：站点暂无法访问 / 内容不符 / 未添加本站友链"
+                className={`${inputClass} mt-1`}
+              />
+            </label>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setRejecting(null)}
+                className="rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => rejectReason.trim() && reject.mutate({ id: rejecting.id, reason: rejectReason.trim() })}
+                disabled={!rejectReason.trim() || reject.isPending}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-opacity hover:opacity-95 disabled:opacity-50"
+              >
+                <XCircle className="h-4 w-4" />
+                确认拒绝
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
 export default function AdminLinksPage() {
   const notify = useNotify()
   const queryClient = useQueryClient()
   const [dialog, setDialog] = useState<DialogState>({ open: false, editing: null })
   const [checkingId, setCheckingId] = useState<number | null>(null)
+  const [tab, setTab] = useState<AdminTab>('links')
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin', 'links'],
     queryFn: fetchAdminLinks,
   })
+
+  const appsQuery = useQuery({
+    queryKey: ['admin', 'link-applications', 'pending'],
+    queryFn: () => fetchLinkApplications('pending'),
+    refetchOnWindowFocus: false,
+  })
+  const pendingCount = appsQuery.data?.pending ?? 0
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin', 'links'] })
 
@@ -342,37 +560,78 @@ export default function AdminLinksPage() {
             {data ? `共 ${links.length} 个友链` : '加载中...'} · 每日自动检测，失效站点将禁止跳转并脱敏
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/links"
-            target="_blank"
-            className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ExternalLink className="h-4 w-4" />
-            查看页面
-          </Link>
-          <motion.button
-            onClick={() => checkAll.mutate()}
-            disabled={checkAll.isPending || links.length === 0}
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${checkAll.isPending ? 'animate-spin' : ''}`} />
-            {checkAll.isPending ? '检测中...' : '检测全部'}
-          </motion.button>
-          <motion.button
-            onClick={() => setDialog({ open: true, editing: null })}
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            className="flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white shadow-md shadow-accent/25"
-          >
-            <Plus className="h-4 w-4" />
-            添加友链
-          </motion.button>
-        </div>
+        {tab === 'links' && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/links"
+              target="_blank"
+              className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ExternalLink className="h-4 w-4" />
+              查看页面
+            </Link>
+            <motion.button
+              onClick={() => checkAll.mutate()}
+              disabled={checkAll.isPending || links.length === 0}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${checkAll.isPending ? 'animate-spin' : ''}`} />
+              {checkAll.isPending ? '检测中...' : '检测全部'}
+            </motion.button>
+            <motion.button
+              onClick={() => setDialog({ open: true, editing: null })}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              className="flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white shadow-md shadow-accent/25"
+            >
+              <Plus className="h-4 w-4" />
+              添加友链
+            </motion.button>
+          </div>
+        )}
       </div>
 
+      {/* tab：友链管理 / 申请审核（待审核数徽标） */}
+      <nav className="mt-5 flex w-fit flex-wrap gap-1 rounded-xl border border-border bg-muted/60 p-1">
+        {([
+          { key: 'links' as AdminTab, label: '友链管理', icon: <Link2 className="h-4 w-4" /> },
+          { key: 'applications' as AdminTab, label: '申请审核', icon: <Inbox className="h-4 w-4" />, badge: pendingCount },
+        ]).map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`relative flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              tab === t.key ? 'text-accent' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {tab === t.key && (
+              <motion.span
+                layoutId="admin-links-tab"
+                transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                className="absolute inset-0 rounded-lg border border-border bg-card shadow-sm"
+              />
+            )}
+            <span className="relative inline-flex items-center gap-1.5">
+              {t.icon}
+              {t.label}
+              {'badge' in t && t.badge ? (
+                <span className="relative rounded-full bg-accent/15 px-1.5 text-xs font-bold text-accent">
+                  {t.badge}
+                </span>
+              ) : null}
+            </span>
+          </button>
+        ))}
+      </nav>
+
+      {tab === 'applications' ? (
+        <div className="mt-6">
+          <LinkApplicationsPanel />
+        </div>
+      ) : (
+      <>
       {isLoading ? (
         <div className="mt-6 space-y-2">
           {[...Array(3)].map((_, i) => (
@@ -477,6 +736,8 @@ export default function AdminLinksPage() {
           onClose={() => setDialog({ open: false, editing: null })}
           onSaved={invalidate}
         />
+      )}
+      </>
       )}
     </PageTransition>
   )

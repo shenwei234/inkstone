@@ -61,6 +61,9 @@ func main() {
 	linkSvc := service.NewLinkService(linkRepo, cfg.FrontendURL)
 	linkSvc.StartAutoCheck()
 
+	linkAppRepo := repository.NewLinkApplicationRepository(db)
+	linkAppSvc := service.NewLinkApplicationService(linkAppRepo, linkRepo, settingsSvc)
+
 	fileRepo := repository.NewFileRepository(db)
 	fileSvc := service.NewFileService(fileRepo, settingsSvc, cfg.FilesDir)
 
@@ -91,6 +94,7 @@ func main() {
 	pageHandler := handler.NewPageHandler(pageSvc, logSvc)
 	systemHandler := handler.NewSystemHandler(settingsSvc)
 	linkHandler := handler.NewLinkHandler(linkSvc, logSvc)
+	linkAppHandler := handler.NewLinkApplicationHandler(linkAppSvc, geetestSvc, logSvc)
 	fileHandler := handler.NewFileHandler(fileSvc, cfg.PublicAPIURL, logSvc)
 	statHandler := handler.NewStatHandler(statSvc)
 	logHandler := handler.NewLogHandler(logSvc)
@@ -243,6 +247,20 @@ func main() {
 		api.GET("/pages/:slug", pageHandler.GetBySlug)
 		api.GET("/links", linkHandler.ListPublic)
 
+		// 友链自助申请（公开，验证码场景=comment，独立 IP 限流 5 次/小时）
+		friendApplyLimit := middleware.IPRateLimit(middleware.RateLimitConfig{
+			Limiter: apiLimiter,
+			LimitFn: func() int {
+				if !securityEnabled() {
+					return 0
+				}
+				return 5
+			},
+			Window:  time.Hour,
+			Message: "friend-apply",
+		})
+		api.POST("/link-applications", friendApplyLimit, linkAppHandler.Submit)
+
 		articles := api.Group("/articles", middleware.OptionalAuth(tokens))
 		{
 			articles.GET("", articleHandler.List)
@@ -306,6 +324,10 @@ func main() {
 			admin.POST("/links/check", linkHandler.CheckAll)
 			admin.POST("/links/validate", linkHandler.Validate)
 			admin.POST("/links/:id/check", linkHandler.CheckOne)
+			admin.GET("/link-applications", linkAppHandler.ListAdmin)
+			admin.POST("/link-applications/:id/approve", linkAppHandler.Approve)
+			admin.POST("/link-applications/:id/reject", linkAppHandler.Reject)
+			admin.DELETE("/link-applications/:id", linkAppHandler.Delete)
 			admin.GET("/files", fileHandler.List)
 			admin.POST("/files", fileHandler.Upload)
 			admin.GET("/files/:id/download", fileHandler.Download)

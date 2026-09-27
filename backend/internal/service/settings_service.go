@@ -60,6 +60,9 @@ const (
 	// 站点状态
 	SettingMaintenanceMode = "maintenance_mode" // "true"/"false" 全站维护（关闭）模式
 
+	// 友链自助申请（默认开放，后台审核）
+	SettingFriendApplyEnabled = "friend_apply_enabled" // "true"/"false" 前台开放友链自助申请
+
 	// 系统更新（自动更新，默认零配置全自动）
 	SettingUpdateEnabled       = "update_enabled"        // "true"/"false" 自动更新总开关
 	SettingUpdateCheckInterval = "update_check_interval" // 检查间隔（分钟）
@@ -104,11 +107,12 @@ var settingDefaults = map[string]string{
 	SettingGeetestOnRegister: "false",
 	SettingGeetestOnComment:  "false",
 
-	SettingSiteWallpaper:    "",
-	SettingWallpaperOpacity: "100",
-	SettingWallpaperBlur:    "0",
-	SettingArticleSidebar:   "true",
-	SettingMaintenanceMode:  "false",
+	SettingSiteWallpaper:      "",
+	SettingWallpaperOpacity:   "100",
+	SettingWallpaperBlur:      "0",
+	SettingArticleSidebar:     "true",
+	SettingMaintenanceMode:    "false",
+	SettingFriendApplyEnabled: "true",
 
 	// 系统更新：默认开启自动更新，检查间隔 15 分钟，加速源留空走内置列表
 	SettingUpdateEnabled:       "true",

@@ -213,3 +213,26 @@ export interface MirrorLatency {
   direct: boolean
   from: string
 }
+
+// ---------- 友链自助申请 ----------
+export interface LinkApplication {
+  id: number
+  site_name: string
+  url: string
+  description: string
+  icon_url: string
+  email: string
+  status: 'pending' | 'approved' | 'rejected'
+  reason: string
+  reviewed_by: number
+  reviewed_at: string | null
+  created_at: string
+}
+
+export interface SubmitLinkApplicationInput {
+  site_name: string
+  url: string
+  description?: string
+  icon_url?: string
+  email?: string
+}

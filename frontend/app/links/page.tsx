@@ -1,13 +1,132 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useQuery, useMutation } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { AlertTriangle, ExternalLink, Link2, ShieldOff } from 'lucide-react'
-import { fetchFriendLinks } from '@/lib/api'
+import { AlertTriangle, ExternalLink, Link2, Loader2, Send, ShieldOff } from 'lucide-react'
+import { fetchFriendLinks, submitLinkApplication, ApiError } from '@/lib/api'
+import { useNotify } from '@/components/toast'
 import { PageTransition, StaggerList, StaggerItem, HoverLift } from '@/components/motion'
 import { easeOut } from '@/components/motion'
 import { useSiteConfig } from '@/components/site-config-context'
+import { useGeetestCaptcha } from '@/components/geetest-captcha'
+import { inputClass } from '@/lib/ui'
 
+
+/** 友链自助申请表单（审核通过后自动加入列表） */
+function ApplyForm() {
+  const notify = useNotify()
+  const captcha = useGeetestCaptcha('comment')
+  const [form, setForm] = useState({
+    site_name: '',
+    url: '',
+    description: '',
+    icon_url: '',
+    email: '',
+  })
+
+  const submit = useMutation({
+    mutationFn: async () => {
+      // 开启评论级人机验证时先过验证（与评论同场景，一次配置两处生效）
+      const credential = captcha.enabled ? await captcha.run() : undefined
+      return submitLinkApplication(form, credential)
+    },
+    onSuccess: () => {
+      notify.success('申请已提交，站长审核通过后将展示')
+      setForm({ site_name: '', url: '', description: '', icon_url: '', email: '' })
+    },
+    onError: (e) => notify.error(e instanceof ApiError ? e.message : '提交失败，请稍后再试'),
+  })
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-40px' }}
+      transition={{ duration: 0.4, ease: easeOut }}
+      className="mt-8 rounded-2xl border border-border bg-card p-6"
+    >
+      <h2 className="flex items-center gap-2 text-sm font-semibold">
+        <Link2 className="h-4 w-4 text-accent" />
+        申请加入友链
+      </h2>
+      <p className="mt-1 text-xs text-muted-foreground">
+        填写站点信息提交申请，站长审核通过后自动展示（每日自动检测，失效暂停跳转）
+      </p>
+      <form
+        className="mt-4 grid gap-4 sm:grid-cols-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          submit.mutate()
+        }}
+      >
+        <label className="block">
+          <span className="text-sm font-medium">站点名称 *</span>
+          <input
+            value={form.site_name}
+            onChange={(e) => setForm((f) => ({ ...f, site_name: e.target.value }))}
+            maxLength={50}
+            placeholder="你的站点名称"
+            className={`${inputClass} mt-1`}
+          />
+        </label>
+        <label className="block">
+          <span className="text-sm font-medium">站点地址 *</span>
+          <input
+            value={form.url}
+            onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
+            placeholder="https://example.com"
+            className={`${inputClass} mt-1`}
+          />
+        </label>
+        <label className="block sm:col-span-2">
+          <span className="text-sm font-medium">简介（可选，120 字内）</span>
+          <input
+            value={form.description}
+            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            maxLength={120}
+            placeholder="一句话介绍你的站点"
+            className={`${inputClass} mt-1`}
+          />
+        </label>
+        <label className="block">
+          <span className="text-sm font-medium">图标地址（可选）</span>
+          <input
+            value={form.icon_url}
+            onChange={(e) => setForm((f) => ({ ...f, icon_url: e.target.value }))}
+            placeholder="https://example.com/icon.png"
+            className={`${inputClass} mt-1`}
+          />
+        </label>
+        <label className="block">
+          <span className="text-sm font-medium">联系邮箱（可选）</span>
+          <input
+            value={form.email}
+            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+            placeholder="审核结果通知邮箱"
+            className={`${inputClass} mt-1`}
+          />
+        </label>
+        <div className="sm:col-span-2 flex items-center gap-3">
+          <motion.button
+            type="submit"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            disabled={submit.isPending || !form.site_name.trim() || !form.url.trim()}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 transition-opacity hover:opacity-95 disabled:opacity-50"
+          >
+            {submit.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            提交申请
+          </motion.button>
+          {captcha.enabled && (
+            <span className="text-xs text-muted-foreground">提交时需要完成人机验证</span>
+          )}
+        </div>
+      </form>
+      {captcha.dialog}
+    </motion.div>
+  )
+}
 
 export default function LinksPage() {
   const site = useSiteConfig()
@@ -117,6 +236,9 @@ export default function LinksPage() {
         >
           友情链接每日自动检测，失效站点将暂停跳转以保护访问安全
         </motion.p>
+
+        {/* 自助申请 */}
+        <ApplyForm />
       </div>
     </PageTransition>
   )
