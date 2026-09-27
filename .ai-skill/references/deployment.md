@@ -233,6 +233,21 @@ cd update-hub && npm install && npm run dev    # 或 npm run build 后部署 out
 上传 `inkstone-images.tar`，自动计算 SHA256）→ 创建 Release + 上传资产 + 更新 `latest.json`
 → 维护加速源 `releases/mirrors.json`。发布后各实例自动拉取。
 
+### 更新推送后台部署（update.shenv.top，纯静态）
+
+update-hub 是 Next.js `output:'export'` 静态站，**无容器/无端口/无后端进程**，nginx 直接托管：
+
+```bash
+# 一条命令完成：build → scp → nginx reload
+D:\blog-platform\scripts\deploy-update-hub.ps1
+```
+
+- 产物目录：服务器 `/opt/update-hub/`（本地构建 `update-hub/out/`）
+- nginx 配置：`/etc/nginx/conf.d/update.conf`（`root /opt/update-hub; try_files $uri $uri/ /index.html;`）
+- 首屏 HTML 为 loading 态（`use client` SPA 与 SSR 一致的 hydration 约定，挂载后切登录页），
+  `/_next/static/` 一年 immutable 缓存
+- 旧版（Beta1.14 前的容器式推送后台）已下线：nginx 不再反代 9090，无残留服务
+
 ### 手动兜底（不需要 SSH 也行，但保留）
 
 ```bash
@@ -298,5 +313,6 @@ mkdir -p /etc/nginx/ssl
 | 源码压缩包 | `D:\blog-platform-release\inkstone-latest.zip` |
 | 版本清单 | 仓库 `releases/latest.json`（实例端每 15 分钟自动检查） |
 | 更新推送后台 | `D:\blog-platform\update-hub\`（独立 Next.js 静态站，浏览器直连 GitHub） |
+| 后台一键部署脚本 | `D:\blog-platform\scripts\deploy-update-hub.ps1`（build → scp → nginx reload） |
 | GitHub 仓库 | `https://github.com/shenwei234/inkstone` |
 | 生产站点 | `https://blog.shenv.top` |
