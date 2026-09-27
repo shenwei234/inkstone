@@ -7,7 +7,7 @@ import (
 )
 
 // AppVersion is the current backend release version.
-const AppVersion = "Beta1.23"
+const AppVersion = "Beta1.24"
 
 var appStartTime = time.Now()
 
@@ -18,6 +18,14 @@ type ChangelogEntry struct {
 }
 
 var changelog = []ChangelogEntry{
+	{
+		Version: "Beta1.24",
+		Date:    "2026-09-27",
+		Items: []string{
+			"修复后台自动更新部署失败「创建 agent 容器失败：malformed Content-Type header (): mime: no media type」：新版 Docker daemon 强制要求带 body 的请求必须携带 Content-Type: application/json，CreateContainerRaw 此前漏设（生产环境首次触发 agent 创建才暴露）",
+			"包含 Beta1.23 全部内容：Markdown 表格样式修复（启用 @tailwindcss/typography）、favicon 后台修改即时生效、后台「站点地图」页（URL 分组/统计/robots 预览）、文章页自动目录 + 分享按钮 + 回到顶部",
+		},
+	},
 	{
 		Version: "Beta1.23",
 		Date:    "2026-09-27",
