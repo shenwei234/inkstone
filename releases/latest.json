@@ -1,17 +1,24 @@
 {
-  "version": "Beta1.18",
-  "released_at": "2026-09-27T00:00:00Z",
+  "version": "Beta1.19",
+  "released_at": "2026-09-27T05:36:38Z",
   "min_version": "Beta1.0",
-  "notes": "Beta1.18 安全防护加固：更新链路强制 https、镜像包强制 SHA256 校验、镜像白名单、更新接口独立限流、更新代理与 backend 容器最小权限（CapDrop ALL + no-new-privileges）、安全头补 HSTS、JWT 弱密钥告警。",
+  "notes": "# InkStone Beta1.19 更新包\r\n\r\n- 版本号：Beta1.19\r\n- 生成时间：2026-09-27 13:22:00\r\n- 镜像包：`inkstone-images-Beta1.19.tar`（109.7 MB / 115046912 字节）\r\n- 镜像包 SHA256：`5535ac574038b00a8ffac3d8b0b6e2a3dcbbc356b0b61d66c03ddf4a44f80c45`\r\n- 包含镜像：inkstone-backend:latest（sha256:ca551d98ba2a493e0772ef88dd2e6189369a46b79284aa218d080620e641c278）、inkstone-frontend:latest（sha256:685edca9a8b81b9a313abaeb8d8057b3b83a79b73c71139bdad8d7cb1b25a8c0）\r\n\r\n## 更新内容\r\n\r\n- 新增友链自助提交：前台「友情链接」页开放申请表单（名称/地址/简介/图标/邮箱），人机验证复用评论场景，IP 限流 5 次/小时\r\n- 后台「友情链接 → 申请审核」tab：待审核/已通过/已拒绝筛选，通过自动转为正式友链并后台探测可达性，拒绝需填原因，可删除记录\r\n- 申请防呆：URL 规范化去重（pending/已是友链均拦截）、IP 仅存 SHA256 哈希、可经设置项 friend_apply_enabled 一键关闭\r\n\r\n发布备注：友链自助提交：前台申请表单 + 后台审核（通过自动建链）\r\n\r\n## 部署方式（任选）\r\n\r\n### 方式一：服务器本地 git（image-repo，release 时已自动 push）\r\n\r\n```bash\r\ncd /opt/inkstone-images/repo\r\ngit fetch --depth=1 /srv/git/inkstone-images.git main && git reset --hard FETCH_HEAD\r\ndocker load -i inkstone-images.tar\r\ncd /opt/inkstone-deploy && docker compose -f docker-compose.yml up -d\r\n```\r\n\r\n### 方式二：scp + docker load\r\n\r\n```powershell\r\nscp \"D:\\images\\inkstone-images-Beta1.19.tar\" root@<服务器IP>:/opt/\r\nssh root@<服务器IP> \"docker load -i /opt/inkstone-images-Beta1.19.tar && cd /opt/inkstone-deploy && docker compose -f docker-compose.yml up -d\"\r\n```\r\n\r\n### 方式三：GitHub Release + 更新推送后台（建议，全自动）\r\n\r\n在 https://update.shenv.top 发布新版本（版本号 Beta1.19，上传本目录的 inkstone-images-Beta1.19.tar），\r\n各实例将在下一个检查周期（默认 15 分钟）自动完成 下载 → SHA256 校验 → 容器替换，失败自动回滚。\r\n\r\n## 回滚\r\n\r\n- 自动：部署阶段健康检查 / 运行版本核对失败 → agent 自动回滚到更新前版本\r\n- 手动：任一站后台「系统更新 → 更新历史 → 回滚到上一版本」，无需登录服务器\r\n\r\n部署前建议先备份数据库：\r\n\r\n```bash\r\ndocker exec inkstone-postgres pg_dump -U blog blog_platform > /opt/backup_blog_pre-Beta1.19.sql\r\n```",
   "images": [
-    { "repo": "inkstone-backend", "tag": "latest", "service": "backend" },
-    { "repo": "inkstone-frontend", "tag": "latest", "service": "frontend" }
+    {
+      "repo": "inkstone-backend",
+      "tag": "latest",
+      "service": "backend"
+    },
+    {
+      "repo": "inkstone-frontend",
+      "tag": "latest",
+      "service": "frontend"
+    }
   ],
   "asset": {
-    "name": "inkstone-images.tar",
-    "url": "https://github.com/shenwei234/inkstone/releases/download/Beta1.18/inkstone-images.tar",
-    "sha256": "",
-    "size": 0
+    "name": "inkstone-images-Beta1.19.tar",
+    "url": "https://github.com/shenwei234/inkstone/releases/download/Beta1.19/inkstone-images-Beta1.19.tar",
+    "sha256": "5535ac574038b00a8ffac3d8b0b6e2a3dcbbc356b0b61d66c03ddf4a44f80c45",
+    "size": 115046912
   }
 }
-
