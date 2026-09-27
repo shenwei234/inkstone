@@ -332,6 +332,7 @@ func main() {
 			admin.POST("/files", fileHandler.Upload)
 			admin.GET("/files/:id/download", fileHandler.Download)
 			admin.DELETE("/files/:id", fileHandler.Delete)
+			admin.GET("/sitemap", sitemapHandler.SiteMapData)
 			admin.GET("/pages", pageHandler.ListAll)
 			admin.POST("/pages", pageHandler.Create)
 			admin.GET("/pages/:id", pageHandler.Get)

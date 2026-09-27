@@ -236,3 +236,30 @@ export interface SubmitLinkApplicationInput {
   icon_url?: string
   email?: string
 }
+
+/** 后台站点地图：单条 URL 记录 */
+export interface SitemapEntry {
+  type: 'home' | 'article' | 'page' | 'category' | 'tag'
+  label: string
+  loc: string
+  lastmod?: string
+  changefreq?: string
+  priority?: string
+}
+
+/** 后台站点地图：分组（基础页面/文章/独立页/分类/标签） */
+export interface SitemapGroup {
+  type: string
+  label: string
+  count: number
+  entries: SitemapEntry[]
+}
+
+/** 后台站点地图：整体数据（GET /admin/sitemap） */
+export interface SitemapData {
+  frontend_url: string
+  sitemap_url: string
+  robots: string
+  groups: SitemapGroup[]
+  total: number
+}

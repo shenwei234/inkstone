@@ -17,6 +17,7 @@ import type {
   MirrorLatency,
   LinkApplication,
   SubmitLinkApplicationInput,
+  SitemapData,
 } from './types'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/api/v1'
@@ -632,6 +633,11 @@ export function deleteFile(id: number) {
 
 export function fileDownloadUrl(id: number) {
   return `${API_BASE}/admin/files/${id}/download`
+}
+
+/** 后台：站点地图数据（分组 URL 列表 + robots.txt 预览 + 统计） */
+export function fetchSitemapData() {
+  return api<{ data: SitemapData }>('/admin/sitemap', { auth: true })
 }
 
 /** Downloads a file through the authenticated API and triggers a browser save. */
