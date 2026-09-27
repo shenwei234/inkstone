@@ -1,16 +1,16 @@
 {
-  "version": "Beta1.21",
-  "released_at": "2026-09-27T07:10:19Z",
+  "version": "Beta1.22",
+  "released_at": "2026-09-27T08:20:00Z",
   "min_version": "Beta1.10",
-  "notes": "Beta1.21 修复与优化：友链页提交申请人机验证弹窗「只有提交窗口模糊」已修复（portal 挂载到 body，不再被表单卡片 transform 动画困住）；文章编辑器 Ctrl+S 与新增「存草稿」按钮统一为保存草稿（不再把草稿直接发布），新建文章本地草稿自动缓存可一键恢复，未保存更改离开页面弹出提醒。",
+  "notes": "Beta1.22 重要修复：更新失败/中断后重试不再被误判「疑似假更新」（防呆改比当前运行容器镜像 ID，失败/中断自动还原宿主机 latest，回滚素材改用运行容器镜像），彻底解决更新卡死无法重试的问题；同时修复友链页人机验证弹窗「只有提交窗口模糊」（portal 挂载到 body）与文章编辑器体验（Ctrl+S/存草稿按钮不再直接发布、新建文章本地草稿自动缓存与恢复、未保存离开提醒）。",
   "images": [
     { "repo": "inkstone-backend", "tag": "latest", "service": "backend" },
     { "repo": "inkstone-frontend", "tag": "latest", "service": "frontend" }
   ],
   "asset": {
-    "name": "inkstone-images-Beta1.21.tar",
-    "url": "https://github.com/shenwei234/inkstone/releases/download/Beta1.21/inkstone-images-Beta1.21.tar",
-    "sha256": "c233fb4418eef0128db2279fc63e7b562f89b784def1e192e82e245dc707c9ce",
-    "size": 115044864
+    "name": "inkstone-images-Beta1.22.tar",
+    "url": "https://github.com/shenwei234/inkstone/releases/download/Beta1.22/inkstone-images-Beta1.22.tar",
+    "sha256": "23ab03f57b5659eb6e1324e6bc7a19d01dc839e942d7e5b058de820032eb1a75",
+    "size": 115047424
   }
 }
