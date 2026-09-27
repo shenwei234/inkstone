@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
 import { CheckCircle2, ShieldCheck } from 'lucide-react'
 import { useSiteConfig } from './site-config-context'
 import type { GeetestCredential } from '@/lib/api'
@@ -34,6 +35,23 @@ interface Pending {
 
 const INIT_RETRY_MS = 50
 const INIT_MAX_TRIES = 200 // 50ms × 200 次 ≈ 10 秒仍未就绪则放弃，调用方会提示刷新
+
+/** 空订阅：挂载状态不会变化，只需挂载后读一次 */
+const subscribeNoop = () => () => {}
+
+/**
+ * SSR 首帧为 false、挂载后为 true。
+ * 验证弹窗要 createPortal 到 document.body（见 dialog 注释），
+ * 首帧不能直接访问 body（SSR 无 document，且会 hydration mismatch）；
+ * 用 useSyncExternalStore 感知挂载比 effect 内 setState 更干净，
+ * 也不会触发项目的 react-hooks/set-state-in-effect 规则。
+ */
+const useIsMounted = () =>
+  useSyncExternalStore(
+    subscribeNoop,
+    () => true,
+    () => false,
+  )
 
 /**
  * 人机验证（极验第四代行为验证）
@@ -180,7 +198,7 @@ export function useGeetestCaptcha(scene: GeetestScene) {
 
   // 弹窗容器常驻 DOM（display 切换显隐）：极验入口挂载后不能重复 appendTo，
   // 卸载再挂载会丢入口 DOM，reset 也无法补救
-  const dialog: ReactNode = (
+  const dialogNode = (
     <div
       className={`fixed inset-0 z-[210] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm${
         closing ? ' captcha-closing-overlay' : ''
@@ -230,5 +248,15 @@ export function useGeetestCaptcha(scene: GeetestScene) {
     </div>
   )
 
-  return { enabled, ready, run, dialog }
+  const mounted = useIsMounted()
+
+  return {
+    enabled,
+    ready,
+    run,
+    // 必须 portal 到 body：调用方页面（如友链申请表单）外层常是带 transform 动画的
+    // motion.div，内联渲染 fixed 遮罩会被 transform 包含块困住——inset-0 只覆盖
+    // 表单卡片区域，出现「只有提交窗口模糊」；与 components/modal.tsx 同策略。
+    dialog: mounted ? createPortal(dialogNode, document.body) : null,
+  }
 }

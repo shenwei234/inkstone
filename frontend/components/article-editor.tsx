@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Eye, X } from 'lucide-react'
+import { ArrowLeft, Eye, History, Save, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createArticle,
@@ -29,6 +29,52 @@ function htmlToText(html: string): string {
   return html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ')
 }
 
+/** 新建文章的本地草稿（防刷新/误关丢失；成功创建或发布后清除） */
+const NEW_DRAFT_KEY = 'blog_article_new_draft'
+
+interface LocalDraft {
+  title: string
+  markdown: string
+  categoryId: number | null
+  tags: string[]
+  cover: string
+}
+
+/** 读取本浏览器缓存的未发布草稿；SSR 或存储不可用时返回 null */
+function readLocalDraft(): LocalDraft | null {
+  try {
+    const raw = localStorage.getItem(NEW_DRAFT_KEY)
+    if (!raw) return null
+    const d = JSON.parse(raw) as Partial<LocalDraft> | null
+    if (!d || (!d.title?.trim() && !d.markdown?.trim())) return null
+    return {
+      title: typeof d.title === 'string' ? d.title : '',
+      markdown: typeof d.markdown === 'string' ? d.markdown : '',
+      categoryId: typeof d.categoryId === 'number' ? d.categoryId : null,
+      tags: Array.isArray(d.tags) ? d.tags.filter((t): t is string => typeof t === 'string') : [],
+      cover: typeof d.cover === 'string' ? d.cover : '',
+    }
+  } catch {
+    return null
+  }
+}
+
+function writeLocalDraft(draft: LocalDraft) {
+  try {
+    localStorage.setItem(NEW_DRAFT_KEY, JSON.stringify(draft))
+  } catch {
+    // storage unavailable: keep editing in memory
+  }
+}
+
+function clearLocalDraft() {
+  try {
+    localStorage.removeItem(NEW_DRAFT_KEY)
+  } catch {
+    // ignore persistence failure
+  }
+}
+
 interface EditorShellProps {
   mode: 'new' | 'edit'
   article?: Article
@@ -37,16 +83,26 @@ interface EditorShellProps {
 function EditorShell({ mode, article }: EditorShellProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const [title, setTitle] = useState(article?.title ?? '')
+  // new 模式优先从本地草稿恢复（刷新/误关不丢内容）；恢复的 draft 供 banner 与基线使用
+  const [restoredDraft] = useState<LocalDraft | null>(() =>
+    mode === 'new' ? readLocalDraft() : null,
+  )
+  const [title, setTitle] = useState(restoredDraft?.title ?? '')
   // 编辑器内部用 Markdown；保存时转成 HTML 交给后端（与既有存储/渲染保持一致）
-  const [markdown, setMarkdown] = useState(() => (article?.content ? htmlToMarkdown(article.content) : ''))
+  const [markdown, setMarkdown] = useState(() =>
+    restoredDraft ? restoredDraft.markdown : article?.content ? htmlToMarkdown(article.content) : '',
+  )
   const content = useMemo(() => markdownToHtml(markdown), [markdown])
   const [viewSlug, setViewSlug] = useState<string | null>(article?.slug ?? null)
-  const [categoryId, setCategoryId] = useState<number | null>(article?.category?.id ?? null)
-  const [tags, setTags] = useState<string[]>((article?.tags ?? []).map((t) => t.name))
+  const [categoryId, setCategoryId] = useState<number | null>(
+    restoredDraft?.categoryId ?? article?.category?.id ?? null,
+  )
+  const [tags, setTags] = useState<string[]>(
+    restoredDraft?.tags ?? (article?.tags ?? []).map((t) => t.name),
+  )
   const [tagInput, setTagInput] = useState('')
-  const [cover, setCover] = useState(article?.cover ?? '')
-  const [showCover, setShowCover] = useState(Boolean(article?.cover))
+  const [cover, setCover] = useState(restoredDraft?.cover ?? article?.cover ?? '')
+  const [showCover, setShowCover] = useState(Boolean(restoredDraft?.cover ?? article?.cover))
   const uploadCoverRef = useRef<HTMLInputElement>(null)
   const notify = useNotify()
   const { user } = useAuth()
@@ -73,14 +129,22 @@ function EditorShell({ mode, article }: EditorShellProps) {
   )
   const [autoSaving, setAutoSaving] = useState(false)
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
-  const baseline = useRef(
+  // 基线快照：与自动保存/本地草稿的 snapshot 同构（含 cover），
+  // 用于判断「是否有未保存更改」；new 模式以恢复的本地草稿为基线
+  const [baseline, setBaseline] = useState(() =>
     JSON.stringify({
-      t: article?.title ?? '',
-      c: article?.content ?? '',
-      g: article?.category?.id ?? null,
-      s: (article?.tags ?? []).map((t) => t.name).join(','),
+      t: restoredDraft?.title ?? article?.title ?? '',
+      c: restoredDraft ? markdownToHtml(restoredDraft.markdown) : article?.content ?? '',
+      g: restoredDraft?.categoryId ?? article?.category?.id ?? null,
+      s: (restoredDraft?.tags ?? (article?.tags ?? []).map((t) => t.name)).join(','),
+      v: restoredDraft?.cover ?? article?.cover ?? '',
     }),
   )
+  // 当前表单快照：与 baseline 比对判断「有没有未保存更改」，用于离开提醒；保存成功后刷新基线。
+  const currentSnapshot = () =>
+    JSON.stringify({ t: title, c: content, g: categoryId, s: tags.join(','), v: cover })
+  const isDirty = currentSnapshot() !== baseline
+  const [restoredHint, setRestoredHint] = useState(Boolean(restoredDraft))
 
   // Restore saved preference after mount (default: on).
   useEffect(() => {
@@ -102,7 +166,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
     } catch {
       // ignore persistence failure
     }
-    baseline.current = JSON.stringify({ t: title, c: content })
+    setBaseline(currentSnapshot())
     notify.success(next ? '自动保存已开启' : '自动保存已关闭')
   }
 
@@ -127,15 +191,50 @@ function EditorShell({ mode, article }: EditorShellProps) {
       queryClient.invalidateQueries({ queryKey: ['articles'] })
       queryClient.invalidateQueries({ queryKey: ['admin'] })
       queryClient.invalidateQueries({ queryKey: ['article', res.article.id] })
+      setBaseline(currentSnapshot())
       if (mode === 'edit' && article) {
         setViewSlug(res.article.slug)
         notify.success(res.article.status === 'published' ? '文章已发布' : '已保存', res.article.slug)
       } else {
+        clearLocalDraft()
         notify.success('文章已发布', res.article.slug)
         router.replace(`/admin/articles/edit/${res.article.id}`)
       }
     },
     onError: (err) => notify.error(err instanceof ApiError ? err.message : '发布失败，请稍后重试'),
+  })
+
+  // 保存草稿：Ctrl+S / 工具条「存草稿」。
+  // 新建文章先落库为 draft 并跳转编辑页，之后由自动保存接管（不会直接发布）。
+  const saveDraft = useMutation({
+    mutationFn: async () => {
+      const body = {
+        title,
+        content,
+        status: 'draft',
+        category_id: categoryId,
+        tags,
+        cover,
+      }
+      if (mode === 'edit' && article) {
+        return updateArticle(article.id, body)
+      }
+      return createArticle(body)
+    },
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['articles'] })
+      queryClient.invalidateQueries({ queryKey: ['admin'] })
+      setBaseline(currentSnapshot())
+      setAutoSavedAt(new Date())
+      if (mode === 'edit' && article) {
+        notify.success('草稿已保存')
+      } else {
+        clearLocalDraft()
+        notify.success('草稿已保存，可继续编辑')
+        router.replace(`/admin/articles/edit/${res.article.id}`)
+      }
+    },
+    onError: (err) => notify.error(err instanceof ApiError ? err.message : '保存草稿失败'),
   })
 
   const trash = useMutation({
@@ -153,7 +252,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
     if (!autoSaveEnabled) return
     if (mode !== 'edit' || article?.status !== 'draft') return
     const snapshot = JSON.stringify({ t: title, c: content, g: categoryId, s: tags.join(','), v: cover })
-    if (snapshot === baseline.current) return
+    if (snapshot === baseline) return
     if (!title.trim() || !htmlToText(content).trim()) return
 
     const timer = setTimeout(async () => {
@@ -167,7 +266,7 @@ function EditorShell({ mode, article }: EditorShellProps) {
           tags,
           cover,
         })
-        baseline.current = snapshot
+        setBaseline(snapshot)
         setAutoSavedAt(new Date())
       } catch {
         // silent failure: user can still publish manually
@@ -176,7 +275,46 @@ function EditorShell({ mode, article }: EditorShellProps) {
       }
     }, 2000)
     return () => clearTimeout(timer)
-  }, [title, content, categoryId, tags, cover, mode, article, autoSaveEnabled])
+  }, [title, content, categoryId, tags, cover, mode, article, autoSaveEnabled, baseline])
+
+  // 新建文章：内容防抖写入本地草稿（刷新/误关/误触返回后可从草稿恢复）
+  useEffect(() => {
+    if (mode !== 'new') return
+    if (!title.trim() && !markdown.trim()) {
+      clearLocalDraft()
+      return
+    }
+    const timer = setTimeout(() => {
+      writeLocalDraft({ title, markdown, categoryId, tags, cover })
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [mode, title, markdown, categoryId, tags, cover])
+
+  // 有未保存更改时，刷新/关闭页面前弹浏览器确认（Next 客户端路由跳转由链接本身拦截）
+  useEffect(() => {
+    if (!isDirty) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [isDirty])
+
+  // 全屏预览：锁背景滚动 + ESC 关闭
+  useEffect(() => {
+    if (!previewOpen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPreviewOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = prev
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [previewOpen])
 
   const wordCount = htmlToText(content).replace(/\s+/g, '').length
   const readMinutes = Math.max(1, Math.round(wordCount / 400))
@@ -223,6 +361,8 @@ function EditorShell({ mode, article }: EditorShellProps) {
     </span>
   ) : isPublished ? (
     <span className="text-xs text-muted-foreground">已发布</span>
+  ) : mode === 'new' ? (
+    <span className="text-xs text-muted-foreground">草稿自动保存在本浏览器</span>
   ) : (
     <span className="text-xs text-muted-foreground">输入内容后自动保存</span>
   )
@@ -259,6 +399,17 @@ function EditorShell({ mode, article }: EditorShellProps) {
           <div className="flex min-w-0 items-center gap-3">
             <Link
               href="/admin/articles"
+              onClick={async (e) => {
+                if (!isDirty) return
+                e.preventDefault()
+                const ok = await notify.confirm({
+                  title: '离开编辑页？',
+                  message: '当前有未保存的更改，离开后可能丢失最近几秒的修改。',
+                  confirmText: '离开',
+                  danger: true,
+                })
+                if (ok) router.push('/admin/articles')
+              }}
               className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               <ArrowLeft className="h-4 w-4 transition-transform hover:-translate-x-0.5" />
@@ -289,6 +440,16 @@ function EditorShell({ mode, article }: EditorShellProps) {
               <Eye className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">预览</span>
             </button>
+            <button
+              type="button"
+              onClick={() => saveDraft.mutate()}
+              disabled={saveDraft.isPending || !title.trim() || !htmlToText(content).trim()}
+              title="保存为草稿（Ctrl+S）"
+              className="flex items-center gap-1.5 rounded-md border border-border px-3.5 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+            >
+              <Save className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">存草稿</span>
+            </button>
             <motion.button
               type="button"
               onClick={doPublish}
@@ -310,6 +471,29 @@ function EditorShell({ mode, article }: EditorShellProps) {
           transition={{ duration: 0.45, ease: easeOut }}
           className="rounded-xl border border-border bg-card p-6 sm:p-10"
         >
+          {restoredHint && (
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2 text-xs text-muted-foreground">
+              <History className="h-3.5 w-3.5 shrink-0 text-accent" />
+              <span className="min-w-0 flex-1">已恢复上次未发布的本地草稿</span>
+              <button
+                type="button"
+                onClick={() => {
+                  clearLocalDraft()
+                  setRestoredHint(false)
+                  setTitle('')
+                  setMarkdown('')
+                  setCategoryId(null)
+                  setTags([])
+                  setCover('')
+                  setShowCover(false)
+                  setBaseline(JSON.stringify({ t: '', c: '', g: null, s: '', v: '' }))
+                }}
+                className="shrink-0 rounded-md border border-border px-2 py-1 transition-colors hover:text-red-500"
+              >
+                丢弃
+              </button>
+            </div>
+          )}
           <input
             type="text"
             value={title}
@@ -453,7 +637,13 @@ function EditorShell({ mode, article }: EditorShellProps) {
           </div>
 
           <div className="mt-6 border-t border-border pt-2">
-            <MarkdownEditor value={markdown} onChange={setMarkdown} onSaveRequest={() => { if (!publish.isPending) doPublish() }} />
+            <MarkdownEditor
+              value={markdown}
+              onChange={setMarkdown}
+              onSaveRequest={() => {
+                if (!saveDraft.isPending) saveDraft.mutate()
+              }}
+            />
           </div>
 
           <div className="mt-8 flex items-center justify-between border-t border-border pt-4 text-xs text-muted-foreground">
@@ -491,7 +681,9 @@ function EditorShell({ mode, article }: EditorShellProps) {
           transition={{ delay: 0.4 }}
           className="mt-8 text-center text-xs text-muted-foreground"
         >
-          {`提示：写完点右上角「${primaryLabel}」就能发表。草稿每 2 秒自动保存，Ctrl+S 可随时保存，不用怕丢。`}
+          {mode === 'new'
+            ? '提示：内容会自动缓存在本浏览器，随时按 Ctrl+S 存为草稿，不怕丢。'
+            : `提示：写完点右上角「${primaryLabel}」就能发表。草稿每 2 秒自动保存，Ctrl+S 可随时保存，不用怕丢。`}
         </motion.p>
       </div>
       {/* 全屏实时预览 */}
