@@ -192,32 +192,8 @@ export function SiteConfigProvider({ children }: { children: ReactNode }) {
         } else {
           document.body.classList.remove('has-wallpaper')
         }
-
-        // Apply browser tab title and favicon dynamically.
-        document.title = next.siteName
-        const iconLink = document.querySelector<HTMLLinkElement>("link[rel~='icon']")
-        if (next.siteFavicon) {
-          let link = iconLink
-          if (!link) {
-            link = document.createElement('link')
-            link.rel = 'icon'
-            document.head.appendChild(link)
-          }
-          // 记录 Next 自动注入的默认图标地址，便于之后清除自定义图标时还原
-          if (!link.dataset.defaultHref) {
-            link.dataset.defaultHref = link.getAttribute('href') ?? ''
-          }
-          link.href = next.siteFavicon
-        } else if (iconLink) {
-          // 清除自定义 favicon：还原默认图标（无默认记录则直接移除该 link）
-          const defaultHref = iconLink.dataset.defaultHref
-          if (defaultHref) {
-            iconLink.setAttribute('href', defaultHref)
-            delete iconLink.dataset.defaultHref
-          } else {
-            iconLink.remove()
-          }
-        }
+        // 注意：浏览器标题与 favicon 由 components/site-head.tsx 以 React 19
+        // metadata hoist 方式渲染，此处不再直接操作 DOM link（会被 React 覆盖）
       })
       .catch(() => setConfig((c) => ({ ...c, loaded: true })))
   }, [])
