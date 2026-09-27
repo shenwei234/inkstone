@@ -89,6 +89,11 @@
 
 `update_mirror_urls` 已登记 `jsonSettingKeys`（数组自动编解码）。
 
+### 友链自助申请（Beta1.19）
+| Key | 默认值 | 说明 |
+|---|---|---|
+| `friend_apply_enabled` | `true` | 前台「友情链接」页开放自助申请表单（关闭后仅后台手动添加） |
+
 ---
 
 ## 三个关键机制
