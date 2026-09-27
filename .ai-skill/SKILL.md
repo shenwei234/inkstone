@@ -183,6 +183,7 @@ cd frontend && npm run build && npx eslint app components lib --ext .ts,.tsx
 | alpine apk 官方源被墙 | `dl-cdn.alpinelinux.org` Permission denied；`sed` 换 `mirrors.aliyun.com/alpine` 再 apk add |
 | 部署时容器自重建 | `docker compose up -d` 会替换 backend 容器自身，进程日志可能中断，最终以 `docker ps` / 站点表现为准 |
 | 发版必改 AppVersion | `internal/service/system_service.go` 的 `AppVersion` 与 changelog 必须同步改，否则后台「关于系统」显示的版本与实际镜像不符 |
+| 镜像包分发必须带版本号 | `release.ps1 -Version Beta1.x` 自动产出 `D:\images\inkstone-images-Beta1.x.tar` + `release-notes-Beta1.x.md`；Beta1.14 曾沿用固定名导致实例「假更新」（仓库无新 tar，幂等跳过却上报成功）。image-repo 内固定名 `inkstone-images.tar` 是服务器 load 约定，别混 |
 | PowerShell 跑 .ps1 中文乱码/解析错 | PS 5.1 需要 **UTF-8 BOM** 才能解析中文；用 Write/Edit 工具写 .ps1 后要用 .NET 补 BOM：`[System.IO.File]::WriteAllText($p,$raw,(New-Object System.Text.UTF8Encoding($true)))` |
 | PS 脚本 here-string 易碎 | `@"..."@` 内嵌 `$(if ... {...})`、反引号转义易触发 ParserError；输出优先用逐行 Write-Host，逻辑用简单字符串 Contains 代替复杂正则 |
 | 自动更新必须挂 docker.sock | backend 容器不挂 `/var/run/docker.sock` 时 DockerEnvInfo 不可用，更新后台显示挂载指引；prod/offline compose 均已挂载（ro） |

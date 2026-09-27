@@ -180,6 +180,21 @@ docker run --rm -v inkstone_uploads_data:/data -v $(pwd):/backup alpine \
 cat backup.sql | docker exec -i blog-postgres psql -U blog blog_platform
 ```
 
+## 发布产物规范（Beta1.19 起）
+
+`release.ps1`（`-ImagesDir` 默认 `D:\images`）除推送 image-repo 外，同时产出**版本化分发物**：
+
+| 文件 | 用途 |
+|---|---|
+| `D:\images\inkstone-images-<Version>.tar` | 分发的镜像包（**必须带版本号**——Beta1.14 曾沿用固定名 `inkstone-images.tar`，导致仓库无新 tar、实例幂等跳过却上报成功的「假更新」事故） |
+| `D:\images\release-notes-<Version>.md` | 更新说明：镜像包 SHA256/大小、包含镜像 ID、changelog 自动提取（从 `system_service.go` 正则解析当前版本 Items）、三种部署方式命令、回滚指引、部署前备份命令 |
+| `D:\blog-platform-release\image-repo\inkstone-images.tar` | image-repo 检出的**固定名**tar（服务器 `docker load` 协作约定，自动 commit+push 到 `/srv/git/inkstone-images.git`） |
+
+**纪律**：
+- 服务器协作（image-repo）用固定名；对外分发/推送后台发布必须用 `inkstone-images-<Version>.tar`
+- 版本号进入文件名、Release tag、清单 version 三处，缺一不可
+- release-notes 的「本版变更」段可直接粘贴到 update-hub 发布表单
+
 ## 系统更新（全自动，Beta1.15）
 
 **宿主机零操作**：backend 容器挂载 `/var/run/docker.sock` 后，从「发现新版本」到「替换容器」全链路自动完成。
