@@ -208,6 +208,8 @@ export interface ChangelogEntry {
 export interface MirrorLatency {
   url: string
   latency_ms: number
+  asset_url?: string
+  download_latency_ms: number
   direct: boolean
   from: string
 }

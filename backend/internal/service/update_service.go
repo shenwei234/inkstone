@@ -410,16 +410,22 @@ func (s *UpdateService) schedLoop() {
 
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
+	lastRecover := time.Now()
 	for {
 		select {
 		case <-s.stopCh:
 			return
 		case <-ticker.C:
 		}
-		if time.Since(s.lastCheck()) < s.checkInterval() {
-			continue
+		if time.Since(s.lastCheck()) >= s.checkInterval() {
+			s.checkAndMaybeUpdate(false)
 		}
-		s.checkAndMaybeUpdate(false)
+		// 每 5 分钟做一次中断自检：agent 崩溃/残留 running 记录会被清理或自动回滚，
+		// 否则记录卡在 running 会让「已有任务进行中」永久挡住手动更新
+		if time.Since(lastRecover) >= 5*time.Minute {
+			lastRecover = time.Now()
+			s.recoverInterrupted()
+		}
 	}
 }
 
@@ -466,49 +472,71 @@ func (s *UpdateService) setRemoteError(msg string) {
 
 // MirrorLatency 单个加速源的探测结果。
 type MirrorLatency struct {
-	URL     string `json:"url"`
-	Latency int64  `json:"latency_ms"` // 毫秒；-1 表示不可用
-	Direct  bool   `json:"direct"`     // true = 直连（非加速源）
-	From    string `json:"from"`       // manifest / asset 探测目标
+	URL             string `json:"url"`                 // 版本清单探测地址
+	Latency         int64  `json:"latency_ms"`          // 清单延迟毫秒；-1=不可用
+	AssetURL        string `json:"asset_url"`           // 镜像包探测地址（无清单缓存时为空）
+	DownloadLatency int64  `json:"download_latency_ms"` // 镜像包下载延迟毫秒；-1=未测或不可用
+	Direct          bool   `json:"direct"`              // true = 直连（非加速源）
+	From            string `json:"from"`                // 探测目标说明
 }
 
-// TestMirrors 并发探测各加速源延迟（以版本清单为探测目标），按延迟升序返回。
-// 纯探测不下载，供后台「更新设置 → 测试延迟」展示。
+// TestMirrors 并发探测各加速源：清单延迟 + 镜像包下载延迟（有清单缓存时）。
+// 纯探测不完整下载，供后台「更新设置 → 测试延迟」展示，按清单延迟升序返回。
 func (s *UpdateService) TestMirrors() []MirrorLatency {
 	repo := s.repoFromSettings()
-	direct := fmt.Sprintf("https://raw.githubusercontent.com/%s/main/%s", repo, manifestPath)
+	directManifest := fmt.Sprintf("https://raw.githubusercontent.com/%s/main/%s", repo, manifestPath)
 
-	type probe struct {
-		url     string
-		latency int64
+	// 已缓存清单时附带探测镜像包下载速度（否则只测清单）
+	var assetDirect string
+	s.mu.Lock()
+	if s.remote != nil && s.remote.Asset.URL != "" {
+		assetDirect = s.remote.Asset.URL
 	}
-	targets := []string{direct}
+	s.mu.Unlock()
+
+	type probeRow struct {
+		manifestURL string
+		assetURL    string
+	}
+	rows := []probeRow{{manifestURL: directManifest, assetURL: assetDirect}}
 	for _, m := range s.mirrorURLs() {
-		targets = append(targets, joinMirror(m, direct))
+		rows = append(rows, probeRow{
+			manifestURL: joinMirror(m, directManifest),
+			assetURL:    joinMirror(m, assetDirect),
+		})
 	}
 
-	results := make([]MirrorLatency, len(targets))
+	results := make([]MirrorLatency, len(rows))
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	probeOne := func(i int, url string) {
-		defer wg.Done()
-		latency := probeLatency(url, probeTimeout)
-		mu.Lock()
-		defer mu.Unlock()
-		results[i] = MirrorLatency{
-			URL:     url,
-			Latency: latency,
-			Direct:  i == 0,
-			From:    "latest.json",
-		}
-	}
-	for i, u := range targets {
+	for i := range rows {
 		wg.Add(1)
-		go probeOne(i, u)
+		go func(i int) {
+			defer wg.Done()
+			r := MirrorLatency{
+				URL:             rows[i].manifestURL,
+				Latency:         probeLatency(rows[i].manifestURL, probeTimeout),
+				AssetURL:        rows[i].assetURL,
+				DownloadLatency: -1,
+				Direct:          i == 0,
+				From:            "latest.json",
+			}
+			if rows[i].assetURL != "" {
+				// 取 64KB 实测下载带宽（比纯 RTT 更接近真实下载体验）
+				r.DownloadLatency = probeLatencyN(rows[i].assetURL, probeTimeout, 64<<10)
+			}
+			mu.Lock()
+			results[i] = r
+			mu.Unlock()
+		}(i)
 	}
 	wg.Wait()
+	sortMirrorLatency(results)
+	return results
+}
 
-	// 可用源按延迟升序，不可用（-1）排最后
+// sortMirrorLatency 可用源按延迟升序，不可用（-1）排最后。
+func sortMirrorLatency(results []MirrorLatency) {
 	for i := 1; i < len(results); i++ {
 		for j := i; j > 0; j-- {
 			a, b := results[j-1], results[j]
@@ -522,30 +550,48 @@ func (s *UpdateService) TestMirrors() []MirrorLatency {
 			break
 		}
 	}
-	return results
 }
 
-// probeLatency 探测单个 URL 的响应延迟（毫秒）；失败返回 -1。
-// 只取前 2KB（Range 头），避免为测速拉全量内容。
-func probeLatency(url string, timeout time.Duration) int64 {
+// probeLatencyN 探测单个 URL 的响应延迟（毫秒，最多读取 n 字节）；失败返回 -1。
+func probeLatencyN(url string, timeout time.Duration, n int64) int64 {
 	client := &http.Client{Timeout: timeout}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return -1
 	}
 	req.Header.Set("User-Agent", "inkstone-updater")
-	req.Header.Set("Range", "bytes=0-2047")
+	req.Header.Set("Range", fmt.Sprintf("bytes=0-%d", n-1))
 	start := time.Now()
 	resp, err := client.Do(req)
 	if err != nil {
 		return -1
 	}
-	io.Copy(io.Discard, io.LimitReader(resp.Body, 2048))
+	io.Copy(io.Discard, io.LimitReader(resp.Body, n))
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent && resp.StatusCode != http.StatusMethodNotAllowed {
 		return -1
 	}
 	return time.Since(start).Milliseconds()
+}
+
+// probeLatency 探测单个 URL 的响应延迟（毫秒）；失败返回 -1。
+// 只取前 2KB（Range 头），避免为测速拉全量内容。
+func probeLatency(url string, timeout time.Duration) int64 {
+	return probeLatencyN(url, timeout, 2<<10)
+}
+
+// formatBytes 人类可读字节数（错误信息用）。
+func formatBytes(n uint64) string {
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%d B", n)
+	}
+	div, exp := uint64(unit), 0
+	for m := n / unit; m >= unit; m /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
 }
 
 // ---------- 远端清单获取（多源 + 加速） ----------
@@ -741,6 +787,14 @@ func (s *UpdateService) assetCandidates(direct string) []string {
 func (s *UpdateService) downloadAsset(asset ManifestAsset, onProgress func(int)) (path, mirror, sha string, err error) {
 	if asset.Size > maxAssetSize {
 		return "", "", "", fmt.Errorf("镜像包超过 2GB 上限，拒绝下载")
+	}
+	// 磁盘预检：需要 镜像包大小 + 512MB 余量（不足则直接失败，避免下到一半磁盘满）
+	if free, derr := diskFreeBytes(updateTempDir); derr == nil && asset.Size > 0 {
+		const margin = 512 << 20
+		if free < uint64(asset.Size)+margin {
+			return "", "", "", fmt.Errorf("磁盘空间不足：需要 %s（镜像包 %s + 余量），当前可用 %s",
+				formatBytes(uint64(asset.Size)+margin), formatBytes(uint64(asset.Size)), formatBytes(free))
+		}
 	}
 	if err := os.MkdirAll(updateTempDir, 0o755); err != nil {
 		return "", "", "", fmt.Errorf("创建临时目录失败：%v", err)
@@ -996,7 +1050,9 @@ func (s *UpdateService) performUpdate(rec *model.UpdateRecord, m *UpdateManifest
 		s.failRecord(rec, "下载镜像包失败："+err.Error())
 		return
 	}
-	defer os.Remove(path)
+	if path != "" {
+		defer os.Remove(path)
+	}
 	rec.Mirror = usedMirror
 	rec.SHA256 = sha
 
@@ -1140,9 +1196,16 @@ func (s *UpdateService) StartRollback() error {
 	return nil
 }
 
-// RecoverInterruptedUpdate 实例重启自检：上次更新若非正常结束（留下 running 记录），
-// 自动回滚到旧镜像，避免坏版本常驻。启动 30 秒后调用一次。
+// RecoverInterruptedUpdate 实例重启自检（启动 30 秒后调用一次）。
+// 周期性的中断自检由调度器负责，见 recoverInterrupted。
 func (s *UpdateService) RecoverInterruptedUpdate() {
+	time.Sleep(30 * time.Second)
+	s.recoverInterrupted()
+}
+
+// recoverInterrupted 中断自检：非正常结束的更新（残留 running 记录）自动回滚或标记失败。
+// 被「启动时」与「调度周期」两处调用，保证 agent 崩溃后状态最终一致。
+func (s *UpdateService) recoverInterrupted() {
 	// 3 分钟窗口：正常部署（agent 收尾）远快于此；超过即视为 goroutine 已死
 	rec, ok := s.repo.FindInterrupted(time.Now().Add(-3 * time.Minute))
 	if !ok {
@@ -1155,16 +1218,16 @@ func (s *UpdateService) RecoverInterruptedUpdate() {
 	}
 	if rec.Type == model.UpdateTypeRollback {
 		// 回滚本身被中断：标记失败即可（此时运行的已是回滚后镜像）
-		s.failRecord(rec, "回滚过程中实例重启，请检查当前运行版本")
+		s.failRecord(rec, "回滚过程中被中断，请检查当前运行版本")
 		return
 	}
 	// 更新部署被中断：自动回滚
 	if rec.RollbackTag == "" {
-		s.failRecord(rec, "更新部署过程中实例重启（未打回滚 tag，已保持当前版本，请手动检查）")
+		s.failRecord(rec, "更新部署过程被中断（未打回滚 tag，已保持当前版本，请手动检查）")
 		return
 	}
 	fmt.Printf("[update] 检测到中断的更新（#%d → %s），自动回滚\n", rec.ID, rec.ToVersion)
-	s.agentRollback(rec, "更新部署过程中实例重启，已自动回滚", nil, "")
+	s.agentRollback(rec, "更新部署过程中被中断，已自动回滚", nil, "")
 }
 
 // ---------- 版本号比较 ----------

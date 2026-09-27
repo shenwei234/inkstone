@@ -67,11 +67,8 @@ func main() {
 	updateRepo := repository.NewUpdateRepository(db)
 	updateSvc := service.NewUpdateService(db, updateRepo, settingsSvc, logSvc, cfg.DockerSocketPath())
 	updateSvc.StartScheduler()
-	// 重启自检：上次更新若中断（留下 running 记录），稳定后自动回滚
-	go func() {
-		time.Sleep(30 * time.Second)
-		updateSvc.RecoverInterruptedUpdate()
-	}()
+	// 重启自检与周期自检：上次更新若中断，自动回滚（RecoverInterruptedUpdate 内含 30s 启动延迟）
+	go updateSvc.RecoverInterruptedUpdate()
 
 	emailCodeSvc := service.NewEmailCodeService(settingsSvc, mailer)
 	geetestSvc := service.NewGeetestService(settingsSvc)

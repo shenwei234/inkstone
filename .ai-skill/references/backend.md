@@ -244,7 +244,7 @@ create（原始 body 与 inspect 复用两种）/ start / stop / remove。**没�
 
 **并发保护**：`FindRunning()` 查库判重；调度器与手动触发共用；更新期间禁回滚。
 
-**单测**（`internal/service/update_test.go`，16 个用例）：`compareVersion`（Beta1.14>Beta1.9 等字符串比较陷阱）、`versionNumbers`、`joinMirror`（**必须保留目标 URL 的 https://，ghproxy 系解析依赖**）、`manifestToRemote`、`fetchManifestURL`（合法/缺字段/非 JSON）、`rankSources`（httptest 快/慢/503 排序）、`probeLatency`、`progressWriter` 节流、清单 JSON 往返、`DockerClient` 不可用路径、`validateUpdateSettings`（repo 路径注入/间隔越界/非 http 加速源）、`tryBeginUpdate` 互斥。改更新链路先跑 `go test ./internal/service/`。
+**单测**（`internal/service/update_test.go`，23 个用例）：`compareVersion`（Beta1.14>Beta1.9 等字符串比较陷阱）、`versionNumbers`、`joinMirror`（**必须保留目标 URL 的 https://，ghproxy 系解析依赖**）、`manifestToRemote`、`fetchManifestURL`（合法/缺字段/非 JSON）、`rankSources`（httptest 快/慢/503 排序）、`probeLatency`、`progressWriter` 节流、清单 JSON 往返、`DockerClient` 不可用路径、`validateUpdateSettings`（repo 路径注入/间隔越界/非 http 加速源）、`tryBeginUpdate` 互斥、`validateUpdateSettings`、`TestDownloadFileResume`（续传 SHA256 拼接对拍 + 无 Range 服务器从头重下）、`TestUpdateSettingDefaults`（默认值完整性）、`formatBytes`、`sortMirrorLatency`。改更新链路先跑 `go test ./internal/service/`。
 
 **健壮性要点（Beta1.15 审查后补充）**：
 - 清单探测有 **20s 总时限**（多源并行，不会无限等）；镜像源下载失败自动切换下一个
@@ -252,6 +252,12 @@ create（原始 body 与 inspect 复用两种）/ start / stop / remove。**没�
 - `main.go` 优雅停机（SIGTERM → `srv.Shutdown` 30s），保证更新停容器期间在途请求落库
 - `docker load` 显式 `Content-Type: application/x-tar`；Docker 响应读取上限 32MB
 - agent 回滚支持「容器已删除」场景：用 rm 前暂存的 inspect 快照重建 backend，杜绝站点消失
+
+**可用性要点（Beta1.16 审查后补充）**：
+- **周期中断自检**：调度器每 5 分钟调 `recoverInterrupted()`（不再仅启动时）——agent 崩溃/残留 running 记录会被清理或自动回滚，否则记录卡 running 会永久挡住手动更新
+- **快速失败回滚**：`waitHealthy` 轮询中检测容器已退出（crash-loop）立即返回失败，不等满 150s 超时
+- **磁盘预检**：下载前 `diskFreeBytes`（Linux Statfs，`update_disk_linux.go`；Windows 构建 tag 跳过）要求 镜像包大小 + 512MB 余量，不足直接报错
+- 记录查询统一 `latestOne`（`Limit(1).Find`）：无记录不打 GORM not-found 日志
 
 **性能要点（Beta1.15 审查后补充）**：
 - 下载/`docker load` 均用 **512KB buffer**（默认 32KB syscall 过多）；下载带 `ResponseHeaderTimeout=60s` 防挂死

@@ -266,6 +266,52 @@ func TestTryBeginUpdateMutex(t *testing.T) {
 	s.endUpdate()
 }
 
+func TestUpdateSettingDefaults(t *testing.T) {
+	// 每个 update_* 设置常量都必须有默认值（否则 All() 返回空串，行为不可预期）
+	for _, k := range []string{
+		SettingUpdateEnabled, SettingUpdateCheckInterval, SettingUpdateMirrorURLs, SettingUpdateRepo,
+	} {
+		if _, ok := settingDefaults[k]; !ok {
+			t.Errorf("设置项 %s 缺少默认值", k)
+		}
+		if jsonSettingKeys[k] != (k == SettingUpdateMirrorURLs) {
+			t.Errorf("设置项 %s 的 jsonSettingKeys 登记异常", k)
+		}
+	}
+	if settingDefaults[SettingUpdateRepo] != DefaultUpdateRepo {
+		t.Errorf("默认仓库应为 %s", DefaultUpdateRepo)
+	}
+}
+
+func TestFormatBytes(t *testing.T) {
+	cases := map[uint64]string{
+		0: "0 B", 1023: "1023 B", 1024: "1.0 KiB", 1536: "1.5 KiB",
+		1 << 20: "1.0 MiB", 512 << 20: "512.0 MiB",
+	}
+	for in, want := range cases {
+		if got := formatBytes(in); got != want {
+			t.Errorf("formatBytes(%d) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestSortMirrorLatency(t *testing.T) {
+	in := []MirrorLatency{
+		{URL: "a", Latency: 300},
+		{URL: "b", Latency: -1},
+		{URL: "c", Latency: 50},
+		{URL: "d", Latency: -1},
+		{URL: "e", Latency: 120},
+	}
+	sortMirrorLatency(in)
+	want := []string{"c", "e", "a", "b", "d"}
+	for i, w := range want {
+		if in[i].URL != w {
+			t.Fatalf("排序结果 %v, 期望顺序 %v", in, want)
+		}
+	}
+}
+
 func TestDownloadFileResume(t *testing.T) {
 	content := bytes.Repeat([]byte("inkstone-binary-"), 200) // ~3200 字节
 	want := sha256hex(content)

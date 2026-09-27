@@ -237,7 +237,7 @@ func (s *UpdateService) agentDeploy(rec *model.UpdateRecord, m *UpdateManifest) 
 	// 3. 健康检查 + 版本核对（防「起得来但是旧版本」）
 	rec.Detail = "backend 已重启，正在进行健康检查…"
 	s.saveRecord(rec)
-	if err := s.waitHealthy(newName, backendImg.Service, m.Version); err != nil {
+	if err := s.waitHealthy(newID, newName, backendImg.Service, m.Version); err != nil {
 		_ = s.docker.StopContainer(newID, 15)
 		_ = s.docker.RemoveContainer(newID)
 		s.agentRollback(rec, "健康检查未通过："+err.Error(), savedIns, savedName)
@@ -317,7 +317,7 @@ func (s *UpdateService) agentRollbackFrom(rec *model.UpdateRecord, fallbackIns *
 					_ = s.docker.RemoveContainer(newID)
 					return fmt.Errorf("启动 %s 容器失败：%v", service, err)
 				}
-				if err := s.waitHealthy(name, service, rec.ToVersion); err != nil {
+				if err := s.waitHealthy(newID, name, service, rec.ToVersion); err != nil {
 					return fmt.Errorf("backend 回滚后健康检查失败：%v", err)
 				}
 				continue
@@ -344,7 +344,7 @@ func (s *UpdateService) agentRollbackFrom(rec *model.UpdateRecord, fallbackIns *
 			return fmt.Errorf("启动 %s 容器失败：%v", service, err)
 		}
 		if service == serviceBackend {
-			if err := s.waitHealthy(name, service, rec.ToVersion); err != nil {
+			if err := s.waitHealthy(newID, name, service, rec.ToVersion); err != nil {
 				return fmt.Errorf("backend 回滚后健康检查失败：%v", err)
 			}
 		}
@@ -383,7 +383,8 @@ func (s *UpdateService) agentRecreateService(service, imageRef string) error {
 
 // waitHealthy 轮询容器健康检查端点，并核对运行版本，防止「假更新」。
 // 端口优先从容器 Env 的 PORT 读取，其次 ExposedPorts，最终兜底 8080。
-func (s *UpdateService) waitHealthy(containerName, service, expectVersion string) error {
+// 容器若已退出（crash-loop）会立即返回失败，不等满超时——让回滚更早发生。
+func (s *UpdateService) waitHealthy(containerID, containerName, service, expectVersion string) error {
 	port := "8080"
 	if ct, err := s.docker.FindContainerByName(containerName); err == nil && ct != nil {
 		if envs, envErr := s.docker.ContainerEnv(ct.Id); envErr == nil && envs["PORT"] != "" {
@@ -399,6 +400,12 @@ func (s *UpdateService) waitHealthy(containerName, service, expectVersion string
 	deadline := time.Now().Add(150 * time.Second)
 	var lastErr error
 	for time.Now().Before(deadline) {
+		// 容器已退出（新版本起不来）→ 立即失败，触发回滚，避免空等 150 秒
+		if containerID != "" {
+			if running, err := s.docker.ContainerRunning(containerID); err == nil && !running {
+				return fmt.Errorf("容器已退出（新版本无法正常运行）")
+			}
+		}
 		resp, err := client.Get(healthURL)
 		if err == nil {
 			io.Copy(io.Discard, resp.Body)

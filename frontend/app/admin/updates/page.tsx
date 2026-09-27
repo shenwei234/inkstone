@@ -791,17 +791,32 @@ export default function AdminUpdatesPage() {
                       placeholder="https://ghfast.top/"
                       className={`${inputClass} font-mono text-xs`}
                     />
-                    {latency &&
-                      (latency.latency_ms >= 0 ? (
-                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                          <Zap className="h-3 w-3" />
-                          {latency.latency_ms}ms
-                        </span>
-                      ) : (
-                        <span className="inline-flex shrink-0 rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-500">
-                          不可达
-                        </span>
-                      ))}
+                    {latency && (
+                      <div className="flex shrink-0 items-center gap-1">
+                        {latency.latency_ms >= 0 ? (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400"
+                            title="版本清单延迟"
+                          >
+                            <Zap className="h-3 w-3" />
+                            {latency.latency_ms}ms
+                          </span>
+                        ) : (
+                          <span className="inline-flex rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-500">
+                            不可达
+                          </span>
+                        )}
+                        {latency.download_latency_ms >= 0 && (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent"
+                            title={latency.asset_url ? `镜像包下载：${latency.asset_url}` : '镜像包下载延迟'}
+                          >
+                            <Download className="h-3 w-3" />
+                            {latency.download_latency_ms}ms
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={() =>
