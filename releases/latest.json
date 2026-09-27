@@ -1,15 +1,15 @@
 {
-  "version": "Beta1.15",
+  "version": "Beta1.16",
   "released_at": "2026-09-27T00:00:00Z",
   "min_version": "Beta1.0",
-  "notes": "Beta1.15 全新系统更新体系：后台「系统更新」页实时查看版本、一键更新与回滚，全程无需登录服务器；定时检查 GitHub 版本清单，加速源测速下载镜像包，SHA256 校验后经一次性更新代理容器完成 backend / frontend 替换，失败自动回滚。",
+  "notes": "Beta1.16：更新记录查询改用 Limit(1).Find，无记录时不再打出 not-found 日志噪音。",
   "images": [
     { "repo": "inkstone-backend", "tag": "latest", "service": "backend" },
     { "repo": "inkstone-frontend", "tag": "latest", "service": "frontend" }
   ],
   "asset": {
     "name": "inkstone-images.tar",
-    "url": "https://github.com/shenwei234/inkstone/releases/download/Beta1.15/inkstone-images.tar",
+    "url": "https://github.com/shenwei234/inkstone/releases/download/Beta1.16/inkstone-images.tar",
     "sha256": "",
     "size": 0
   }
