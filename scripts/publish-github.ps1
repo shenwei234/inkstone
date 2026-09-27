@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     通过 GitHub API 发布新版本：创建 Release → 上传镜像包资产 → 更新 releases/latest.json。
 
@@ -44,7 +44,7 @@ param(
 
     [string]$Notes = "",
 
-    [string]$Branch = "main",
+    [string]$Branch = "main"
 )
 
 $ErrorActionPreference = "Stop"

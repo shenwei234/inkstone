@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     部署更新推送后台 update-hub 到服务器（update.shenv.top）。
 
@@ -26,7 +26,7 @@ param(
     [string]$Host_ = "47.116.16.181",
     [string]$Dir = "/opt/update-hub",
     [string]$RepoRoot = "D:\blog-platform",
-    [switch]$SkipBuild,
+    [switch]$SkipBuild
 )
 
 $ErrorActionPreference = "Stop"

@@ -28,6 +28,17 @@ export async function ensureBranch(token: string, repo: string): Promise<string>
 
 const defaultBranch = () => currentBranch
 
+/** 当前探测到的仓库默认分支名（展示/调试用） */
+export function currentBranchName(): string {
+  return currentBranch
+}
+
+/** 镜像清单默认定义（发布与回退共用，与后端 validateManifestImages 白名单一致） */
+export const defaultImages = [
+  { repo: 'inkstone-backend', tag: 'latest', service: 'backend' },
+  { repo: 'inkstone-frontend', tag: 'latest', service: 'frontend' },
+]
+
 export class GitHubError extends Error {
   status: number
   constructor(status: number, message: string) {
@@ -283,6 +294,116 @@ export async function sha256Hex(file: File, onProgress?: (pct: number) => void):
     onProgress?.(Math.round((end / Math.max(file.size, 1)) * 100))
   }
   return stream.hex()
+}
+
+/** 从 URL 流式下载并计算 SHA256（回退清单时自动获取历史资产哈希；分块避免内存峰值） */
+export async function sha256FromURL(url: string, onProgress?: (pct: number) => void): Promise<string> {
+  const res = await fetch(url)
+  if (!res.ok || !res.body) throw new Error(`下载失败（${res.status}）`)
+  const total = Number(res.headers.get('content-length') ?? 0)
+  const stream = new Sha256Stream()
+  const reader = res.body.getReader()
+  let received = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    if (value) {
+      stream.update(value)
+      received += value.length
+      if (total > 0) onProgress?.(Math.round((received / total) * 100))
+    }
+  }
+  onProgress?.(100)
+  return stream.hex()
+}
+
+/** 更新 Release 名称/说明（复用旧 tag 重新发布时同步内容） */
+export function updateRelease(
+  token: string,
+  repo: string,
+  releaseId: number,
+  patch: { name?: string; body?: string }
+) {
+  return gh<ReleaseInfo>(token, `/repos/${repo}/releases/${releaseId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+}
+
+/** 删除 Release（下架错误版本；默认一并删除 tag ref） */
+export async function deleteRelease(token: string, repo: string, releaseId: number, deleteTag = true) {
+  let tagName = ''
+  if (deleteTag) {
+    const rel = await gh<ReleaseInfo>(token, `/repos/${repo}/releases/${releaseId}`).catch(() => null)
+    tagName = rel?.tag_name ?? ''
+  }
+  await gh(token, `/repos/${repo}/releases/${releaseId}`, { method: 'DELETE' })
+  if (deleteTag && tagName) {
+    // 删除 tag ref 失败不阻塞（无权限时静默跳过）
+    await gh(token, `/repos/${repo}/git/refs/tags/${encodeURIComponent(tagName)}`, { method: 'DELETE' }).catch(
+      () => null
+    )
+  }
+}
+
+/** 取指定 tag 的 Release（不存在返回 null） */
+export async function getReleaseByTag(
+  token: string,
+  repo: string,
+  tag: string
+): Promise<ReleaseInfo | null> {
+  try {
+    return await gh<ReleaseInfo>(token, `/repos/${repo}/releases/tags/${tag}`)
+  } catch (e) {
+    if (e instanceof GitHubError && e.status === 404) return null
+    throw e
+  }
+}
+
+/** token 权限范围（响应头 x-oauth-scopes，classic token 才有） */
+export async function fetchScopes(token: string): Promise<string[]> {
+  const res = await fetch(`${API}/user`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+  })
+  const scopes = res.headers.get('x-oauth-scopes') ?? ''
+  return scopes.split(',').map((s) => s.trim()).filter(Boolean)
+}
+
+/**
+ * 把 latest.json 回退到指定历史 Release（发布错误版本时的救命功能）。
+ * 历史资产的 sha256 无法从 GitHub API 获取，由调用方下载计算后传入。
+ */
+export function rollbackManifest(
+  token: string,
+  repo: string,
+  release: ReleaseInfo,
+  sha256: string,
+  currentSHA: string,
+  minVersion = '',
+  branch = defaultBranch()
+) {
+  const asset = release.assets.find((a) => a.name === 'inkstone-images.tar') ?? release.assets[0]
+  if (!asset) throw new Error('该 Release 没有镜像包资产')
+  // 资产下载地址用标准格式（API 返回的 browser_download_url 等价）
+  const assetURL = `https://github.com/${repo}/releases/download/${release.tag_name}/${asset.name}`
+  const manifest: Manifest = {
+    version: release.tag_name,
+    released_at: release.published_at || new Date().toISOString(),
+    min_version: minVersion,
+    notes: release.body || release.name,
+    images: defaultImages,
+    asset: {
+      name: asset.name,
+      url: assetURL,
+      sha256,
+      size: asset.size,
+    },
+  }
+  return putManifest(token, repo, manifest, currentSHA, branch)
 }
 
 /** 从当前版本号推导下一个建议版本号（Beta1.15 → Beta1.16） */
