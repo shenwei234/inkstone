@@ -7,7 +7,7 @@ import (
 )
 
 // AppVersion is the current backend release version.
-const AppVersion = "Beta1.24"
+const AppVersion = "Beta1.25"
 
 var appStartTime = time.Now()
 
@@ -18,6 +18,15 @@ type ChangelogEntry struct {
 }
 
 var changelog = []ChangelogEntry{
+	{
+		Version: "Beta1.25",
+		Date:    "2026-09-27",
+		Items: []string{
+			"代码质量清理（无功能变化）：删除失真注释与死代码（人机验证组件未使用的 ready 状态、描述不存在逻辑的注释等），统一挂载判断 hook 为 lib/use-mounted，分享菜单图标修正",
+			"包含 Beta1.24 修复：后台自动更新部署失败（创建 agent 容器缺少 Content-Type: application/json，新版 Docker daemon 强制校验）",
+			"包含 Beta1.23 全部内容：Markdown 表格样式修复、favicon 后台修改即时生效、后台「站点地图」页、文章页自动目录 + 分享按钮 + 回到顶部",
+		},
+	},
 	{
 		Version: "Beta1.24",
 		Date:    "2026-09-27",
