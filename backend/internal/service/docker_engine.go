@@ -99,7 +99,14 @@ func (c *DockerClient) doWithHeaders(method, path string, query map[string]strin
 
 // doJSON 发送请求并解码 JSON 响应；非 2xx 时解析 daemon 错误信息。
 func (c *DockerClient) doJSON(method, path string, query map[string]string, body io.Reader, out any) error {
-	resp, err := c.do(method, path, query, body)
+	// Docker daemon（新版本）对带 body 的 POST/PUT/PATCH 强制要求
+	// Content-Type: application/json，缺失报 "malformed Content-Type header"。
+	// 历史上 daemon 宽容缺失，导致 agent 容器创建在生产首次触发才暴露。
+	var hdrs map[string]string
+	if body != nil {
+		hdrs = map[string]string{"Content-Type": "application/json"}
+	}
+	resp, err := c.doWithHeaders(method, path, query, body, hdrs)
 	if err != nil {
 		return err
 	}
