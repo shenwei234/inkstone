@@ -7,7 +7,7 @@ import (
 )
 
 // AppVersion is the current backend release version.
-const AppVersion = "Beta1.17"
+const AppVersion = "Beta1.18"
 
 var appStartTime = time.Now()
 
@@ -18,6 +18,17 @@ type ChangelogEntry struct {
 }
 
 var changelog = []ChangelogEntry{
+	{
+		Version: "Beta1.18",
+		Date:    "2026-09-27",
+		Items: []string{
+			"安全加固：更新链路强制 https、镜像包强制 SHA256 校验（缺失即拒绝下载）",
+			"镜像白名单：仅允许 inkstone-backend/frontend 的 latest 标签，防恶意版本清单",
+			"更新/回滚接口独立限流（5 次/分钟），检查与测速 10 次/分钟",
+			"更新代理容器最小权限（CapDrop ALL + no-new-privileges），backend 容器同样收敛 capabilities",
+			"安全响应头补充 HSTS；JWT 密钥过短启动告警",
+		},
+	},
 	{
 		Version: "Beta1.17",
 		Date:    "2026-09-27",
