@@ -1,16 +1,16 @@
 {
-  "version": "Beta1.23",
-  "released_at": "2026-09-27T09:30:00Z",
+  "version": "Beta1.25",
+  "released_at": "2026-09-27T10:20:00Z",
   "min_version": "Beta1.10",
-  "notes": "Beta1.23：修复 Markdown 表格预览无框线（启用 @tailwindcss/typography 并定制表格样式）；修复后台修改 Favicon 前台不生效（React 19 metadata hoist 渲染）；后台新增「站点地图」页（全量 URL 分组 + 统计 + robots 预览）；文章页新增自动目录（智能贴无侧边栏一侧）、分享按钮与回到顶部悬浮按钮。另含 Beta1.21/Beta1.22 的更新链路防误杀与验证弹窗/编辑器修复。",
+  "notes": "Beta1.25 代码质量清理（无功能变化）：删除失真注释与死代码。包含 Beta1.24 的后台自动更新修复（创建 agent 容器补齐 Content-Type: application/json）与 Beta1.23 的表格样式/favicon/站点地图/文章页增强。",
   "images": [
     { "repo": "inkstone-backend", "tag": "latest", "service": "backend" },
     { "repo": "inkstone-frontend", "tag": "latest", "service": "frontend" }
   ],
   "asset": {
-    "name": "inkstone-images-Beta1.23.tar",
-    "url": "https://github.com/shenwei234/inkstone/releases/download/Beta1.23/inkstone-images-Beta1.23.tar",
-    "sha256": "ede6c2ec3d4a22784a981b0eb7cb1f4d128b6ff4cf3bc7a16302628aef72cb6a",
-    "size": 115082752
+    "name": "inkstone-images-Beta1.25.tar",
+    "url": "https://github.com/shenwei234/inkstone/releases/download/Beta1.25/inkstone-images-Beta1.25.tar",
+    "sha256": "b80b29475e47a5b9100d4f501c29ac3d9662c0645a5ccd20204b93248556200f",
+    "size": 115090432
   }
 }
