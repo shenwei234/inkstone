@@ -259,6 +259,16 @@ create（原始 body 与 inspect 复用两种）/ start / stop / remove。**没�
 - **磁盘预检**：下载前 `diskFreeBytes`（Linux Statfs，`update_disk_linux.go`；Windows 构建 tag 跳过）要求 镜像包大小 + 512MB 余量，不足直接报错
 - 记录查询统一 `latestOne`（`Limit(1).Find`）：无记录不打 GORM not-found 日志
 
+**安全要点（Beta1.18 审查后补充）**：
+- 更新链路强制 https：加速源设置仅接受 `https://`；manifest/asset URL 均过 `requireHTTPSURL`
+- **强制 SHA256**：清单未提供校验值直接拒绝下载（防镜像包被中间人替换）
+- **镜像白名单**：`allowedImageRepos` 仅 `inkstone-backend/inkstone-frontend` + tag 必须 latest + service 必须已知，防恶意清单把任意镜像写进 tag/部署；agent 部署前二次校验（纵深防御）
+- 更新/回滚接口独立限流 **5 次/分钟**、check/测速 10 次/分钟（apiLimiter，`Message=update/update-probe`）
+- agent 容器最小权限：`Privileged=false`、`CapAdd=nil`、`CapDrop=ALL`、`no-new-privileges`、只挂 docker.sock(ro)、不绑端口、禁重启
+- compose backend 同样 `cap_drop: ALL` + `no-new-privileges`（Go 静态服务无需任何 capability）
+- `SecurityHeaders` 含 HSTS（max-age 1 年 + includeSubDomains）；JWT_SECRET<32 启动 Warn
+- 更新清单来自 GitHub（可信源）+ TLS + 白名单 + SHA256 四层校验，任何一层不过即中止
+
 **性能要点（Beta1.15 审查后补充）**：
 - 下载/`docker load` 均用 **512KB buffer**（默认 32KB syscall 过多）；下载带 `ResponseHeaderTimeout=60s` 防挂死
 - **断点续传**：下载失败换源时带 `Range: bytes=N-` 续拉，旧内容先喂 SHA256 再追加（500MB 包慢网重下不从头）；服务端不支持 Range 自动从头

@@ -199,8 +199,8 @@ func (s *UpdateService) mirrorURLs() []string {
 		if u == "" || seen[u] {
 			return
 		}
-		// 只接受 http(s) 链接，防库中脏数据拼出奇怪 URL
-		if !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
+		// 只接受 https 链接，防库中脏数据或明文传输被篡改
+		if !strings.HasPrefix(u, "https://") {
 			return
 		}
 		seen[u] = true
@@ -278,6 +278,7 @@ func validateUpdateSettings(payload map[string]any) error {
 			}
 		}
 	}
+	// 加速源设置收紧：仅允许 https（防 http 明文被中间人篡改镜像包）
 	if raw, ok := payload[SettingUpdateMirrorURLs]; ok {
 		list, _ := raw.([]any)
 		for _, item := range list {
@@ -285,13 +286,68 @@ func validateUpdateSettings(payload map[string]any) error {
 			if strings.TrimSpace(u) == "" {
 				continue
 			}
-			if !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
-				return NewValidationError("加速源必须以 http:// 或 https:// 开头：" + u)
+			if !strings.HasPrefix(u, "https://") {
+				return NewValidationError("加速源必须使用 https://（避免明文传输被篡改）：" + u)
 			}
 			if _, err := url.ParseRequestURI(u); err != nil {
 				return NewValidationError("加速源不是合法 URL：" + u)
 			}
 		}
+	}
+	return nil
+}
+
+// validateManifest 更新前的完整安全校验：镜像白名单、https、强制 SHA256。
+func validateManifest(m *UpdateManifest) error {
+	if err := validateManifestImages(m); err != nil {
+		return err
+	}
+	if err := requireHTTPSURL(m.Asset.URL); err != nil {
+		return err
+	}
+	if strings.TrimSpace(m.Asset.SHA256) == "" {
+		return NewValidationError("版本清单未提供 SHA256 校验值，拒绝更新（防篡改）")
+	}
+	return nil
+}
+
+// requireHTTPSURL 校验下载地址必须为 https（manifest 与 asset 均适用）。
+func requireHTTPSURL(raw string) error {
+	if !strings.HasPrefix(strings.TrimSpace(raw), "https://") {
+		return NewValidationError("下载地址必须使用 https，已拒绝：" + raw)
+	}
+	return nil
+}
+
+// allowedImageRepos 允许更新的镜像仓库白名单（与 release.ps1 产出对齐），
+// 防止恶意/被篡改的版本清单把任意镜像名写进 docker tag/compose 部署。
+var allowedImageRepos = map[string]bool{
+	"inkstone-backend":  true,
+	"inkstone-frontend": true,
+}
+
+// validateManifestImages 校验清单中的镜像定义。
+func validateManifestImages(m *UpdateManifest) error {
+	if len(m.Images) == 0 {
+		return NewValidationError("版本清单缺少镜像定义")
+	}
+	hasBackend := false
+	for _, img := range m.Images {
+		if !allowedImageRepos[img.Repo] {
+			return NewValidationError("版本清单包含不允许更新的镜像：" + img.Repo)
+		}
+		if img.Tag != "latest" {
+			return NewValidationError("镜像标签必须为 latest（收到 " + img.Tag + "）")
+		}
+		if img.Service != serviceBackend && img.Service != serviceFrontend {
+			return NewValidationError("未知的 compose 服务名：" + img.Service)
+		}
+		if img.Service == serviceBackend {
+			hasBackend = true
+		}
+	}
+	if !hasBackend {
+		return NewValidationError("版本清单缺少 backend 镜像定义")
 	}
 	return nil
 }
@@ -444,6 +500,11 @@ func (s *UpdateService) checkAndMaybeUpdate(force bool) {
 	}
 	s.setRemoteError("")
 	if compareVersion(m.Version, AppVersion) <= 0 {
+		return
+	}
+	// 安全校验失败（非 https/缺 SHA256/镜像名越权）时提示但并不静默自动更新
+	if err := validateManifest(m); err != nil {
+		s.setRemoteError("远端版本清单安全校验未通过：" + err.Error())
 		return
 	}
 	// 版本过低无法自动更新时只提示，不动作
@@ -788,6 +849,13 @@ func (s *UpdateService) downloadAsset(asset ManifestAsset, onProgress func(int))
 	if asset.Size > maxAssetSize {
 		return "", "", "", fmt.Errorf("镜像包超过 2GB 上限，拒绝下载")
 	}
+	// 完整性校验值必须存在（缺失 = 可能是被篡改的清单，直接拒绝）
+	if strings.TrimSpace(asset.SHA256) == "" {
+		return "", "", "", NewValidationError("版本清单未提供 SHA256 校验值，拒绝更新")
+	}
+	if err := requireHTTPSURL(asset.URL); err != nil {
+		return "", "", "", err
+	}
 	// 磁盘预检：需要 镜像包大小 + 512MB 余量（不足则直接失败，避免下到一半磁盘满）
 	if free, derr := diskFreeBytes(updateTempDir); derr == nil && asset.Size > 0 {
 		const margin = 512 << 20
@@ -977,6 +1045,9 @@ func (s *UpdateService) StartUpdate(triggeredBy string) error {
 	m, from, err := s.fetchRemote(true)
 	if err != nil {
 		return NewValidationError("检查更新失败：" + err.Error())
+	}
+	if err := validateManifest(m); err != nil {
+		return err
 	}
 	if compareVersion(m.Version, AppVersion) <= 0 {
 		return NewValidationError("当前已是最新版本")

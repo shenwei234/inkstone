@@ -382,6 +382,13 @@ function PublishTab({
       ])
       return
     }
+    // 版本号会进入 Release tag 与资产 URL，限制字符集（防手滑打出非法 tag）
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(version.trim())) {
+      setSteps([
+        { key: 'validate', label: '参数校验', status: 'error', message: '版本号仅允许字母、数字、点、下划线、连字符' },
+      ])
+      return
+    }
     if (!fileSHA) {
       setSteps([{ key: 'validate', label: '参数校验', status: 'error', message: '镜像包校验值计算中，请稍候' }])
       return

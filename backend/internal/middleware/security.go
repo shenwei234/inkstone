@@ -195,6 +195,8 @@ func SecurityHeaders() gin.HandlerFunc {
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		h.Set("X-XSS-Protection", "1; mode=block")
 		h.Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+		// HSTS：生产经 Nginx 443 代理；本地 http 开发时浏览器忽略该头
+		h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		c.Next()
 	}
 }

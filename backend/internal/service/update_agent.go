@@ -80,6 +80,21 @@ func RunUpdateAgent() {
 	}
 }
 
+// toStringSlice 把 JSON 解码出的 any 安全转为 []string（兼容 nil / []any）。
+func toStringSlice(v any) []string {
+	list, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(list))
+	for _, item := range list {
+		if s, ok := item.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 // spawnAgent 创建并启动一次性 agent 容器（使用当前 backend 镜像，保证 agent 代码可用）。
 func (s *UpdateService) spawnAgent(rec *model.UpdateRecord, m *UpdateManifest, mode string) error {
 	selfID := s.docker.SelfContainerID()
@@ -158,6 +173,11 @@ func (s *UpdateService) spawnAgent(rec *model.UpdateRecord, m *UpdateManifest, m
 		// 一次性任务：禁用自动重启（避免失败后反复重跑部署流程）
 		hc["RestartPolicy"] = map[string]any{"Name": "no", "MaximumRetryCount": 0}
 		hc["AutoRemove"] = true
+		// 最小权限：agent 只调 Docker API，不需要任何 capabilities / 特权
+		hc["Privileged"] = false
+		hc["CapAdd"] = nil
+		hc["CapDrop"] = []string{"ALL"}
+		hc["SecurityOpt"] = append(toStringSlice(hc["SecurityOpt"]), "no-new-privileges:true")
 		body["HostConfig"] = hc
 	}
 
@@ -174,6 +194,11 @@ func (s *UpdateService) spawnAgent(rec *model.UpdateRecord, m *UpdateManifest, m
 // agentDeploy 部署流程（agent 容器内执行）：先替换 frontend，再重建 backend 自身，
 // 健康检查 + 版本核对通过才算成功，任一失败自动回滚。
 func (s *UpdateService) agentDeploy(rec *model.UpdateRecord, m *UpdateManifest) {
+	// 纵深防御：manifest 经 env 传入，部署前再次校验镜像白名单
+	if err := validateManifestImages(m); err != nil {
+		s.failRecord(rec, "版本清单安全校验未通过："+err.Error())
+		return
+	}
 	// savedIns：旧 backend 容器被删除前的完整配置。若后续 create/start 失败，
 	// 回滚时用它重建（此时 compose 里已无 backend 容器，找不到容器也要能拉起）。
 	var savedIns *containerInspect

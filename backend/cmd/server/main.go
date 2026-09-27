@@ -32,6 +32,11 @@ func main() {
 
 	db := repository.NewDB()
 
+	// JWT 密钥强度提示：生产环境弱密钥可被离线爆破，所有令牌会同时失效
+	if len(cfg.JWTSecret) < 32 {
+		log.Printf("[warn] JWT_SECRET 长度 %d < 32，生产环境请使用更长的随机密钥（openssl rand -hex 32）", len(cfg.JWTSecret))
+	}
+
 	tokens := service.NewTokenManager(cfg.JWTSecret, cfg.AccessTTL, cfg.RefreshTTL)
 
 	userRepo := repository.NewUserRepository(db)
@@ -163,6 +168,31 @@ func main() {
 		Message: "comment",
 	})
 
+	// 系统更新：高危操作独立严格限流（防连点/滥用触发反复容器替换）
+	updateLimit := middleware.IPRateLimit(middleware.RateLimitConfig{
+		Limiter: apiLimiter,
+		LimitFn: func() int {
+			if !securityEnabled() {
+				return 0
+			}
+			return 5
+		},
+		Window:  time.Minute,
+		Message: "update",
+	})
+	// 检查/测速：中等频率（每次都要访问外网源）
+	updateProbeLimit := middleware.IPRateLimit(middleware.RateLimitConfig{
+		Limiter: apiLimiter,
+		LimitFn: func() int {
+			if !securityEnabled() {
+				return 0
+			}
+			return 10
+		},
+		Window:  time.Minute,
+		Message: "update-probe",
+	})
+
 	userStatusOK := func(id uint) (string, bool) {
 		u, err := userRepo.FindByID(id)
 		if err != nil || u.IsBanned() {
@@ -264,11 +294,11 @@ func main() {
 			admin.POST("/settings/test-mail", settingsHandler.TestMail)
 			admin.GET("/updates", systemHandler.Changelog)
 			admin.GET("/updates/status", updateHandler.Status)
-			admin.POST("/updates/check", updateHandler.Check)
-			admin.POST("/updates/run", updateHandler.Run)
-			admin.POST("/updates/rollback", updateHandler.Rollback)
-			admin.PUT("/updates/settings", updateHandler.UpdateSettings)
-			admin.POST("/updates/mirror-test", updateHandler.MirrorTest)
+			admin.POST("/updates/check", updateProbeLimit, updateHandler.Check)
+			admin.POST("/updates/run", updateLimit, updateHandler.Run)
+			admin.POST("/updates/rollback", updateLimit, updateHandler.Rollback)
+			admin.PUT("/updates/settings", updateLimit, updateHandler.UpdateSettings)
+			admin.POST("/updates/mirror-test", updateProbeLimit, updateHandler.MirrorTest)
 			admin.GET("/links", linkHandler.ListAdmin)
 			admin.POST("/links", linkHandler.Create)
 			admin.PUT("/links/:id", linkHandler.Update)

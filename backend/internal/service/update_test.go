@@ -295,6 +295,79 @@ func TestFormatBytes(t *testing.T) {
 	}
 }
 
+func TestValidateManifestSecurity(t *testing.T) {
+	ok := UpdateManifest{
+		Version: "Beta1.17",
+		Images: []ManifestImage{
+			{Repo: "inkstone-backend", Tag: "latest", Service: "backend"},
+			{Repo: "inkstone-frontend", Tag: "latest", Service: "frontend"},
+		},
+		Asset: ManifestAsset{Name: "inkstone-images.tar", URL: "https://github.com/o/r/releases/download/Beta1.17/a.tar", SHA256: "abc", Size: 1024},
+	}
+	if err := validateManifest(&ok); err != nil {
+		t.Errorf("合法清单应通过: %v", err)
+	}
+
+	// http 明文下载地址必须拒绝
+	httpOne := ok
+	httpOne.Asset.URL = "http://github.com/o/r/a.tar"
+	if err := validateManifest(&httpOne); err == nil {
+		t.Error("http 下载地址应被拒绝")
+	}
+
+	// 缺失 SHA256 必须拒绝（防篡改替换）
+	noSHA := ok
+	noSHA.Asset.SHA256 = ""
+	if err := validateManifest(&noSHA); err == nil {
+		t.Error("缺少 SHA256 应被拒绝")
+	}
+
+	// 非白名单镜像名必须拒绝
+	evil := ok
+	evil.Images = append(evil.Images, ManifestImage{Repo: "malicious/image", Tag: "latest", Service: "backend"})
+	if err := validateManifest(&evil); err == nil {
+		t.Error("白名单外镜像应被拒绝")
+	}
+
+	// 非 latest tag 必须拒绝
+	badTag := ok
+	badTag.Images = []ManifestImage{{Repo: "inkstone-backend", Tag: "evil", Service: "backend"}}
+	if err := validateManifest(&badTag); err == nil {
+		t.Error("非 latest tag 应被拒绝")
+	}
+
+	// 缺 backend 定义必须拒绝
+	noBackend := ok
+	noBackend.Images = []ManifestImage{{Repo: "inkstone-frontend", Tag: "latest", Service: "frontend"}}
+	if err := validateManifest(&noBackend); err == nil {
+		t.Error("缺少 backend 镜像应被拒绝")
+	}
+}
+
+func TestValidateUpdateSettingsHTTPSOnly(t *testing.T) {
+	// 加速源只允许 https
+	if err := validateUpdateSettings(map[string]any{
+		SettingUpdateMirrorURLs: []any{"http://ghfast.top/"},
+	}); err == nil {
+		t.Error("http 加速源应被拒绝")
+	}
+	if err := validateUpdateSettings(map[string]any{
+		SettingUpdateMirrorURLs: []any{"https://ghfast.top/"},
+	}); err != nil {
+		t.Errorf("https 加速源应通过: %v", err)
+	}
+}
+
+func TestToStringSlice(t *testing.T) {
+	if got := toStringSlice(nil); got != nil {
+		t.Errorf("nil 应返回 nil，得到 %v", got)
+	}
+	got := toStringSlice([]any{"a", 1, "b"})
+	if len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Errorf("非字符串元素应被过滤，得到 %v", got)
+	}
+}
+
 func TestSortMirrorLatency(t *testing.T) {
 	in := []MirrorLatency{
 		{URL: "a", Latency: 300},
