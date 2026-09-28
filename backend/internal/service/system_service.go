@@ -7,7 +7,7 @@ import (
 )
 
 // AppVersion is the current backend release version.
-const AppVersion = "Beta1.25"
+const AppVersion = "Beta1.26"
 
 var appStartTime = time.Now()
 
@@ -18,6 +18,14 @@ type ChangelogEntry struct {
 }
 
 var changelog = []ChangelogEntry{
+	{
+		Version: "Beta1.26",
+		Date:    "2026-09-27",
+		Items: []string{
+			"网站日志改为紧凑列表样式：桌面端表格列（状态/操作/时间/用户/IP）一屏可读十几条，移动端自动堆叠，详情行内截断、点击行展开完整详情与 UA",
+			"修复 sitemap.xml / robots.txt / feed.xml 外网访问 404：三个 SEO 端点位于后端根路由，nginx 改用 location 精确匹配转发到后端（此前落入前端 catch-all），robots 宣传的 sitemap 地址恢复有效",
+		},
+	},
 	{
 		Version: "Beta1.25",
 		Date:    "2026-09-27",
