@@ -192,6 +192,7 @@ cd frontend && npm run build && npx eslint app components lib --ext .ts,.tsx
 | update-hub 上传依赖 browser_download_url | GitHub Contents API 限 100MB，大镜像包必须走 Release assets API（XHR 支持上传进度）；同名资产先 DELETE 再传 |
 | joinMirror 不能剥协议 | `mirror + "/" + target` 保留完整 `https://`，ghproxy 系（ghfast/gh-proxy 等）按完整 URL 解析；剥掉协议会下载失败（有单测锁定） |
 | agent 容器要剥 compose labels + 禁重启 | 复用 backend 配置创建 agent 时必须删除 `com.docker.compose.*` labels（否则 compose up -d 误管）、`RestartPolicy=no`、`AutoRemove=true`、不绑端口 |
+| 线上 nginx conf 与仓库漏同步 | `deploy/nginx/inkstone.conf` 一直有 SEO location（`= /sitemap.xml`、`= /robots.txt`、`= /feed.xml` 精确匹配转 8080），但服务器 `/etc/nginx/conf.d/inkstone.conf` 是漏同步的旧版（缺三个 location），`/sitemap.xml` 落进 `location /` 被 Next 当页面路由 → 404。修复：仓库 conf base64 推服务器 → `nginx -t` → `nginx -s reload`。**改 nginx 先改仓库再同步服务器**；验证用外网 curl（服务器 curl 自己域名受阿里云 hairpin NAT 限制恒返回 000，别误判故障） |
 | agent 删 backend 前必须暂存 inspect | rm 旧容器后 create/start 失败时回滚要能重建：`savedIns` 快照 + `agentRollbackFrom(fallbackIns)`，否则 compose 里无 backend 容器 = 站点挂 |
 | 自更新进程内互斥 | `tryBeginUpdate/endUpdate` 与 DB `FindRunning` 双保险，防并发启动两个更新/回滚 |
 | 前端表单防轮询覆盖 | 用 `initializedRef` 做「只初始化一次」，否则 30s 轮询的新对象引用会把用户编辑中的表单重置 |
@@ -205,3 +206,9 @@ cd frontend && npm run build && npx eslint app components lib --ext .ts,.tsx
 | 操作日志禁止记录值 | 设置更新等日志只记 key 名列表（`settingDetail`），**绝不能把 SMTP 密码/验证码密钥等 value 写进日志** |
 | CSV 导出必须 BOM | `c.Writer` 先写 `0xEF 0xBB 0xBF` 再写 csv，否则 Excel 打开中文乱码；`csv.Writer.UseCRLF=true` |
 | blob 下载不能走 api() | `api()` 客户端只会 `res.json()`；文件下载要单独 `fetch + Bearer`（401 刷新重试）+ `URL.createObjectURL` |
+| fixed 弹窗别内联在带动画的容器里 | 调用方外层（如友链申请表单）常是带 `transform` 的 `motion.div`，内联 `fixed inset-0` 会被 transform 包含块困住，遮罩只覆盖卡片区域 → 人机验证「只有提交窗口模糊」。必须 `createPortal` 到 `document.body`（与 `modal.tsx` 一致）；portal 的 mounted 判断用 `useSyncExternalStore`（SSR 首帧 false），避免 hydration mismatch 与 effect 内 setState |
+| render 阶段不能访问 ref | ESLint（react-hooks v6 新规则）报 `react-hooks/refs`：render 体、`useState` lazy initializer、`useRef(初始值)` 里读写 `xxxRef.current` 全部算违规。渲染期要用的派生数据存 `useState`（如编辑器的 baseline/恢复的本地草稿），ref 只用于事件 handler/effect 内的可变引用。DOM 派生数据（如文章目录）可用 `useMemo + DOMParser` 解析 props 里的 HTML 字符串，不触碰 ref |
+| `prose` 类零效果 = Markdown 无样式 | 全站正文/编辑器预览依赖的 `prose` 来自 **@tailwindcss/typography 插件**；没装它（postcss.config 只有 @tailwindcss/postcss）时 `prose/prose-neutral/dark:prose-invert` 全部无效，表格退化成浏览器默认裸表。已在 `globals.css` 用 `@plugin "@tailwindcss/typography"` 引入，并定制 `.prose table` 框线/表头底色/斑马纹 |
+| 运行时改 favicon 不生效 | React 19/Next 16 下用 querySelector/appendChild 改 `link[rel=icon]` 会被 metadata hoist 覆盖或清理。把 `<title>`/`<link rel="icon">` 渲染进组件树（`components/site-head.tsx`）交给 React 管理 |
+| 更新部署报 `malformed Content-Type header (): mime: no media type` | Docker 新版 daemon 对**带 body** 的 POST/PUT/PATCH 强制校验 `Content-Type: application/json`，缺失直接 400（老版本宽容，导致 `CreateContainerRaw` 这个 bug 潜伏很久，生产首次触发 agent 创建才暴露）。`docker_engine.go` 的 `doJSON` 已统一在 body 非空时补 `Content-Type: application/json`（空 body 的 POST 如 stop/start/tag 不受影响，daemon 不校验）。**另注意**：spawnAgent 用「当前运行容器」的镜像创建 agent，所以修复版代码要跟随一次正常部署后才在后台更新链路中生效，救急仍走 image-repo 方式一 |
+| docker load 无条件改写 latest 标签 | 更新失败/中断（打 tag 失败、spawnAgent 失败、进程被杀）会留下「宿主机 latest=新镜像、运行容器=旧版本」残留，重试更新被防呆判「假更新」永久卡死。防呆要比「当前运行容器」镜像 ID；load 前把旧 latest ID 快照进 `UpdateRecord.OldImages`，失败/中断路径先 `restoreLatestFromRecord` 还原再记失败；回滚 tag 素材也用运行容器镜像（原来用宿主机 latest 会回滚错版本） |

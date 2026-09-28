@@ -6,13 +6,13 @@ Next.js（App Router）+ React 19 + TypeScript + Tailwind CSS v4 + React Query +
 
 ```
 app/                          # 路由（App Router）
-├── layout.tsx                # 根布局：Providers + Navbar + 壁纸 + Footer
+├── layout.tsx                # 根布局：Providers + Navbar + 壁纸 + Footer + SiteHead
 ├── page.tsx                  # 首页（文章列表 + 侧边栏小工具）
 ├── login/page.tsx            # 登录
 ├── register/page.tsx         # 注册
 ├── me/page.tsx               # 用户中心（账户/我的文章/我的评论）
 ├── links/page.tsx            # 友情链接页
-├── posts/[slug]/page.tsx     # 文章详情
+├── posts/[slug]/page.tsx     # 文章详情（正文 + 目录 + 分享 + 回顶）
 ├── p/[slug]/page.tsx         # 独立页面（3 种模板）
 └── admin/                    # 管理后台（独立布局）
     ├── layout.tsx            # 侧边栏 + 权限守卫
@@ -23,6 +23,7 @@ app/                          # 路由（App Router）
     ├── pages/                # 页面管理
     ├── comments/             # 评论管理
     ├── files/                # 文件管理
+    ├── sitemap/              # 站点地图（URL 列表 + 统计 + robots 预览）
     ├── links/                # 友情链接
     ├── appearance/           # 外观（菜单/小工具/侧边栏位置）
     ├── security/             # 安全防护（验证码/限流/邮箱验证）
@@ -56,6 +57,8 @@ captcha: {
   ...
 }
 ```
+
+> 浏览器标题与标签页图标（favicon）由 `components/site-head.tsx` 以 React 19 metadata hoist 渲染；原来在 context 里运行时改 DOM link 的方式在 React 19 下会被覆盖，导致后台改了 favicon 前台不生效。
 
 ### 2. AuthProvider（`lib/auth-context.tsx`）
 ```tsx
@@ -159,7 +162,7 @@ export function downloadFile(id: number, filename: string)  // 鉴权下载
 文章正文编辑器（textarea 自研方案，保存时转 HTML）。
 
 ```tsx
-<MarkdownEditor value={markdown} onChange={setMarkdown} onSaveRequest={() => doPublish()} />
+<MarkdownEditor value={markdown} onChange={setMarkdown} onSaveRequest={() => saveDraft.mutate()} />
 ```
 
 功能清单：
@@ -186,17 +189,33 @@ export function downloadFile(id: number, filename: string)  // 鉴权下载
 - **自动保存**：草稿模式停手 2 秒自动保存（开关可记忆）
 - **标签选择器**：点选已有标签 or 手输新建
 - **封面设置**：上传/URL，留空自动取正文首图
-- **发布**：`publish` mutation，触发人机验证；`Ctrl+S` 或编辑器保存按钮同样触发
+- **保存草稿**（Beta1.15 改语义）：`saveDraft` mutation（status: draft）；
+  - 工具条「存草稿」按钮 + `Ctrl+S`（编辑器保存按钮）均触发它，**不再直接发布**（旧行为会把草稿直接发布，易惊吓）
+  - new 模式：先落库为 draft，`router.replace` 跳转编辑页，之后由自动保存接管
+- **本地草稿**（new 模式）：标题/正文等变更防抖 800ms 写入 `localStorage.blog_article_new_draft`；
+  刷新/误关后进入新建页自动恢复并显示提示条（可一键丢弃）；成功创建/发布/删除草稿时清除
+- **离开保护**：表单与「上次保存快照」（baseline state）比对，dirty 时刷新/关窗前弹浏览器确认；
+  点「文章列表」返回时用 `notify.confirm` 拦截 Next 客户端路由
 - 内部用 Markdown 状态，保存/自动保存时经 `markdownToHtml()` 转 HTML
 
-### 人机验证（`components/captcha.tsx`）
+> baseline 快照含 `{t, c, g, s, v}`（title/content/category/tags/cover），
+> 任何保存动作（自动保存/存草稿/发布）成功后刷新，避免误报 dirty。
+
+### 人机验证（`components/geetest-captcha.tsx`）
+极验 GT4 hook（旧版 `components/captcha.tsx` 已被替换）：
+
 ```tsx
-<Captcha config={site.captcha} action="comment" onChange={setCaptchaResult} />
+const captcha = useGeetestCaptcha('login') // 'login' | 'register' | 'comment'
+{...}
+{captcha.dialog}  // 常驻 DOM 的验证弹窗（display 切换显隐）
 ```
-- `action`: `"register" | "login" | "comment" | "article"`
-- 自动按 `site.captcha` 配置选择组件（Turnstile / 极验弹窗 / 算式）
-- **加载失败自动降级为算式验证**（带提示）
-- 回调 `onChange({ captcha_token, captcha_answer })`
+
+- 弹窗**必须 `createPortal` 到 `document.body`**：调用方页面（如友链申请表单）外层常是
+  带 `transform` 动画的 `motion.div`，内联渲染 `fixed inset-0` 会被 transform 包含块困住，
+  遮罩只覆盖表单卡片区域 → 「只有提交窗口模糊」。portal 用 `useSyncExternalStore`
+  感知挂载（SSR 首帧 false，hydration 后 true），避免 hydration mismatch 与
+  `react-hooks/set-state-in-effect` 规则
+- 开关由 `site-config` 的 `geetest.on_login/on_register/on_comment` 按场景控制
 
 ### 侧边栏小工具（`components/sidebar-widgets.tsx`）
 11 种小工具，通过 `type` 分发：
@@ -263,16 +282,41 @@ easeOut  // 统一缓动曲线 [0.16, 1, 0.3, 1]
 ### 文章详情（`app/posts/[slug]/page.tsx`）
 三层卡片结构：
 1. **正文卡片**：分类 + 标题 + 元信息 + 标签 + 正文（`prose` 样式）
-2. **互动卡片**：点赞 / 收藏 / 返回
+2. **互动卡片**：点赞 / 收藏 / 分享（`ArticleShare`）/ 返回
 3. **评论卡片**：输入框 + 评论列表
 
 宽度：`max-w-4xl`（无侧栏）/ `max-w-7xl`（有侧栏，两列）
+
+**文章目录（`components/article-toc.tsx`）**：`parseToc()` 在 `useMemo` 里对正文 HTML 做 DOMParser 提取 h1-h3
+（`useIsMounted` gate：SSR 无 document 返回空，hydration 后出现），ArticleToc 组件负责补锚点 id + 滚动高亮 +
+点击跳转。布局联动：**目录贴「没有侧边栏的一侧」**——无侧栏→右侧（`max-w-5xl` 两列）、侧栏在右→目录在左、
+侧栏在左→目录在右（`max-w-7xl` 三列）；正文无标题则整列隐藏退回两列/单列。
+
+**分享（`components/article-share.tsx`）**：移动端优先 `navigator.share` 原生面板，桌面端下拉菜单
+（复制链接/微博/Twitter/邮件）；`useIsMounted` 不需要——`navigator.share` 运行时判定即可。
+
+**回顶（`components/back-to-top.tsx`）**：滚动超过 480px 显示 `fixed bottom-6 right-6` 悬浮按钮，
+`AnimatePresence` 出入场，点击平滑回顶。目前挂在文章页（组件通用，可按需全局挂载）。
+
+### 站点 head（`components/site-head.tsx`）
+在根布局渲染 `<title>` / `<link rel="icon">`（React 19 metadata hoist 到 head），
+`site_favicon` 有值用自定义图标、为空回退 `/icon.svg`。
+**不要再在 site-config-context 里用 querySelector/appendChild 改 favicon**——运行时 DOM 操作会被
+React 19 metadata 管理覆盖/清理，后台改了前台不生效（踩过）。
 
 ### 管理后台（`app/admin/`）
 - `layout.tsx` 做**权限守卫**：未登录跳 `/login`，非管理员显示「需要管理员权限」
 - 侧边栏导航入口，用 `layoutId="admin-nav-pill"` 做滑动高亮
 
-#### 网站日志页（`app/admin/logs/page.tsx`，Beta1.12 增强）
+#### 站点地图页（`app/admin/sitemap/page.tsx`）
+- 数据：`useQuery(['admin','sitemap'], fetchSitemapData)`（GET `/admin/sitemap`）
+- 统计卡：URL 总数 + 分组计数徽章；sitemap.xml 入口卡（打开/复制地址）；robots.txt 预览卡（复制内容）
+- 分组列表：基础页面/文章/独立页/分类/标签（后端 `collectEntries()` 分组顺序），条目表格（名称/地址/频率/权重/最后更新）
+- 顶部搜索框按名称或地址前端过滤（服务端数据一次性拿全）
+
+#### 网站日志页（`app/admin/logs/page.tsx`）
+- 列表样式：表格行（表头 + `divide-y` 分隔行），桌面端 `md:grid-cols-[18px_minmax(0,1fr)_150px_110px_130px]`（状态/操作+详情/时间/用户/IP），
+  移动端 flex-wrap 两行堆叠；点击行展开完整详情（`whitespace-pre-wrap`）与 UA，未展开时详情 `truncate` + `title` 全文
 - 统计卡片：日志总数 / 今日新增 / 失败操作 / 当前筛选数（数据来自 `GET /admin/logs/overview`）
 - 筛选：分类 tab（带分类计数）+ 关键词搜索（操作/详情/IP，回车触发）+ 结果下拉（全部/仅成功/仅失败）+ 时间范围下拉（全部/今天/近 7 天/近 30 天 → `from=YYYY-MM-DD`）
 - 列表：成功/失败图标、分类徽章、操作、详情（超 48 字折叠 + 「展开/收起」）、用户名#ID、IP、时间、UA（截断 + title 全文）

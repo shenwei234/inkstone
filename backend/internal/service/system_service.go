@@ -7,7 +7,7 @@ import (
 )
 
 // AppVersion is the current backend release version.
-const AppVersion = "Beta1.20"
+const AppVersion = "Beta1.26"
 
 var appStartTime = time.Now()
 
@@ -18,6 +18,56 @@ type ChangelogEntry struct {
 }
 
 var changelog = []ChangelogEntry{
+	{
+		Version: "Beta1.26",
+		Date:    "2026-09-27",
+		Items: []string{
+			"网站日志改为紧凑列表样式：桌面端表格列（状态/操作/时间/用户/IP）一屏可读十几条，移动端自动堆叠，详情行内截断、点击行展开完整详情与 UA",
+			"修复 sitemap.xml / robots.txt / feed.xml 外网访问 404：三个 SEO 端点位于后端根路由，nginx 改用 location 精确匹配转发到后端（此前落入前端 catch-all），robots 宣传的 sitemap 地址恢复有效",
+		},
+	},
+	{
+		Version: "Beta1.25",
+		Date:    "2026-09-27",
+		Items: []string{
+			"代码质量清理（无功能变化）：删除失真注释与死代码（人机验证组件未使用的 ready 状态、描述不存在逻辑的注释等），统一挂载判断 hook 为 lib/use-mounted，分享菜单图标修正",
+			"包含 Beta1.24 修复：后台自动更新部署失败（创建 agent 容器缺少 Content-Type: application/json，新版 Docker daemon 强制校验）",
+			"包含 Beta1.23 全部内容：Markdown 表格样式修复、favicon 后台修改即时生效、后台「站点地图」页、文章页自动目录 + 分享按钮 + 回到顶部",
+		},
+	},
+	{
+		Version: "Beta1.24",
+		Date:    "2026-09-27",
+		Items: []string{
+			"修复后台自动更新部署失败「创建 agent 容器失败：malformed Content-Type header (): mime: no media type」：新版 Docker daemon 强制要求带 body 的请求必须携带 Content-Type: application/json，CreateContainerRaw 此前漏设（生产环境首次触发 agent 创建才暴露）",
+			"包含 Beta1.23 全部内容：Markdown 表格样式修复（启用 @tailwindcss/typography）、favicon 后台修改即时生效、后台「站点地图」页（URL 分组/统计/robots 预览）、文章页自动目录 + 分享按钮 + 回到顶部",
+		},
+	},
+	{
+		Version: "Beta1.23",
+		Date:    "2026-09-27",
+		Items: []string{
+			"修复 Markdown 表格预览无框线：安装并启用 @tailwindcss/typography（此前 prose 类完全无样式，表格退化为浏览器默认裸表），并定制表格完整框线/表头底色/斑马纹；编辑器预览与文章/独立页正文排版同步受益",
+			"修复后台修改 Favicon 前台不生效：标题与图标改为 React 19 metadata hoist 方式渲染（site-head 组件），不再运行时操作 DOM link",
+			"后台新增「站点地图」页：sitemap.xml 全量 URL 分组展示（基础页面/文章/独立页/分类/标签）+ 统计 + robots.txt 预览 + 按名称/地址过滤",
+			"文章页增强：自动目录（滚动高亮/点击跳转，智能贴在没有侧边栏的一侧）、分享按钮（移动端原生分享/桌面复制链接/微博/Twitter/邮件）、回到顶部悬浮按钮",
+		},
+	},
+	{
+		Version: "Beta1.22",
+		Date:    "2026-09-27",
+		Items: []string{
+			"修复更新失败/中断后重试被误判「疑似假更新」：docker load 会把宿主机 latest 改写为新镜像，残留导致重试永久卡死；现在防呆比对改为「当前运行容器」镜像 ID，且失败/中断时自动还原 latest，回滚 tag 素材改用运行容器镜像",
+		},
+	},
+	{
+		Version: "Beta1.21",
+		Date:    "2026-09-27",
+		Items: []string{
+			"修复友链页提交申请人机验证弹窗「只有提交窗口模糊」：验证弹窗改为 createPortal 挂载到 body，不再被申请表单卡片的 transform 动画困住",
+			"文章编辑器优化：Ctrl+S 与新增「存草稿」按钮统一为保存草稿（不再把草稿直接发布）；新建文章内容自动缓存到本地，刷新/误关后可一键恢复；有未保存更改时离开页面弹出提醒",
+		},
+	},
 	{
 		Version: "Beta1.20",
 		Date:    "2026-09-27",

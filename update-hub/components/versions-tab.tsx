@@ -137,6 +137,19 @@ export function VersionsTab({
 
   const isCurrent = (tag: string) => manifest?.version === tag
 
+  /** 目标版本与当前发布版本比较：>0 更新（切换）、<0 回退 */
+  const compareTag = (tag: string): number => {
+    const nums = (s: string) => (s.match(/\d+/g) ?? []).map(Number)
+    const a = nums(tag)
+    const b = nums(manifest?.version ?? '')
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+      const x = a[i] ?? 0
+      const y = b[i] ?? 0
+      if (x !== y) return x > y ? 1 : -1
+    }
+    return 0
+  }
+
   return (
     <div className="space-y-4">
       <Card
@@ -309,9 +322,10 @@ export function VersionsTab({
                         type="button"
                         onClick={() => void startRollback(rel)}
                         className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-amber-500/10 hover:text-amber-600"
+                        title={compareTag(rel.tag_name) > 0 ? '把清单切换到该版本（升级）' : '把清单回退到该版本'}
                       >
                         <RotateCcw className="h-3 w-3" />
-                        回退到此版
+                        {compareTag(rel.tag_name) > 0 ? '切换到此版' : '回退到此版'}
                       </button>
                     )}
                     <button

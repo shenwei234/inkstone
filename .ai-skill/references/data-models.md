@@ -232,6 +232,7 @@ type UpdateRecord struct {
     Mirror      string    // 实际使用的清单源/加速源
     SHA256      string    // 镜像包校验值
     RollbackTag string    // 回滚 tag（rollback-<recordID>；空=不可回滚）
+    OldImages   string    // load 前宿主机 latest 镜像 ID 快照（JSON: repo→ID），失败/中断时还原 latest 防「假更新」误杀
     TriggeredBy string    // auto / manual / rollback
     Detail      string    // 过程说明或错误原因（中文）
     StartedAt   time.Time

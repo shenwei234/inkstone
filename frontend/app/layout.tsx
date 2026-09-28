@@ -6,6 +6,7 @@ import { MaintenanceGate } from "@/components/maintenance-gate";
 import { Navbar } from "@/components/navbar";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteWallpaper } from "@/components/site-wallpaper";
+import { SiteHead } from "@/components/site-head";
 
 export const metadata: Metadata = {
   title: {
@@ -36,6 +37,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <SiteFooter />
           </MaintenanceGate>
         </Providers>
+        {/* 站点标题与 favicon：React 19 metadata hoist 到 head，后台改动即时生效 */}
+        <SiteHead />
       </body>
     </html>
   );

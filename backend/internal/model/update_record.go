@@ -25,16 +25,20 @@ const (
 
 // TriggeredBy 取值：auto（调度自动）/ manual（管理员手动）/ rollback
 type UpdateRecord struct {
-	ID          uint       `gorm:"primaryKey" json:"id"`
-	Type        string     `gorm:"size:16;index" json:"type"` // update / rollback
-	FromVersion string     `gorm:"size:32" json:"from_version"`
-	ToVersion   string     `gorm:"size:32" json:"to_version"`
-	Status      string     `gorm:"size:16;index" json:"status"` // running / success / failed
-	Phase       string     `gorm:"size:32" json:"phase"`        // checking/downloading/verifying/loading/deploying
-	Progress    int        `gorm:"default:0" json:"progress"`   // 下载进度 0-100
-	Mirror      string     `gorm:"size:128" json:"mirror"`      // 实际使用的加速源
-	SHA256      string     `gorm:"size:64" json:"sha256"`       // 镜像包校验值
-	RollbackTag string     `gorm:"size:64" json:"rollback_tag"` // 回滚镜像 tag（两个镜像同名后缀）
+	ID          uint   `gorm:"primaryKey" json:"id"`
+	Type        string `gorm:"size:16;index" json:"type"` // update / rollback
+	FromVersion string `gorm:"size:32" json:"from_version"`
+	ToVersion   string `gorm:"size:32" json:"to_version"`
+	Status      string `gorm:"size:16;index" json:"status"` // running / success / failed
+	Phase       string `gorm:"size:32" json:"phase"`        // checking/downloading/verifying/loading/deploying
+	Progress    int    `gorm:"default:0" json:"progress"`   // 下载进度 0-100
+	Mirror      string `gorm:"size:128" json:"mirror"`      // 实际使用的加速源
+	SHA256      string `gorm:"size:64" json:"sha256"`       // 镜像包校验值
+	RollbackTag string `gorm:"size:64" json:"rollback_tag"` // 回滚镜像 tag（两个镜像同名后缀）
+	// OldImages：load 前宿主机 latest 的镜像 ID 快照（JSON: repo→ID）。
+	// docker load 会把 latest 改写成新镜像；更新同步失败/进程中断时用它还原，
+	// 否则 latest 残留新镜像，重试更新会被防呆判「假更新」误杀。
+	OldImages   string     `gorm:"size:512" json:"old_images"`
 	TriggeredBy string     `gorm:"size:16" json:"triggered_by"` // auto / manual / rollback
 	Detail      string     `gorm:"size:1000" json:"detail"`     // 过程说明或错误原因（中文）
 	StartedAt   time.Time  `json:"started_at"`
