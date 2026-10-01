@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { motion } from 'framer-motion'
+import gsap from 'gsap'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Globe, Image as ImageIcon, ImagePlus, Mail, Send, ShieldCheck, Trash2 } from 'lucide-react'
 import {
@@ -14,9 +14,9 @@ import {
 import { useNotify } from '@/components/toast'
 import { SecretInput } from '@/components/secret-input'
 import { useSiteConfigActions } from '@/components/site-config-context'
+import { hoverTapScale, prefersReducedMotion, useReveal } from '@/components/motion'
+import { PageLoading } from '@/components/page-loader'
 import type { SiteSettings } from '@/lib/types'
-
-const easeOut = [0.16, 1, 0.3, 1] as const
 
 function Toggle({
   checked,
@@ -29,6 +29,14 @@ function Toggle({
   label: string
   desc: string
 }) {
+  // 开关滑块：checked 变化时用 GSAP 位移（替代原 framer spring）
+  const knobRef = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (knobRef.current && !prefersReducedMotion()) {
+      gsap.to(knobRef.current, { x: checked ? 20 : 0, duration: 0.25, ease: 'power2.out' })
+    }
+  }, [checked])
+
   return (
     <div className="flex items-center justify-between gap-4 py-3">
       <div className="min-w-0">
@@ -44,9 +52,8 @@ function Toggle({
         role="switch"
         aria-checked={checked}
       >
-        <motion.span
-          animate={{ x: checked ? 20 : 0 }}
-          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+        <span
+          ref={knobRef}
           className="absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow-sm"
         />
       </button>
@@ -63,11 +70,13 @@ function Section({
   title: string
   children: React.ReactNode
 }) {
+  // 分区卡片：语义标签，用 useReveal 挂入场动画（不改 DOM 结构）
+  const sectionRef = useRef<HTMLElement>(null)
+  useReveal(sectionRef, { y: 16, duration: 0.4 })
+
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: easeOut }}
+    <section
+      ref={sectionRef}
       className="rounded-xl border border-border bg-card"
     >
       <div className="flex items-center gap-2 border-b border-border px-5 py-3.5">
@@ -75,7 +84,7 @@ function Section({
         <h2 className="text-sm font-semibold">{title}</h2>
       </div>
       <div className="px-5 py-4">{children}</div>
-    </motion.section>
+    </section>
   )
 }
 
@@ -230,10 +239,8 @@ export default function AdminSettingsPage() {
     return (
       <div>
         <h1 className="text-2xl font-bold tracking-tight">网站管理</h1>
-        <div className="mt-6 space-y-4">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="skeleton h-32 rounded-xl" />
-          ))}
+        <div className="mt-6">
+          <PageLoading minHeight="8rem" />
         </div>
       </div>
     )
@@ -249,15 +256,14 @@ export default function AdminSettingsPage() {
           <h1 className="text-2xl font-bold tracking-tight">网站管理</h1>
           <p className="mt-1 text-sm text-muted-foreground">站点信息、注册开关与邮件服务配置</p>
         </div>
-        <motion.button
+        <button
           onClick={() => save.mutate()}
           disabled={save.isPending}
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
+          {...hoverTapScale}
           className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
         >
           {save.isPending ? '保存中...' : '保存设置'}
-        </motion.button>
+        </button>
       </div>
 
       <div className="mt-6 grid gap-4">
@@ -430,7 +436,7 @@ export default function AdminSettingsPage() {
               placeholder="收件邮箱，用于发送测试邮件"
               className="w-64 rounded-lg border border-border bg-background px-3.5 py-2 text-sm outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20"
             />
-            <motion.button
+            <button
               type="button"
               onClick={() => {
                 if (!testTo.trim()) {
@@ -440,13 +446,12 @@ export default function AdminSettingsPage() {
                 test.mutate()
               }}
               disabled={test.isPending}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
+              {...hoverTapScale}
               className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50"
             >
               <Send className="h-3.5 w-3.5" />
               {test.isPending ? '发送中...' : '发送测试邮件'}
-            </motion.button>
+            </button>
             <span className="text-xs text-muted-foreground">保存设置后再测试</span>
           </div>
         </Section>

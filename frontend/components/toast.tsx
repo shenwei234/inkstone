@@ -1,8 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { AnimatePresence, motion } from 'framer-motion'
-import { easeOut } from '@/components/motion'
 import {
   AlertCircle,
   CheckCircle2,
@@ -21,6 +19,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { Presence, hoverTapScale } from '@/components/motion'
 
 interface ToastItem {
   id: number
@@ -52,6 +51,61 @@ export function useNotify() {
   return ctx
 }
 
+/** 单条 toast：普通 div + CSS keyframes 自绘入场，DOM 引用交由 Provider 收集用于退场 */
+function ToastCard({
+  t,
+  onClose,
+  register,
+}: {
+  t: ToastItem
+  onClose: () => void
+  register: (id: number, el: HTMLDivElement | null) => void
+}) {
+  const elRef = useRef<HTMLDivElement>(null)
+  return (
+    <div
+      ref={(el) => {
+        elRef.current = el
+        register(t.id, el)
+      }}
+      className={`toast-enter pointer-events-auto flex items-start gap-3 rounded-xl border px-4 py-3 shadow-lg shadow-black/20 ${
+        t.type === 'success'
+          ? 'border-emerald-600 bg-emerald-600 text-white dark:border-emerald-500 dark:bg-emerald-500 dark:text-emerald-950'
+          : 'border-red-600 bg-red-600 text-white dark:border-red-500 dark:bg-red-500 dark:text-red-950'
+      }`}
+    >
+      <span className="mt-0.5 shrink-0 opacity-90">
+        {t.type === 'success' ? (
+          <CheckCircle2 className="h-5 w-5" />
+        ) : (
+          <AlertCircle className="h-5 w-5" />
+        )}
+      </span>
+      <div className="min-w-0 flex-1 text-sm leading-relaxed">
+        <p className="font-medium">{t.message}</p>
+        {t.slug && (
+          <Link
+            href={`/posts/${t.slug}`}
+            target="_blank"
+            className="mt-1 inline-flex items-center gap-1 text-xs font-medium underline underline-offset-4 opacity-80 transition-opacity hover:opacity-100"
+          >
+            查看文章
+            <ExternalLink className="h-3 w-3" />
+          </Link>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        className="shrink-0 rounded-md p-0.5 opacity-60 transition-opacity hover:opacity-100"
+        aria-label="关闭"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  )
+}
+
 
 export function NotifyProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([])
@@ -60,7 +114,13 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
   const [confirmState, setConfirmState] = useState<
     (ConfirmOptions & { resolve: (v: boolean) => void }) | null
   >(null)
+  // 确认框内容快照：closeConfirm 后仍保留一份供 Presence 退场动画期间渲染
+  const [dialogShown, setDialogShown] = useState<
+    (ConfirmOptions & { resolve: (v: boolean) => void }) | null
+  >(null)
   const confirmBtnRef = useRef<HTMLButtonElement>(null)
+  // 收集每条 toast 的 DOM，供退场动画定位
+  const itemEls = useRef(new Map<number, HTMLDivElement>())
 
   useEffect(
     () => () => {
@@ -70,23 +130,42 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
     [],
   )
 
-  const dismiss = useCallback((id: number) => {
-    setToasts((t) => t.filter((x) => x.id !== id))
+  const registerToast = useCallback((id: number, el: HTMLDivElement | null) => {
+    if (el) itemEls.current.set(id, el)
+    else itemEls.current.delete(id)
   }, [])
 
-  const push = useCallback((type: ToastItem['type'], message: string, slug?: string) => {
-    const id = ++idRef.current
-    setToasts((t) => [...t.slice(-3), { id, type, message, slug }])
-    const timer = setTimeout(() => {
-      setToasts((t) => t.filter((x) => x.id !== id))
-      timersRef.current = timersRef.current.filter((t) => t !== timer)
-    }, 4000)
-    timersRef.current.push(timer)
+  // 关闭单个 toast：CSS 退场动画结束后从列表移除
+  const closeToast = useCallback((id: number) => {
+    const el = itemEls.current.get(id)
+    const remove = () => setToasts((t) => t.filter((x) => x.id !== id))
+    if (el) {
+      el.classList.add('toast-leave')
+      el.addEventListener('animationend', remove, { once: true })
+    } else {
+      remove()
+    }
+    // 兜底：动画事件未触发（浏览器异常/元素已 detached）也保证快速移除
+    setTimeout(remove, 600)
   }, [])
+
+  const push = useCallback(
+    (type: ToastItem['type'], message: string, slug?: string) => {
+      const id = ++idRef.current
+      setToasts((t) => [...t.slice(-3), { id, type, message, slug }])
+      const timer = setTimeout(() => {
+        closeToast(id)
+        timersRef.current = timersRef.current.filter((t) => t !== timer)
+      }, 4000)
+      timersRef.current.push(timer)
+    },
+    [closeToast],
+  )
 
   const confirm = useCallback(
     (opts: ConfirmOptions) =>
       new Promise<boolean>((resolve) => {
+        setDialogShown({ ...opts, resolve })
         setConfirmState({ ...opts, resolve })
       }),
     [],
@@ -119,139 +198,86 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
     <NotifyContext.Provider value={value}>
       {children}
 
-      {/* Toast stack (site-wide default notification) */}
-      <div className="pointer-events-none fixed bottom-10 right-6 z-[120] flex w-80 max-w-[calc(100vw-32px)] flex-col gap-2.5">
-        <AnimatePresence>
-          {toasts.map((t) => (
-            <motion.div
-              key={t.id}
-              layout
-              initial={{ opacity: 0, x: 56, scale: 0.95 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 40, scale: 0.95 }}
-              transition={{ duration: 0.3, ease: easeOut }}
-              className={`pointer-events-auto flex items-start gap-3 rounded-xl border px-4 py-3 shadow-xl shadow-black/10 backdrop-blur ${
-                t.type === 'success'
-                  ? 'border-emerald-200 bg-emerald-50/95 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/85 dark:text-emerald-200'
-                  : 'border-red-200 bg-red-50/95 text-red-700 dark:border-red-900/50 dark:bg-red-950/85 dark:text-red-300'
-              }`}
-            >
-              <span
-                className={`mt-0.5 shrink-0 ${
-                  t.type === 'success' ? 'text-emerald-500' : 'text-red-500'
-                }`}
-              >
-                {t.type === 'success' ? (
-                  <CheckCircle2 className="h-5 w-5" />
-                ) : (
-                  <AlertCircle className="h-5 w-5" />
-                )}
-              </span>
-              <div className="min-w-0 flex-1 text-sm leading-relaxed">
-                <p>{t.message}</p>
-                {t.slug && (
-                  <Link
-                    href={`/posts/${t.slug}`}
-                    target="_blank"
-                  className="mt-1 inline-flex items-center gap-1 text-xs font-medium underline underline-offset-4 opacity-80 transition-opacity hover:opacity-100"
-                >
-                  查看文章
-                  <ExternalLink className="h-3 w-3" />
-                </Link>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => dismiss(t.id)}
-                className="shrink-0 rounded-md p-0.5 opacity-50 transition-opacity hover:opacity-100"
-                aria-label="关闭"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </motion.div>
-          ))}
-        </AnimatePresence>
+      {/* Toast stack (site-wide default notification)
+          底边让出回顶按钮高度（bottom-6 + h-11 ≈ 68px）：bottom-20 使 toast
+          底边高于按钮顶部，避免半透明卡片 + backdrop-blur 糊住右下角回顶按钮 */}
+      <div className="pointer-events-none fixed bottom-20 right-6 z-[120] flex w-80 max-w-[calc(100vw-32px)] flex-col gap-2.5">
+        {toasts.map((t) => (
+          <ToastCard key={t.id} t={t} onClose={() => closeToast(t.id)} register={registerToast} />
+        ))}
       </div>
 
       {/* Site-wide default confirm dialog */}
-      <AnimatePresence>
-        {confirmState && (
-          <motion.div
-            key="confirm-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="fixed inset-0 z-[130] flex items-center justify-center bg-black/40 backdrop-blur-sm"
-            onMouseDown={(e) => {
-              if (e.target === e.currentTarget) closeConfirm(false)
-            }}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.94, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 8 }}
-              transition={{ duration: 0.2, ease: easeOut }}
-              className="w-[400px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/25"
-              role="alertdialog"
-              aria-modal="true"
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  e.preventDefault()
-                  closeConfirm(false)
-                }
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  closeConfirm(true)
-                }
-              }}
+      <Presence
+        show={!!confirmState}
+        duration={0.15}
+        className="fixed inset-0 z-[130] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) closeConfirm(false)
+        }}
+      >
+        <Presence
+          show={!!confirmState}
+          y={12}
+          scale={0.94}
+          duration={0.2}
+          className="w-[400px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/25"
+          role="alertdialog"
+          aria-modal="true"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault()
+              closeConfirm(false)
+            }
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              closeConfirm(true)
+            }
+          }}
+        >
+          <div className="px-6 pt-6 text-center">
+            <div
+              className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full ${
+                dialogShown?.danger ? 'bg-red-500/10 text-red-500' : 'bg-accent/10 text-accent'
+              }`}
             >
-              <div className="px-6 pt-6 text-center">
-                <div
-                  className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full ${
-                    confirmState.danger ? 'bg-red-500/10 text-red-500' : 'bg-accent/10 text-accent'
-                  }`}
-                >
-                  {confirmState.danger ? (
-                    <Trash2 className="h-6 w-6" />
-                  ) : (
-                    <HelpCircle className="h-6 w-6" />
-                  )}
-                </div>
-                <h3 className="mt-4 text-base font-semibold">{confirmState.title}</h3>
-                {confirmState.message && (
-                  <p className="mt-1.5 break-all text-sm text-muted-foreground">
-                    {confirmState.message}
-                  </p>
-                )}
-              </div>
-              <div className="mt-6 flex justify-center gap-3 px-6 pb-6">
-                <button
-                  type="button"
-                  onClick={() => closeConfirm(false)}
-                  className="min-w-24 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
-                >
-                  {confirmState.cancelText ?? '取消'}
-                </button>
-                <motion.button
-                  ref={confirmBtnRef}
-                  type="button"
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => closeConfirm(true)}
-                  className={`min-w-24 rounded-lg px-4 py-2 text-sm font-medium text-white shadow-md disabled:opacity-50 ${
-                    confirmState.danger
-                      ? 'bg-red-500 shadow-red-500/25'
-                      : 'bg-accent shadow-accent/25'
-                  }`}
-                >
-                  {confirmState.confirmText ?? '确定'}
-                </motion.button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              {dialogShown?.danger ? (
+                <Trash2 className="h-6 w-6" />
+              ) : (
+                <HelpCircle className="h-6 w-6" />
+              )}
+            </div>
+            <h3 className="mt-4 text-base font-semibold">{dialogShown?.title}</h3>
+            {dialogShown?.message && (
+              <p className="mt-1.5 break-all text-sm text-muted-foreground">
+                {dialogShown.message}
+              </p>
+            )}
+          </div>
+          <div className="mt-6 flex justify-center gap-3 px-6 pb-6">
+            <button
+              type="button"
+              onClick={() => closeConfirm(false)}
+              className="min-w-24 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+            >
+              {dialogShown?.cancelText ?? '取消'}
+            </button>
+            <button
+              {...hoverTapScale}
+              ref={confirmBtnRef}
+              type="button"
+              onClick={() => closeConfirm(true)}
+              className={`min-w-24 rounded-lg px-4 py-2 text-sm font-medium text-white shadow-md disabled:opacity-50 ${
+                dialogShown?.danger
+                  ? 'bg-red-500 shadow-red-500/25'
+                  : 'bg-accent shadow-accent/25'
+              }`}
+            >
+              {dialogShown?.confirmText ?? '确定'}
+            </button>
+          </div>
+        </Presence>
+      </Presence>
     </NotifyContext.Provider>
   )
 }

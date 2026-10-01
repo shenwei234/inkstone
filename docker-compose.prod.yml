@@ -37,8 +37,6 @@ services:
       PUBLIC_API_URL: ${PUBLIC_API_URL:-https://blog.shenv.top}
     volumes:
       - uploads_data:/app/data
-      # 自动更新：backend 经 Docker API 拉取镜像包并替换容器（只读挂载，宿主机零操作）
-      - /var/run/docker.sock:/var/run/docker.sock:ro
     # 最小权限：Go 静态服务无需任何 capability；被 RCE 时降低影响面
     cap_drop:
       - ALL

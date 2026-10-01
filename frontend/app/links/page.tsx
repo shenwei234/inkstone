@@ -1,22 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
+import gsap from 'gsap'
 import { AlertTriangle, ExternalLink, Link2, Loader2, Send, ShieldOff } from 'lucide-react'
 import { fetchFriendLinks, submitLinkApplication, ApiError } from '@/lib/api'
 import { useNotify } from '@/components/toast'
-import { PageTransition, StaggerList, StaggerItem, HoverLift } from '@/components/motion'
-import { easeOut } from '@/components/motion'
+import { RowLoading } from '@/components/page-loader'
+import { PageTransition, StaggerList, StaggerItem, HoverLift, InView, Reveal, hoverTapScale, prefersReducedMotion, createLoop, releaseLoop, useReveal } from '@/components/motion'
 import { useSiteConfig } from '@/components/site-config-context'
-import { useGeetestCaptcha } from '@/components/geetest-captcha'
+import { useCaptcha } from '@/components/captcha'
 import { inputClass } from '@/lib/ui'
 
 
 /** 友链自助申请表单（审核通过后自动加入列表） */
 function ApplyForm() {
   const notify = useNotify()
-  const captcha = useGeetestCaptcha('comment')
+  const captcha = useCaptcha('comment')
   const [form, setForm] = useState({
     site_name: '',
     url: '',
@@ -39,11 +39,9 @@ function ApplyForm() {
   })
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-40px' }}
-      transition={{ duration: 0.4, ease: easeOut }}
+    <InView
+      y={16}
+      duration={0.4}
       className="mt-8 rounded-2xl border border-border bg-card p-6"
     >
       <h2 className="flex items-center gap-2 text-sm font-semibold">
@@ -108,23 +106,23 @@ function ApplyForm() {
           />
         </label>
         <div className="sm:col-span-2 flex items-center gap-3">
-          <motion.button
+          <button
             type="submit"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+            {...hoverTapScale}
             disabled={submit.isPending || !form.site_name.trim() || !form.url.trim()}
             className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 transition-opacity hover:opacity-95 disabled:opacity-50"
           >
             {submit.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             提交申请
-          </motion.button>
+          </button>
           {captcha.enabled && (
             <span className="text-xs text-muted-foreground">提交时需要完成人机验证</span>
           )}
         </div>
       </form>
       {captcha.dialog}
-    </motion.div>
+          {captcha.prewarmNode}
+    </InView>
   )
 }
 
@@ -137,46 +135,67 @@ export default function LinksPage() {
 
   const links = data?.links ?? []
 
+  // 页头入场（原 motion.header）
+  const headerRef = useRef<HTMLElement>(null)
+  useReveal(headerRef, { y: 20, duration: 0.5 })
+
+  // 页头图标上下浮动：循环动画走 createLoop 纳管，页面隐藏时自动暂停
+  const heroIconRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!heroIconRef.current || prefersReducedMotion()) return
+    const tween = createLoop(() =>
+      gsap.to(heroIconRef.current, {
+        y: -4,
+        duration: 1.5,
+        repeat: -1,
+        yoyo: true,
+        ease: 'sine.inOut',
+      }),
+    )
+    return () => {
+      tween.kill()
+      releaseLoop(tween)
+    }
+  }, [])
+
+  // 页脚说明文字入场（原 motion.p，仅透明度）
+  const noteRef = useRef<HTMLParagraphElement>(null)
+  useReveal(noteRef, { y: 0, delay: 0.4 })
+
   return (
     <PageTransition>
       <div className="mx-auto max-w-4xl px-4 py-12">
         {/* 页头 */}
-        <motion.header
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: easeOut }}
+        <header
+          ref={headerRef}
           className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-accent/10 via-card to-purple-500/10 p-8 text-center"
         >
           <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-accent/15 blur-3xl" />
-          <motion.div
-            animate={{ y: [0, -4, 0] }}
-            transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
+          <div
+            ref={heroIconRef}
             className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-accent text-white shadow-lg shadow-accent/30"
           >
             <Link2 className="h-7 w-7" />
-          </motion.div>
+          </div>
           <h1 className="relative mt-4 text-2xl font-bold tracking-tight sm:text-3xl">友情链接</h1>
           <p className="relative mt-2 text-sm text-muted-foreground">
             {site.siteName} 的朋友们 · 共 {links.length} 个站点
           </p>
-        </motion.header>
+        </header>
 
         {/* 列表 */}
         {isLoading ? (
-          <div className="mt-8 grid gap-4 sm:grid-cols-2">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="skeleton h-24 rounded-xl" />
-            ))}
+          <div className="mt-8">
+            <RowLoading rows={4} />
           </div>
         ) : links.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
+          <Reveal
+            y={12}
             className="mt-8 rounded-xl border border-dashed p-16 text-center"
           >
             <Link2 className="mx-auto h-10 w-10 text-muted-foreground/50" />
             <p className="mt-4 text-muted-foreground">还没有添加友情链接</p>
-          </motion.div>
+          </Reveal>
         ) : (
           <StaggerList className="mt-8 grid gap-4 sm:grid-cols-2">
             {links.map((link) => (
@@ -228,14 +247,12 @@ export default function LinksPage() {
           </StaggerList>
         )}
 
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
+        <p
+          ref={noteRef}
           className="mt-10 text-center text-xs text-muted-foreground"
         >
           友情链接每日自动检测，失效站点将暂停跳转以保护访问安全
-        </motion.p>
+        </p>
 
         {/* 自助申请 */}
         <ApplyForm />

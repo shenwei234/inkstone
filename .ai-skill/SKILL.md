@@ -12,7 +12,7 @@ Go + Gin + GORM + PostgreSQL 后端，Next.js 15 + React 19 前端，Docker 部�
 | 项目 | 值 |
 |---|---|
 | 模块名 | `github.com/shenwei/inkstone/backend` |
-| 当前版本 | `Beta1.15` |
+| 当前版本 | `Beta1.26` |
 | 后端端口 | `8080`（API 前缀 `/api/v1`） |
 | 前端端口 | `3000`（Next.js App Router） |
 | 数据库 | PostgreSQL 16（GORM AutoMigrate 自动建表） |
@@ -22,20 +22,16 @@ Go + Gin + GORM + PostgreSQL 后端，Next.js 15 + React 19 前端，Docker 部�
 | 文章状态 | `draft` / `published` |
 | 敏感字段 | SMTP 密码、验证码密钥（API 只返回 `xxx_set` 布尔值，不下发明文） |
 | Markdown 渲染 | 编辑前端 `marked` → 保存 HTML（后端 bluemonday 消毒）；预览高亮用 `highlight.js/lib/common`（主题在 `globals.css`，仅前端 DOM 后处理，不入库） |
-| 自动更新 | backend 经 docker.sock 全自动更新（检查→下载→校验→部署→回滚），宿主机零操作 |
-| 更新代理 | `server update-agent` 子命令 = 一次性 agent 容器，负责容器替换与失败回滚 |
+| 动画库 | GSAP 3.15（framer-motion 已彻底移除）；`components/motion.tsx` 封装 + `route-loader.tsx` 路由进度条 + `page-loader.tsx` 加载动画，**无 `.skeleton` 骨架图** |
 
 ## 目录导航
 
 ```
 backend/
-  cmd/server/main.go              # 入口：依赖注入 + 全部路由注册（update-agent 子命令入口）
+  cmd/server/main.go              # 入口：依赖注入 + 全部路由注册
   internal/handler/               # HTTP 层：参数绑定、调用 service、错误映射
   internal/handler/log_record.go  # recordOp：操作日志辅助（自动带当前用户/IP/UA）
   internal/service/               # 业务逻辑层
-    update_service.go             # 系统更新：检查/下载/部署主流程 + 调度器
-    update_agent.go               # 一次性更新代理（容器替换/健康检查/回滚）
-    docker_engine.go              # Docker Engine API 客户端（unix socket，无第三方 SDK）
   internal/repository/            # GORM 数据访问层
   internal/middleware/            # Auth / CORS / 限流 / 安全头 / 流量统计
   internal/model/                 # 数据模型（GORM 结构体）
@@ -48,9 +44,10 @@ frontend/
   lib/types.ts                    # 全部 TypeScript 类型
   lib/auth-context.tsx            # 认证上下文
   lib/ui.ts                       # 共享 UI 常量（inputClass、formatSize）
-update-hub/                       # 独立「更新推送后台」（Next.js 静态站，浏览器直连 GitHub）
-releases/latest.json              # 版本清单（实例端每 15 分钟自动检查）
   components/site-config-context.tsx  # 站点配置全局上下文
+  components/motion.tsx             # GSAP 动画封装（PageTransition/Reveal/Stagger/Presence/hoverTapScale 等）
+  components/route-loader.tsx       # 路由切换 GSAP 顶部进度条（挂在根 layout）
+  components/page-loader.tsx        # PageLoading / RowLoading / Spinner 加载动画（替代骨架图）
 ```
 
 **详细文档：**
@@ -109,13 +106,6 @@ errorResponse(c, err)                  // 统一错误响应
 - 按改动范围联动：`references/api.md`（接口）、`references/settings.md`（设置项）、`references/data-models.md`（表结构）、`references/backend.md`（服务/中间件）
 - 全局 skill 目录与仓库内副本 `.ai-skill/` **两份都要改**，内容保持一致
 
-### 8. 系统更新体系铁律（Beta1.15 起）
-- 阶段状态机只能通过 `UpdateService`/`update_agent.go` 修改，**禁止在 handler 里直接写更新记录**
-- 更新自身容器必须走「spawnAgent → 停自身」路径：**backend 进程不能自己 rm/create 自己**（stop 一发进程即死，后续 API 无人执行），要由 Docker 守护进程托管的一次性 agent 容器收尾
-- `docker load` 后必须比对镜像 ID（防假更新）；部署后必须 `/healthz` + `/api/v1/system/info` 版本核对，失败自动回滚
-- 部署失败/实例重启留下 `running` 记录时，`RecoverInterruptedUpdate()` 启动 30s 自检自动回滚——这套保命逻辑不许删
-- 镜像包只进 GitHub Releases（2GB 上限），**不进 git 仓库**
-
 ## 前端约定
 
 ### 全局状态用 Context，服务端数据用 React Query
@@ -128,8 +118,9 @@ errorResponse(c, err)                  // 统一错误响应
 - 全部用 Tailwind CSS，深色模式用 `dark:` 前缀
 - 卡片统一：`rounded-2xl border border-border bg-card shadow-sm`
 - 输入框统一用 `lib/ui.ts` 的 `inputClass`
-- 动画统一用 `components/motion.tsx` 的 `easeOut` / `PageTransition` / `StaggerList`
-- **长列表不要用 framer-motion 的 `layout` 属性**（会严重卡顿），只用 `initial`/`animate`
+- 动画统一用 `components/motion.tsx` 的 GSAP 封装：`PageTransition` / `Reveal` / `StaggerList` / `StaggerItem` / `HoverLift` / `InView` / `Presence` / `hoverTapScale` / `hoverLift` / `useReveal` / `CountUp`；**framer-motion 已彻底移除，禁止再引入**
+- 路由切换由根 layout 的 `RouteLoader`（GSAP 顶部进度条）接管；页面数据 loading 态统一 `components/page-loader.tsx` 的 `PageLoading` / `RowLoading` / `Spinner`，**全站不使用 `.skeleton` 骨架图**
+- **React Compiler 规则**：组件体内不要写 `useCallback`（`preserve-manual-memoization` 会报 error），动画函数提到模块级
 
 ### 图标用 lucide-react
 **注意**：`Github` 等品牌图标在新版 lucide 已移除，用 `GitBranch` 等替代。使用前确认图标存在。
@@ -173,7 +164,13 @@ cd frontend && npm run build && npx eslint app components lib --ext .ts,.tsx
 | PowerShell 内联中文会损坏文件 | 用 Edit/Write 工具改文件，**不要用 PowerShell 字符串替换处理中文** |
 | 前端新增 site-config 字段要双层透传 | `settings_service.Public()` 下发 + `site-config-context.tsx` 解构，缺一不可 |
 | 设置保存前端要显式带上字段 | `admin/settings/page.tsx` 的 payload 是白名单，新增设置项必须手动加入 |
-| 验证码配置无效应放行 | 见 `captcha_service.go`：未配置密钥/服务不可达时 `return nil`（避免锁死用户） |
+| 验证码配置无效应放行 | 见 `captcha_service.go` / `geetest_service.go` / `lap_service.go`：未配置密钥/服务不可达时 `return nil`（避免锁死用户） |
+| rAF gate 句柄禁用 useRef | 滚动监听「`if (raf) return; raf = requestAnimationFrame(...)`」的 gate 句柄必须是 effect 内**局部变量**（`article-toc.tsx` / `back-to-top.tsx` 同款）。用 `useRef` 时 StrictMode 先 cleanup（`cancelAnimationFrame`）再重放 effect，useRef 残留非零 id 让 gate 永久关闭 → setState 永不执行（症状：回顶按钮/目录高亮打死不出现，且无任何报错）。BackToTop 真实踩过：2026-10 修复 |
+| Lap 同源代理与两段式流程 | 访客端全走后端代理 `/api/v1/lap/*`（widget.js/wasm/challenge/redeem 白名单转发），浏览器零接触 workers.dev；后端两级网络兜底 `lap_resolve_ip`（DNS 污染固定 IP）/ `lap_http_proxy`（TUN 黑洞 CF 段）。代理必须透传浏览器 UA（Go 默认 UA 被 CF 403）。Cap widget 的 PoW 是**静默 speculative**（mousemove/touchstart/keydown 触发，redeem 后不派发事件），**必须用户真实点击**（mousedown）才 solve——e2e 漏点击会永远卡 initial 且无报错。**Transport 必须 `DisableKeepAlives` + `LapDo` 重试一次**：本地代理（clash）切换节点后缓存坏连接 EOF 而 POST 不重试 → 持续 502 |
+| Lap 零配置开箱即用 | `captcha_provider` 默认 `lap`；`lap_defaults.go` 内置默认实例（endpoint/siteKey/secret），DB 字段留空即回退内置值（`LapEffectiveConfig`），自托管在后台覆盖或设 `INKSTONE_LAP_SECRET`。场景开关默认关，后台一键开启。后台保存时 lap_secret_key 空值 = 保持原值（maskKeys 语义）→ **不会被内置默认悄悄顶掉**。**数据安全三层**：① 后台 security 页不渲染 5 个技术字段且 save payload 显式剔除（防误清空）② 后端 `lapHiddenKeys` 对 4 个技术键做空值保护（API 直调空串也保持原值）③ 配置丢失回退内置默认实例，验证码不会被打挂。代理端点做路径-方法配对（静态 GET / 交互 POST），畸形请求 404 |
+| 验证码 provider 互斥 | `useCaptcha` 门面（`components/captcha.tsx`）按 `captcha_provider` 分发；`useGeetestCaptcha` 与 `useLapCaptcha` 两个 hook 都会被调用（React 规则），未选中的 `enabled=false` 不加载 gt4.js / widget.js。新增 provider 保持此模式 |
+| lap-widget 一次性 | Lap 的 PoW widget 完成后内部状态为 done，**无法原地复位**；每次打开验证弹窗必须 `box.replaceChildren()` 重建 `lap-widget` 元素并重挂 `solve`/`error` 监听。widget.js 地址从 `lap_api_endpoint` 推导 origin + `/widget.js`，脚本按 URL 全局缓存，开启时即预加载 |
+| Lap siteverify 不走 siteKey 路径 | 后端 siteverify URL 由 `lap_api_endpoint` 推导为 `origin + /siteverify`（文档终点列表写 `/:siteKey/siteverify` 是误导）；响应 `{success, error}`，"Invalid site key or secret" = 后台配置问题，按极验 `status:error` 同口径放行 |
 | GT4 弹窗必须真人点入口 | 极验 v4 无法用 `showBox()`/synthetic click 程序代弹验证面板；必须渲染可见的入口按钮（`geetest_btn_click`）让用户真实点击。入口容器要在视口内且不裁剪。init 需显式 `product: 'popup'` |
 | GT4 freeze_wait 卡死 | 点击入口后 class 停在 `geetest_boxShow geetest_freeze_wait`：多为极验后台该 captchaId 的域名白名单未含 `localhost` 或产品类型非「行为验证4.0 弹出式」。用官方 demo ID（7e111794121d87ca0959954f89580e1a）对照可秒判是 ID 配置还是代码问题 |
 | GT4 二次校验必传 captcha_id | 极验 v4 `/validate` 请求必须带 `captcha_id`（放 URL query），缺了返回 `-50101 not captcha_id`（status:error 结构，不是 result:fail）→ 前端验证已通过、后端必报不通过。签名是 `HMAC-SHA256(key=captcha_key, msg=lot_number)` |
@@ -182,23 +179,11 @@ cd frontend && npm run build && npx eslint app components lib --ext .ts,.tsx
 | alpine 缺 tzdata 连不上库 | 运行阶段 `apk add tzdata`，否则 DSN 的 `TimeZone=Asia/Shanghai` 报 `unknown time zone`，容器反复重启 |
 | alpine apk 官方源被墙 | `dl-cdn.alpinelinux.org` Permission denied；`sed` 换 `mirrors.aliyun.com/alpine` 再 apk add |
 | 部署时容器自重建 | `docker compose up -d` 会替换 backend 容器自身，进程日志可能中断，最终以 `docker ps` / 站点表现为准 |
-| 发版必改 AppVersion | `internal/service/system_service.go` 的 `AppVersion` 与 changelog 必须同步改，否则后台「关于系统」显示的版本与实际镜像不符 |
-| 镜像包分发必须带版本号 | `release.ps1 -Version Beta1.x` 自动产出 `D:\images\inkstone-images-Beta1.x.tar` + `release-notes-Beta1.x.md`；Beta1.14 曾沿用固定名导致实例「假更新」（仓库无新 tar，幂等跳过却上报成功）。image-repo 内固定名 `inkstone-images.tar` 是服务器 load 约定，别混 |
+| 发版必改 AppVersion | `internal/service/system_service.go` 的 `AppVersion` 必须同步改，否则后台「关于系统」显示的版本与实际镜像不符 |
 | PowerShell 跑 .ps1 中文乱码/解析错 | PS 5.1 需要 **UTF-8 BOM** 才能解析中文；用 Write/Edit 工具写 .ps1 后要用 .NET 补 BOM：`[System.IO.File]::WriteAllText($p,$raw,(New-Object System.Text.UTF8Encoding($true)))` |
 | PS 脚本 here-string 易碎 | `@"..."@` 内嵌 `$(if ... {...})`、反引号转义易触发 ParserError；输出优先用逐行 Write-Host，逻辑用简单字符串 Contains 代替复杂正则 |
-| 自动更新必须挂 docker.sock | backend 容器不挂 `/var/run/docker.sock` 时 DockerEnvInfo 不可用，更新后台显示挂载指引；prod/offline compose 均已挂载（ro） |
-| backend 不能自删自身容器 | `docker stop` 自身一发 SIGTERM 进程即死，后续 rm/create/start 无人执行 → 必须由 agent 容器（daemon 托管）收尾，见 SKILL.md §8 |
-| 回滚 tag 按镜像 ID 打 | load 会覆盖 `latest` tag，回滚必须用 load 前记录的旧镜像 ID `docker tag <oldID> repo:rollback-<id>`，不能 tag latest |
-| update-hub 上传依赖 browser_download_url | GitHub Contents API 限 100MB，大镜像包必须走 Release assets API（XHR 支持上传进度）；同名资产先 DELETE 再传 |
-| joinMirror 不能剥协议 | `mirror + "/" + target` 保留完整 `https://`，ghproxy 系（ghfast/gh-proxy 等）按完整 URL 解析；剥掉协议会下载失败（有单测锁定） |
-| agent 容器要剥 compose labels + 禁重启 | 复用 backend 配置创建 agent 时必须删除 `com.docker.compose.*` labels（否则 compose up -d 误管）、`RestartPolicy=no`、`AutoRemove=true`、不绑端口 |
 | 线上 nginx conf 与仓库漏同步 | `deploy/nginx/inkstone.conf` 一直有 SEO location（`= /sitemap.xml`、`= /robots.txt`、`= /feed.xml` 精确匹配转 8080），但服务器 `/etc/nginx/conf.d/inkstone.conf` 是漏同步的旧版（缺三个 location），`/sitemap.xml` 落进 `location /` 被 Next 当页面路由 → 404。修复：仓库 conf base64 推服务器 → `nginx -t` → `nginx -s reload`。**改 nginx 先改仓库再同步服务器**；验证用外网 curl（服务器 curl 自己域名受阿里云 hairpin NAT 限制恒返回 000，别误判故障） |
-| agent 删 backend 前必须暂存 inspect | rm 旧容器后 create/start 失败时回滚要能重建：`savedIns` 快照 + `agentRollbackFrom(fallbackIns)`，否则 compose 里无 backend 容器 = 站点挂 |
-| 自更新进程内互斥 | `tryBeginUpdate/endUpdate` 与 DB `FindRunning` 双保险，防并发启动两个更新/回滚 |
 | 前端表单防轮询覆盖 | 用 `initializedRef` 做「只初始化一次」，否则 30s 轮询的新对象引用会把用户编辑中的表单重置 |
-| update-hub 大文件不能整包 arrayBuffer | 500MB tar 读进内存峰值 1GB 会崩；用 `lib/sha256.ts` 流式分块（4MB/块）+ 进度回调；padding 公式 `zeros=(55-buffered+64)%64`（0x80 也占 1 字节，踩过） |
-| 续传哈希要先喂旧内容 | 断点续传时 `io.Copy(hasher, 旧文件)` 再追加新块，否则 SHA256 校验必失败；有对拍测试 `TestDownloadFileResume` |
-| service 包 probeClient 命名撞车 | `link_service.go` 已占用 `probeClient`，更新系统用 `updateProbeClient` |
 | 服务器 curl 自己公网域名 000 | 阿里云 hairpin NAT 限制，**不是服务故障**；验证用外网客户端或本地 `curl -H Host:` |
 | 任务列表需要 checkbox 白名单 | Markdown `- [x]` 渲染出 `<input type="checkbox">`，bluemonday 默认剥离；`sanitize.go` 已单独放行 `input[type=checkbox][checked][disabled]` |
 | 编辑器 setState-in-effect | 项目 ESLint 开启 `react-hooks/set-state-in-effect`，effect 内直接 setState 会报错；把清理动作移到事件回调里 |
@@ -206,9 +191,14 @@ cd frontend && npm run build && npx eslint app components lib --ext .ts,.tsx
 | 操作日志禁止记录值 | 设置更新等日志只记 key 名列表（`settingDetail`），**绝不能把 SMTP 密码/验证码密钥等 value 写进日志** |
 | CSV 导出必须 BOM | `c.Writer` 先写 `0xEF 0xBB 0xBF` 再写 csv，否则 Excel 打开中文乱码；`csv.Writer.UseCRLF=true` |
 | blob 下载不能走 api() | `api()` 客户端只会 `res.json()`；文件下载要单独 `fetch + Bearer`（401 刷新重试）+ `URL.createObjectURL` |
-| fixed 弹窗别内联在带动画的容器里 | 调用方外层（如友链申请表单）常是带 `transform` 的 `motion.div`，内联 `fixed inset-0` 会被 transform 包含块困住，遮罩只覆盖卡片区域 → 人机验证「只有提交窗口模糊」。必须 `createPortal` 到 `document.body`（与 `modal.tsx` 一致）；portal 的 mounted 判断用 `useSyncExternalStore`（SSR 首帧 false），避免 hydration mismatch 与 effect 内 setState |
+| fixed 弹窗别内联在带动画的容器里 | 调用方外层（如友链申请表单）常是带 `transform` 动画的容器 div，内联 `fixed inset-0` 会被 transform 包含块困住，遮罩只覆盖卡片区域 → 人机验证「只有提交窗口模糊」。必须 `createPortal` 到 `document.body`（与 `modal.tsx` 一致）；portal 的 mounted 判断用 `useSyncExternalStore`（SSR 首帧 false），避免 hydration mismatch 与 effect 内 setState |
+| React Compiler 禁 useCallback | `react-hooks/preserve-manual-memoization`：组件体内 `useCallback` 直接 error。RouteLoader 的做法：start/finish 提到模块级，effect 内重建 refs 对象调用 |
+| Presence 延迟卸载 | 替代 AnimatePresence：渲染期 `if (show && !mounted) setMounted(true)` 同步挂载；退场播 GSAP，`onComplete` 里 setMounted(false)。setState 只允许出现在渲染期同步分支与异步回调，effect 体内同步 setState 会触发 `react-hooks/set-state-in-effect` |
+| confirm 弹窗内容快照 | toast 的 confirm 用 `dialogShown` state 缓存内容：`closeConfirm` 只清 `confirmState`，Presence 退场期间 `dialogShown` 保留，内容不闪空；且 `show={!!confirmState}` 会丢 TS 收窄，读取一律 `dialogShown?.xxx` |
+| GSAP 入场动画被 rAF 节流卡透明 | framer-motion 的 opacity/transform 走 WAAPI（合成器线程），GSAP 是 JS tween 逐帧（rAF）。**远程桌面/浏览器窗口被遮挡时 Chrome 节流 rAF**，`gsap.from({opacity:0})` 会永久停在透明态 → "内容被白色遮挡"（首页/管理表格都踩过）。`components/motion.tsx` 已内置双保险：①全局 patch `gsap.from/fromTo`，凡从透明态起步的 tween 自动注册超时看门狗（1.2s 后强制 clearProps 恢复可见）；②各入场组件自带 `revealFallback` + `clearProps`。**新写动画必须用 `Reveal/InView/useReveal/hoverTapScale`，不要手搓 `gsap.from(el, {opacity:0})`**；悬浮按钮（如 BackToTop）入场直接用 globals.css 的 `.animate-scale-in`（CSS keyframes 走合成器，连 1.2s 看门狗等待都没有），阈值切换还要做滞回（480 显示/320 隐藏）防临界闪烁 |
+| toast 弹窗动画必须 CSS keyframes | `toast.tsx` 曾用 `gsap.from/to` 做 opacity 入场退场，rAF 节流时**卡在 opacity 0.32**——实色卡片半透明糊在右下角 = 「白雾遮挡」（2026-10 实测）。已改为 globals.css 的 `.toast-enter/.toast-leave`（keyframes 走合成器）+ `animationend` 移除 + 600ms 兜底。新增弹窗/浮层动画一律 CSS keyframes，勿再引入 gsap opacity |
+| 列表行动画别写 ref 回调 | `<tr ref={(el) => { gsap.from(el, ...) }}>` 每次父组件重渲染都会重播动画（ref callback 每次渲染都重建）→ 反复闪烁。抽行子组件 + `useReveal(rowRef, ...)`（挂载只播一次），见 `app/admin/users/page.tsx` 的 `UserRow` |
+| 动画卡顿四类源 | ①**`width` 动画**每帧 layout 重排（长页面/远程桌面 CPU 合成下卡死）——进度条一律 `origin-left` + `scaleX`；输入框 focus 展宽（如 navbar 搜索框 `w-44 → w-56`）不要写 `transition-all`，改 `transition-[border-color,box-shadow]` 瞬时展宽；②**循环动画空转**——`repeat:-1` 必须走 `createLoop`（页面隐藏自动 pause），多 ring（如 RowLoading 每行一环）合并为单环；③**blur(filter) 元素做 transform 动画**——每帧重绘模糊区域（CPU 合成下极重），装饰光斑只用 `opacity` 呼吸（侧栏倒计时光斑 `blur-xl` 已从 scale 改 opacity）；④**滚动 handler 逐帧查 DOM**——rAF 回调里逐项 `getElementById`+`getBoundingClientRect` 会反复强制同步 layout，headings 等 DOM 在 effect 内缓存（article-toc 已改）。长列表 stagger 总时长 cap 0.5s（`motion.tsx` 已内置） |
 | render 阶段不能访问 ref | ESLint（react-hooks v6 新规则）报 `react-hooks/refs`：render 体、`useState` lazy initializer、`useRef(初始值)` 里读写 `xxxRef.current` 全部算违规。渲染期要用的派生数据存 `useState`（如编辑器的 baseline/恢复的本地草稿），ref 只用于事件 handler/effect 内的可变引用。DOM 派生数据（如文章目录）可用 `useMemo + DOMParser` 解析 props 里的 HTML 字符串，不触碰 ref |
 | `prose` 类零效果 = Markdown 无样式 | 全站正文/编辑器预览依赖的 `prose` 来自 **@tailwindcss/typography 插件**；没装它（postcss.config 只有 @tailwindcss/postcss）时 `prose/prose-neutral/dark:prose-invert` 全部无效，表格退化成浏览器默认裸表。已在 `globals.css` 用 `@plugin "@tailwindcss/typography"` 引入，并定制 `.prose table` 框线/表头底色/斑马纹 |
 | 运行时改 favicon 不生效 | React 19/Next 16 下用 querySelector/appendChild 改 `link[rel=icon]` 会被 metadata hoist 覆盖或清理。把 `<title>`/`<link rel="icon">` 渲染进组件树（`components/site-head.tsx`）交给 React 管理 |
-| 更新部署报 `malformed Content-Type header (): mime: no media type` | Docker 新版 daemon 对**带 body** 的 POST/PUT/PATCH 强制校验 `Content-Type: application/json`，缺失直接 400（老版本宽容，导致 `CreateContainerRaw` 这个 bug 潜伏很久，生产首次触发 agent 创建才暴露）。`docker_engine.go` 的 `doJSON` 已统一在 body 非空时补 `Content-Type: application/json`（空 body 的 POST 如 stop/start/tag 不受影响，daemon 不校验）。**另注意**：spawnAgent 用「当前运行容器」的镜像创建 agent，所以修复版代码要跟随一次正常部署后才在后台更新链路中生效，救急仍走 image-repo 方式一 |
-| docker load 无条件改写 latest 标签 | 更新失败/中断（打 tag 失败、spawnAgent 失败、进程被杀）会留下「宿主机 latest=新镜像、运行容器=旧版本」残留，重试更新被防呆判「假更新」永久卡死。防呆要比「当前运行容器」镜像 ID；load 前把旧 latest ID 快照进 `UpdateRecord.OldImages`，失败/中断路径先 `restoreLatestFromRecord` 还原再记失败；回滚 tag 素材也用运行容器镜像（原来用宿主机 latest 会回滚错版本） |

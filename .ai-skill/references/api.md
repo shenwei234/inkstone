@@ -50,7 +50,7 @@
 | GET | `/auth/my-comments` | 登录 | 我的评论。Query: `?page=&page_size=` |
 
 **注册/登录的验证码规则**：
-- 人机验证（captcha）按后台开关决定是否必需
+- 人机验证按后台 `captcha_provider` + 场景开关决定是否必需；geetest 提交 `lot_number/captcha_output/pass_token/gen_time`，lap 提交 `lap_token`
 - 邮箱验证码按后台开关决定是否必需
 - 验证失败返回 400，提示中文原因
 
@@ -214,18 +214,45 @@ Body 字段：`{title, content, template, status, sort_order, show_in_nav}`
 
 ---
 
-## 人机验证 `/captcha`
+## 人机验证（无独立端点，凭证随业务接口提交）
 
-| 方法 | 路径 | 鉴权 | 说明 |
-|---|---|---|---|
-| GET | `/captcha/challenge` | 公开 | 获取算式验证挑战。返回 `{provider, enabled, fallback, question, token}` |
+验证码**没有专属路由**，凭证作为普通字段随登录/注册/评论/友链申请请求提交，由 handler 层的
+CaptchaService 门面按 `captcha_provider` 设置校验。
 
-**支持 4 种提供方**：`none` / `turnstile`（Cloudflare）/ `geetest`（极验 v4）/ `builtin`（内置算式）
+**支持 2 种提供方**：`geetest`（极验 v4，默认）/ `lap`（Lap 工作量证明，Cap 的 Cloudflare Workers 分支）
 
-**降级机制**：极验/Turnstile 前端加载失败时自动降级为算式验证；后端在「未配置密钥」或「服务不可达」时放行（避免锁死用户）。
+**请求体凭证字段**（按 provider 只提交其一）：
+- geetest：`lot_number` / `captcha_output` / `pass_token` / `gen_time`
+- lap：`lap_token`（widget `solve` 事件产出的 `SITEKEY:ID:TOKEN`）
+
+**`GET /site-config` 的人机验证字段**（`captcha_provider` + `geetest` / `lap` 两套公开配置，均不含密钥）：
+
+```json
+{
+  "captcha_provider": "lap",
+  "geetest": { "enabled": false, "on_login": false, "on_register": false, "on_comment": false, "captcha_id": "" },
+  "lap": { "enabled": true, "on_login": true, "on_register": true, "on_comment": false, "site_key": "…", "api_endpoint": "https://xxx.workers.dev/SITEKEY/" }
+}
+```
+
+前端按 `captcha_provider` 选用 `useGeetestCaptcha` / `useLapCaptcha`（门面 `useCaptcha`）。
+后端在「未配置密钥」或「服务不可达」时放行（避免锁死用户）。
 
 ---
 
+## Lap 同源代理 `/lap`（公开）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/lap/widget.js`、`/lap/widget.compat.js`、`/lap/floating.js` | 转发到 Lap 实例同路径（Cache 5min） |
+| GET | `/lap/wasm` | 转发到 jsdelivr 的 PoW WASM（Cache 5min） |
+| POST | `/lap/{siteKey}/challenge`、`/lap/{siteKey}/redeem` | 转发到实例同路径（siteKey 须与配置一致，no-store） |
+
+访客浏览器不直连 workers.dev（DNS 污染/超时），全部由后端代收；白名单外 404。
+`siteverify` 不走代理（后端内部直连）。网络兜底设置见 settings.md 的
+`lap_resolve_ip` / `lap_http_proxy`。
+
+---
 ## 系统信息
 
 | 方法 | 路径 | 鉴权 | 说明 |
@@ -279,24 +306,6 @@ Body 字段：`{title, content, template, status, sort_order, show_in_nav}`
 | GET | `/admin/settings` | 全部设置（敏感字段只返回 `xxx_set`） |
 | PUT | `/admin/settings` | 更新。Body: `{settings: {...}}`（**注意包装层**） |
 | POST | `/admin/settings/test-mail` | 发送测试邮件。Body: `{to}` |
-
-### 系统更新（Beta1.15）
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/admin/updates/status` | 更新后台首页状态：Docker 环境、当前/远端版本、进行中任务、最近 10 条记录、可回滚 tag |
-| GET | `/admin/updates` | 当前版本 + changelog（systemHandler.Changelog） |
-| POST | `/admin/updates/check` | 立即检查远端版本。返回 `{remote: {version, notes, size, sha256, mirror, min_version}}` |
-| POST | `/admin/updates/run` | 立即执行更新（异步）。返回 202，进度经 status 轮询（task 存在时 2s / 否则 30s） |
-| POST | `/admin/updates/rollback` | 回滚到上一次更新前的版本（异步，agent 接管） |
-| PUT | `/admin/updates/settings` | 保存更新设置。Body: `{auto_update?, interval_mins?, repo?, mirrors?}` |
-| POST | `/admin/updates/mirror-test` | 并发探测各加速源延迟（探测目标为 latest.json），返回按延迟升序的 `[{url, latency_ms, direct, from}]`，`latency_ms<0`=不可达 |
-
-**更新生命周期**：`checking → downloading(progress%) → verifying → loading → deploying`，agent 完成后 `done`。
-错误时 `status=failed` 且 `detail` 为中文原因；失败自动回滚则在 detail 追加「已自动回滚到更新前版本」。
-
-**版本清单格式**（发布仓库 `releases/latest.json`）：见 `releases/README.md`，字段含
-`version / released_at / min_version / notes / images[{repo,tag,service}] / asset{name,url,sha256,size}`。
 
 ### 操作日志（Beta1.12 增强）
 

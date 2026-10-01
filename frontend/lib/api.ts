@@ -10,11 +10,6 @@ import type {
   CommentItem,
   ReactionStats,
   SiteSettings,
-  UpdateRemote,
-  UpdateState,
-  UpdateSettingsInput,
-  ChangelogEntry,
-  MirrorLatency,
   LinkApplication,
   SubmitLinkApplicationInput,
   SitemapData,
@@ -151,6 +146,22 @@ export interface GeetestCredential {
   gen_time: string
 }
 
+/** Lap（Cap 的 Cloudflare Workers 分支）工作量证明验证码：前台配置（含 siteKey 与实例地址，不含密钥） */
+export interface LapConfig {
+  enabled: boolean
+  on_login: boolean
+  on_register: boolean
+  on_comment: boolean
+  site_key: string
+  api_endpoint: string
+}
+
+/**
+ * 人机验证凭证：按 captcha_provider 提交不同字段——
+ * geetest 四元组或 lap_token（二选一），随登录/注册/评论提交给后端做二次校验。
+ */
+export type CaptchaCredential = Partial<GeetestCredential> & { lap_token?: string }
+
 /** 发送邮箱验证码 */
 export function sendEmailCode(email: string, purpose: 'register' | 'login') {
   return api<{ message: string }>('/auth/email-code', {
@@ -165,7 +176,7 @@ export function register(
   email: string,
   username: string,
   password: string,
-  extra?: { email_code?: string } & Partial<GeetestCredential>,
+  extra?: { email_code?: string } & CaptchaCredential,
 ) {
   return api<AuthResponse>('/auth/register', {
     method: 'POST',
@@ -176,7 +187,7 @@ export function register(
 export function login(
   email: string,
   password: string,
-  extra?: { email_code?: string } & Partial<GeetestCredential>,
+  extra?: { email_code?: string } & CaptchaCredential,
 ) {
   return api<AuthResponse>('/auth/login', {
     method: 'POST',
@@ -250,10 +261,6 @@ export function updateArticle(
   return api<{ article: Article }>(`/articles/${id}`, { method: 'PUT', body: input, auth: true })
 }
 
-export function deleteArticle(id: number) {
-  return api<void>(`/articles/${id}`, { method: 'DELETE', auth: true })
-}
-
 // ---------- Engagement API ----------
 
 export function fetchCategories() {
@@ -285,7 +292,7 @@ export function fetchComments(articleId: number | string) {
 export function postComment(
   articleId: number | string,
   content: string,
-  extra?: Partial<GeetestCredential>,
+  extra?: CaptchaCredential,
 ) {
   return api<{ comment: CommentItem }>(`/articles/${articleId}/comments`, {
     method: 'POST',
@@ -408,10 +415,6 @@ export function fetchLogs(params: LogQueryParams = {}) {
 
 export function fetchLogOverview() {
   return api<{ overview: LogOverview }>('/admin/logs/overview', { auth: true })
-}
-
-export function fetchLogStats() {
-  return api<{ stats: Record<string, number> }>('/admin/logs/stats', { auth: true })
 }
 
 // downloadLogs 按当前筛选条件导出 CSV 日志（401 时自动刷新 token 重试一次）。
@@ -631,10 +634,6 @@ export function deleteFile(id: number) {
   return api<void>(`/admin/files/${id}`, { method: 'DELETE', auth: true })
 }
 
-export function fileDownloadUrl(id: number) {
-  return `${API_BASE}/admin/files/${id}/download`
-}
-
 /** 后台：站点地图数据（分组 URL 列表 + robots.txt 预览 + 统计） */
 export function fetchSitemapData() {
   return api<{ data: SitemapData }>('/admin/sitemap', { auth: true })
@@ -852,51 +851,10 @@ export function deleteAdminArticle(id: number) {
   return api<void>(`/admin/articles/${id}`, { method: 'DELETE', auth: true })
 }
 
-// ---------- 系统更新 ----------
-
-/** 更新后台首页状态（含进行中任务与历史） */
-export function fetchUpdateStatus() {
-  return api<{ update: UpdateState }>('/admin/updates/status', { auth: true })
-}
-
-/** 立即检查远端版本 */
-export function checkUpdate() {
-  return api<{ remote: UpdateRemote }>('/admin/updates/check', { method: 'POST', auth: true })
-}
-
-/** 立即执行更新（异步，进度经 fetchUpdateStatus 轮询） */
-export function runUpdate() {
-  return api<{ message: string }>('/admin/updates/run', { method: 'POST', auth: true })
-}
-
-/** 回滚到上一次更新前的版本 */
-export function rollbackUpdate() {
-  return api<{ message: string }>('/admin/updates/rollback', { method: 'POST', auth: true })
-}
-
-/** 保存更新设置 */
-export function saveUpdateSettings(input: UpdateSettingsInput) {
-  return api<{ message: string }>('/admin/updates/settings', {
-    method: 'PUT',
-    body: input,
-    auth: true,
-  })
-}
-
-/** 测试各加速源延迟（后端并发探测，按延迟升序返回） */
-export function testUpdateMirrors() {
-  return api<{ mirrors: MirrorLatency[] }>('/admin/updates/mirror-test', { method: 'POST', auth: true })
-}
-
-/** 内置版本更新记录（changelog） */
-export function fetchChangelog() {
-  return api<{ current: string; changelog: ChangelogEntry[]; version: string }>('/admin/updates', { auth: true })
-}
-
 // ---------- 友链自助申请 ----------
 
 /** 访客提交友链申请（公开；人机验证凭证复用评论场景） */
-export function submitLinkApplication(input: SubmitLinkApplicationInput, credential?: Partial<GeetestCredential>) {
+export function submitLinkApplication(input: SubmitLinkApplicationInput, credential?: CaptchaCredential) {
   return api<{ message: string }>('/link-applications', {
     method: 'POST',
     body: { ...input, ...credential },

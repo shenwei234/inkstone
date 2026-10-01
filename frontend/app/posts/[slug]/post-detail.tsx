@@ -1,11 +1,10 @@
-'use client'
+﻿'use client'
 
 import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
 import {
   ArrowLeft,
   CalendarDays,
@@ -26,15 +25,18 @@ import {
   postComment,
   toggleReaction,
 } from '@/lib/api'
+import { proseBody } from '@/lib/ui'
 import { useAuth } from '@/lib/auth-context'
 import { useNotify } from '@/components/toast'
 import { useSiteConfig } from '@/components/site-config-context'
-import { useGeetestCaptcha } from '@/components/geetest-captcha'
+import { useCaptcha } from '@/components/captcha'
 import { useIsMounted } from '@/lib/use-mounted'
 import { ArticleToc, parseToc } from '@/components/article-toc'
 import { ArticleShare } from '@/components/article-share'
 import { BackToTop } from '@/components/back-to-top'
-import { PageTransition, easeOut } from '@/components/motion'
+import { useCodeHighlight } from '@/components/code-highlight'
+import { PageTransition, Reveal, hoverTapScale, useReveal } from '@/components/motion'
+import { PageLoading, RowLoading } from '@/components/page-loader'
 import { SiteSidebar } from '@/components/site-sidebar'
 
 export function PostDetail({ slug }: { slug: string }) {
@@ -44,7 +46,7 @@ export function PostDetail({ slug }: { slug: string }) {
   const queryClient = useQueryClient()
   const [commentText, setCommentText] = useState('')
   const site = useSiteConfig()
-  const captcha = useGeetestCaptcha('comment')
+  const captcha = useCaptcha('comment')
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['article', 'slug', slug],
@@ -104,15 +106,26 @@ export function PostDetail({ slug }: { slug: string }) {
   const articleHtml = data?.article.content ?? ''
   const tocItems = useMemo(() => (isMounted ? parseToc(articleHtml) : []), [isMounted, articleHtml])
 
+  // 正文代码块 hljs 高亮 + 复制按钮（复制成功弹 toast）
+  useCodeHighlight(contentRef, articleHtml, {
+    onCopySuccess: () => notify.success('代码已复制'),
+  })
+
+  // 标题卡片为语义 header 标签：用 useReveal 挂入场动效，不改 DOM 结构
+  const headerRef = useRef<HTMLElement>(null)
+  useReveal(headerRef, { duration: 0.5 })
+  useReveal(contentRef, { duration: 0.5 })
+
   if (isLoading) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-12">
-        <div className="skeleton h-10 w-2/3 rounded-lg" />
-        <div className="skeleton mt-4 h-4 w-40 rounded" />
-        <div className="mt-10 space-y-3">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="skeleton h-4 rounded" style={{ width: `${95 - i * 7}%` }} />
-          ))}
+        {/* 加载态统一使用 GSAP 加载动画，替换原骨架图 */}
+        <PageLoading minHeight="2.5rem" hint="加载标题…" />
+        <div className="mt-4">
+          <PageLoading minHeight="1rem" hint="加载摘要…" />
+        </div>
+        <div className="mt-10">
+          <PageLoading minHeight="24rem" hint="加载正文…" />
         </div>
       </div>
     )
@@ -120,10 +133,8 @@ export function PostDetail({ slug }: { slug: string }) {
 
   if (isError || !data) {
     return (
-      <motion.div
-        initial={false}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: easeOut }}
+      <Reveal
+        y={0}
         className="mx-auto max-w-3xl px-4 py-24 text-center"
       >
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted">
@@ -139,7 +150,7 @@ export function PostDetail({ slug }: { slug: string }) {
         >
           返回首页
         </Link>
-      </motion.div>
+      </Reveal>
     )
   }
 
@@ -162,10 +173,11 @@ export function PostDetail({ slug }: { slug: string }) {
   const widgets = site.widgets.filter((w) => w.type && w.title)
   const showSidebar = site.articleSidebar && widgets.length > 0
 
-  // 目录贴「没有侧边栏的一侧」：无侧边栏→右侧；侧边栏在右→目录在左；侧边栏在左→目录在右
+  // 目录贴「没有侧边栏的一侧」：无侧边栏→目录右；侧边栏在右→目录左；侧边栏在左→目录右
+  // 注意：渲染顺序必须与 layoutClass 的 grid 列模板一致（先渲染的 DOM 落在第一列）
   const showToc = tocItems.length > 0
   const tocPosition: 'left' | 'right' =
-    showSidebar && site.sidebarPosition === 'left' ? 'right' : 'left'
+    showSidebar && site.sidebarPosition !== 'left' ? 'left' : 'right'
 
   const layoutClass = showSidebar
     ? showToc
@@ -190,10 +202,8 @@ export function PostDetail({ slug }: { slug: string }) {
       )}
       <div className="min-w-0">
         {/* 顶部标题区：蓝色竖线 + 标题 + 三图标信息栏（圆角卡片） */}
-        <motion.header
-          initial={false}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: easeOut }}
+        <header
+          ref={headerRef}
           className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8"
         >
           {article.category && (
@@ -226,17 +236,17 @@ export function PostDetail({ slug }: { slug: string }) {
               {article.views} 次阅读
             </span>
           </div>
-        </motion.header>
+        </header>
 
         {/* 主体：白色圆角容器，居中图形 + 正文 */}
-        <motion.div
-          initial={false}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55, delay: 0.05, ease: easeOut }}
+        <Reveal
+          delay={0.05}
+          duration={0.55}
           className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-10"
         >
-          <div className="mb-8 flex justify-center">
-            {article.cover ? (
+          {/* 封面：仅设置了文章图片时展示，无封面不渲染占位图 */}
+          {article.cover && (
+            <div className="mb-8 flex justify-center">
               <div className="relative aspect-video w-full max-w-2xl overflow-hidden rounded-xl">
                 <Image
                   src={article.cover}
@@ -246,17 +256,12 @@ export function PostDetail({ slug }: { slug: string }) {
                   className="object-cover"
                 />
               </div>
-            ) : (
-              <KnowledgeGraphic />
-            )}
-          </div>
+            </div>
+          )}
 
-          <motion.article
+          <article
             ref={contentRef}
-            initial={false}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: easeOut }}
-            className="prose prose-neutral dark:prose-invert max-w-none overflow-x-auto prose-headings:font-semibold prose-a:text-accent prose-pre:bg-muted prose-code:bg-muted prose-code:rounded prose-code:px-1.5 prose-code:py-0.5 prose-code:text-[0.9em] prose-code:before:content-none prose-code:after:content-none prose-img:rounded-xl prose-blockquote:border-l-accent"
+            className={proseBody}
             dangerouslySetInnerHTML={{ __html: article.content }}
           />
 
@@ -274,12 +279,11 @@ export function PostDetail({ slug }: { slug: string }) {
               ))}
             </div>
           )}
-        </motion.div>
+        </Reveal>
 
-        <motion.div
-          initial={false}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25, duration: 0.45, ease: easeOut }}
+        <Reveal
+          delay={0.25}
+          duration={0.45}
           className="mt-6 flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm"
         >
           <button
@@ -319,7 +323,7 @@ export function PostDetail({ slug }: { slug: string }) {
           >
             <ArrowLeft className="h-4 w-4" /> 返回首页
           </Link>
-        </motion.div>
+        </Reveal>
 
         {/* Comments */}
         <section className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
@@ -351,15 +355,14 @@ export function PostDetail({ slug }: { slug: string }) {
               />
               <div className="mt-2 flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">{commentText.length}/1000</span>
-                <motion.button
+                <button
                   type="submit"
                   disabled={addComment.isPending}
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
+                  {...hoverTapScale}
                   className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
                 >
                   {addComment.isPending ? '发布中...' : '发表评论'}
-                </motion.button>
+                </button>
               </div>
             </form>
           ) : (
@@ -376,18 +379,18 @@ export function PostDetail({ slug }: { slug: string }) {
 
           <div className="mt-6 space-y-3">
             {commentsQuery.isLoading ? (
-              [...Array(2)].map((_, i) => <div key={i} className="skeleton h-20 rounded-xl" />)
+              /* 评论列表加载态：行加载动画替换原骨架图 */
+              <RowLoading rows={2} />
             ) : comments.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 还没有评论，来抢沙发吧
               </p>
             ) : (
               comments.map((comment, i) => (
-                <motion.div
+                <Reveal
                   key={comment.id}
-                  initial={false}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05, duration: 0.3 }}
+                  delay={i * 0.05}
+                  duration={0.3}
                   className="flex gap-3 rounded-xl border border-border bg-muted/40 p-4"
                 >
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-sm font-bold text-accent">
@@ -424,7 +427,7 @@ export function PostDetail({ slug }: { slug: string }) {
                       {comment.content}
                     </p>
                   </div>
-                </motion.div>
+                </Reveal>
               ))
             )}
           </div>
@@ -438,38 +441,11 @@ export function PostDetail({ slug }: { slug: string }) {
       )}
       {captcha.dialog}
       <BackToTop />
+      {captcha.dialog}
+      {captcha.prewarmNode}
       </div>
     </PageTransition>
   )
 }
 
 // 无封面文章展示的扁平「电脑屏幕」图形标识（极简知识库风格）
-function KnowledgeGraphic() {
-  return (
-    <svg
-      viewBox="0 0 180 128"
-      className="h-32 w-48 sm:h-36 sm:w-56"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      role="img"
-      aria-label="文章配图"
-    >
-      {/* 屏幕 */}
-      <rect x="24" y="14" width="132" height="86" rx="10" className="fill-muted stroke-border" strokeWidth="2" />
-      {/* 顶部标题栏 */}
-      <path d="M24 24a10 10 0 0 1 10-10h112a10 10 0 0 1 10 10v12H24V24Z" className="fill-border" />
-      {/* 三个窗口圆点 */}
-      <circle cx="37" cy="25" r="2.6" className="fill-accent" />
-      <circle cx="47" cy="25" r="2.6" className="fill-muted-foreground/40" />
-      <circle cx="57" cy="25" r="2.6" className="fill-muted-foreground/40" />
-      {/* 内容：标题行 + 文本行 */}
-      <rect x="40" y="48" width="54" height="7" rx="3.5" className="fill-accent/70" />
-      <rect x="40" y="64" width="100" height="5" rx="2.5" className="fill-muted-foreground/25" />
-      <rect x="40" y="76" width="86" height="5" rx="2.5" className="fill-muted-foreground/25" />
-      <rect x="40" y="88" width="62" height="5" rx="2.5" className="fill-muted-foreground/25" />
-      {/* 底座 */}
-      <rect x="82" y="100" width="16" height="10" rx="2" className="fill-border" />
-      <rect x="62" y="110" width="56" height="7" rx="3.5" className="fill-border" />
-    </svg>
-  )
-}

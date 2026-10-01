@@ -21,13 +21,6 @@ import (
 )
 
 func main() {
-	// 更新代理子命令：以一次性容器运行（`/app/server update-agent`）。
-	// backend 容器停掉后由 Docker 守护进程保证它继续执行，完成容器替换与失败回滚。
-	if len(os.Args) > 1 && os.Args[1] == "update-agent" {
-		service.RunUpdateAgent()
-		return
-	}
-
 	cfg := config.Load()
 
 	db := repository.NewDB()
@@ -72,33 +65,29 @@ func main() {
 	logRepo := repository.NewOperationLogRepository(db)
 	logSvc := service.NewLogService(logRepo)
 
-	updateRepo := repository.NewUpdateRepository(db)
-	updateSvc := service.NewUpdateService(db, updateRepo, settingsSvc, logSvc, cfg.DockerSocketPath())
-	updateSvc.StartScheduler()
-	// 重启自检与周期自检：上次更新若中断，自动回滚（RecoverInterruptedUpdate 内含 30s 启动延迟）
-	go updateSvc.RecoverInterruptedUpdate()
-
 	emailCodeSvc := service.NewEmailCodeService(settingsSvc, mailer)
 	geetestSvc := service.NewGeetestService(settingsSvc)
+	lapSvc := service.NewLapService(settingsSvc)
+	captchaSvc := service.NewCaptchaService(settingsSvc, geetestSvc, lapSvc)
 	apiLimiter := middleware.NewSlidingLimiter()
 
-	authHandler := handler.NewAuthHandler(authSvc, emailCodeSvc, geetestSvc, apiLimiter, logSvc)
+	authHandler := handler.NewAuthHandler(authSvc, emailCodeSvc, captchaSvc, apiLimiter, logSvc)
 	articleHandler := handler.NewArticleHandler(articleSvc, logSvc)
 	adminHandler := handler.NewAdminHandler(adminSvc, userRepo, articleSvc, articleRepo, commentSvc, logSvc)
 	taxonomyHandler := handler.NewTaxonomyHandler(taxonomyRepo)
-	commentHandler := handler.NewCommentHandler(commentSvc, tokens, geetestSvc, apiLimiter, logSvc)
+	commentHandler := handler.NewCommentHandler(commentSvc, tokens, captchaSvc, apiLimiter, logSvc)
 	reactionHandler := handler.NewReactionHandler(reactionSvc)
 	rssHandler := handler.NewRSSHandler(articleSvc, cfg.FrontendURL)
 	sitemapHandler := handler.NewSitemapHandler(articleSvc, pageSvc, taxonomyRepo, cfg.FrontendURL)
-	settingsHandler := handler.NewSettingsHandler(settingsSvc, mailer, emailCodeSvc, geetestSvc, logSvc)
+	settingsHandler := handler.NewSettingsHandler(settingsSvc, mailer, emailCodeSvc, captchaSvc, logSvc)
+	lapProxyHandler := handler.NewLapProxyHandler(settingsSvc)
 	pageHandler := handler.NewPageHandler(pageSvc, logSvc)
 	systemHandler := handler.NewSystemHandler(settingsSvc)
 	linkHandler := handler.NewLinkHandler(linkSvc, logSvc)
-	linkAppHandler := handler.NewLinkApplicationHandler(linkAppSvc, geetestSvc, logSvc)
+	linkAppHandler := handler.NewLinkApplicationHandler(linkAppSvc, captchaSvc, logSvc)
 	fileHandler := handler.NewFileHandler(fileSvc, cfg.PublicAPIURL, logSvc)
 	statHandler := handler.NewStatHandler(statSvc)
 	logHandler := handler.NewLogHandler(logSvc)
-	updateHandler := handler.NewUpdateHandler(updateSvc, logSvc)
 	emailCodeHandler := handler.NewEmailCodeHandler(emailCodeSvc)
 	adminTagHandler := handler.NewAdminTagHandler(taxonomyRepo, logSvc)
 
@@ -172,31 +161,6 @@ func main() {
 		Message: "comment",
 	})
 
-	// 系统更新：高危操作独立严格限流（防连点/滥用触发反复容器替换）
-	updateLimit := middleware.IPRateLimit(middleware.RateLimitConfig{
-		Limiter: apiLimiter,
-		LimitFn: func() int {
-			if !securityEnabled() {
-				return 0
-			}
-			return 5
-		},
-		Window:  time.Minute,
-		Message: "update",
-	})
-	// 检查/测速：中等频率（每次都要访问外网源）
-	updateProbeLimit := middleware.IPRateLimit(middleware.RateLimitConfig{
-		Limiter: apiLimiter,
-		LimitFn: func() int {
-			if !securityEnabled() {
-				return 0
-			}
-			return 10
-		},
-		Window:  time.Minute,
-		Message: "update-probe",
-	})
-
 	userStatusOK := func(id uint) (string, bool) {
 		u, err := userRepo.FindByID(id)
 		if err != nil || u.IsBanned() {
@@ -243,6 +207,9 @@ func main() {
 		api.GET("/categories", taxonomyHandler.ListCategories)
 		api.GET("/tags", taxonomyHandler.ListTags)
 		api.GET("/site-config", settingsHandler.SiteConfig)
+		// Lap（工作量证明验证码）同源代理：访客浏览器不直连 workers.dev，
+		// 规避 DNS 污染 / 超时（白名单：widget.js、wasm、challenge、redeem）
+		api.Any("/lap/*path", lapProxyHandler.Proxy)
 		api.GET("/pages", pageHandler.ListPublic)
 		api.GET("/pages/:slug", pageHandler.GetBySlug)
 		api.GET("/links", linkHandler.ListPublic)
@@ -310,13 +277,6 @@ func main() {
 			admin.GET("/settings", settingsHandler.Get)
 			admin.PUT("/settings", settingsHandler.Update)
 			admin.POST("/settings/test-mail", settingsHandler.TestMail)
-			admin.GET("/updates", systemHandler.Changelog)
-			admin.GET("/updates/status", updateHandler.Status)
-			admin.POST("/updates/check", updateProbeLimit, updateHandler.Check)
-			admin.POST("/updates/run", updateLimit, updateHandler.Run)
-			admin.POST("/updates/rollback", updateLimit, updateHandler.Rollback)
-			admin.PUT("/updates/settings", updateLimit, updateHandler.UpdateSettings)
-			admin.POST("/updates/mirror-test", updateProbeLimit, updateHandler.MirrorTest)
 			admin.GET("/links", linkHandler.ListAdmin)
 			admin.POST("/links", linkHandler.Create)
 			admin.PUT("/links/:id", linkHandler.Update)
@@ -349,14 +309,12 @@ func main() {
 		}
 	}()
 
-	// 优雅停机：容器更新/重启（SIGTERM）时先停止接收新请求并等待在途请求完成，
-	// 保证更新流程中「记录状态 → 停止自身」之间的操作完整落库。
+	// 优雅停机：容器重启（SIGTERM）时先停止接收新请求并等待在途请求完成。
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	log.Println("shutting down server...")
 
-	updateSvc.StopScheduler()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {

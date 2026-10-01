@@ -4,11 +4,11 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Suspense, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
 import { Eye, PenLine, Search, X } from 'lucide-react'
 import { fetchArticles, fetchCategories, fetchTags } from '@/lib/api'
 import type { Article, ArticleListResponse } from '@/lib/types'
-import { PageTransition, StaggerList, StaggerItem, HoverLift } from '@/components/motion'
+import { PageLoading, RowLoading } from '@/components/page-loader'
+import { PageTransition, StaggerList, StaggerItem, HoverLift, Reveal } from '@/components/motion'
 import { useSiteConfig } from '@/components/site-config-context'
 import { SiteSidebar } from '@/components/site-sidebar'
 
@@ -108,11 +108,7 @@ export function HomeClient({
     <Suspense
       fallback={
         <div className="mx-auto max-w-5xl px-4 py-10">
-          <div className="grid gap-4">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="skeleton h-40 rounded-xl" />
-            ))}
-          </div>
+          <RowLoading rows={3} />
         </div>
       }
     >
@@ -225,26 +221,17 @@ function ArticleListSection({
   hasFilter: boolean
 }) {
   return isLoading ? (
-    <div className="grid gap-4">
-      {[...Array(3)].map((_, i) => (
-        <div
-          key={i}
-          className="skeleton h-40 rounded-xl"
-          style={{ animationDelay: `${i * 0.1}s` }}
-        />
-      ))}
-    </div>
+    <PageLoading minHeight="10rem" />
   ) : isError ? (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.96 }}
-      animate={{ opacity: 1, scale: 1 }}
+    <Reveal
+      scale={0.96}
       className="rounded-xl border border-red-200 bg-red-50 p-8 text-center dark:border-red-900/50 dark:bg-red-950/30"
     >
       <p className="font-medium text-red-700 dark:text-red-300">加载失败</p>
       <p className="mt-1 text-sm text-red-600/70 dark:text-red-400/70">
         {error instanceof Error ? error.message : '请确认后端服务已启动'}
       </p>
-    </motion.div>
+    </Reveal>
   ) : data && data.articles.length > 0 ? (
     <StaggerList className="grid gap-4">
       {data.articles.map((article: Article) => (
@@ -252,9 +239,8 @@ function ArticleListSection({
       ))}
     </StaggerList>
   ) : (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
+    <Reveal
+      y={16}
       className="rounded-xl border border-dashed p-16 text-center"
     >
       {hasFilter ? (
@@ -278,8 +264,8 @@ function ArticleListSection({
           >
             写文章
           </Link>
-        </>
-      )}
-    </motion.div>
+          </>
+        )}
+      </Reveal>
   )
 }

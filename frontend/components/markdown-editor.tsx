@@ -34,10 +34,10 @@ import {
   Table as TableIcon,
   X,
 } from 'lucide-react'
-import hljs from 'highlight.js/lib/common'
 import { uploadImage, ApiError } from '@/lib/api'
 import { extractToc, markdownToHtml } from '@/lib/markdown'
 import { useNotify } from '@/components/toast'
+import { enhanceCodeBlocks } from '@/components/code-highlight'
 
 interface MarkdownEditorProps {
   value: string
@@ -301,39 +301,10 @@ export function MarkdownEditor({ value, onChange, placeholder, onSaveRequest }: 
   useEffect(() => {
     const el = previewInnerRef.current
     if (!el) return
-    el.querySelectorAll('pre').forEach((pre) => {
-      if (pre.closest('.md-codeblock')) return
-      const code = pre.querySelector('code')
-      const lang = code?.className.match(/language-([\w-]+)/)?.[1] ?? ''
-      const wrapper = document.createElement('div')
-      wrapper.className = 'md-codeblock'
-      pre.parentNode?.insertBefore(wrapper, pre)
-      wrapper.appendChild(pre)
-
-      const header = document.createElement('div')
-      header.className = 'md-codeblock-header'
-      const label = document.createElement('span')
-      label.textContent = lang || '文本'
-      const copyBtn = document.createElement('button')
-      copyBtn.type = 'button'
-      copyBtn.className = 'md-codeblock-copy'
-      copyBtn.textContent = '复制'
-      copyBtn.addEventListener('click', () => {
-        navigator.clipboard
-          .writeText(code?.textContent ?? '')
-          .then(() => {
-            copyBtn.textContent = '已复制'
-            window.setTimeout(() => (copyBtn.textContent = '复制'), 1500)
-          })
-          .catch(() => notify.error('复制失败'))
-      })
-      header.append(label, copyBtn)
-      wrapper.insertBefore(header, pre)
-
-      if (code && !code.dataset.mdHighlighted && lang && hljs.getLanguage(lang)) {
-        code.dataset.mdHighlighted = '1'
-        hljs.highlightElement(code)
-      }
+    // 代码块增强（语言头 + 复制按钮 + hljs 高亮）与文章正文共用实现
+    enhanceCodeBlocks(el, {
+      onCopySuccess: () => notify.success('代码已复制'),
+      onCopyError: () => notify.error('复制失败'),
     })
     el.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach((cb) => {
       cb.removeAttribute('disabled')

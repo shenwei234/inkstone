@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
+import gsap from 'gsap'
 import { ArrowLeft, Eye, History, Save, X } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -17,8 +17,8 @@ import {
   ApiError,
 } from '@/lib/api'
 import type { Article } from '@/lib/types'
-import { PageTransition } from '@/components/motion'
-import { easeOut } from '@/components/motion'
+import { PageTransition, Reveal, hoverTapScale, prefersReducedMotion, useReveal } from '@/components/motion'
+import { PageLoading } from '@/components/page-loader'
 import { MarkdownEditor } from '@/components/markdown-editor'
 import { markdownToHtml, htmlToMarkdown } from '@/lib/markdown'
 import { useNotify } from '@/components/toast'
@@ -107,6 +107,11 @@ function EditorShell({ mode, article }: EditorShellProps) {
   const notify = useNotify()
   const { user } = useAuth()
   const [previewOpen, setPreviewOpen] = useState(false)
+  // 自动保存开关滑块：跟随开关状态平移（原 framer spring 命令式近似）
+  const autoSaveKnobRef = useRef<HTMLSpanElement>(null)
+  // 底部提示文案入场（行内语义标签，不包 div）
+  const hintRef = useRef<HTMLParagraphElement>(null)
+  useReveal(hintRef, { y: 0, delay: 0.4 })
 
   const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
   const tagsQuery = useQuery({ queryKey: ['tags'], queryFn: fetchTags })
@@ -129,6 +134,14 @@ function EditorShell({ mode, article }: EditorShellProps) {
   )
   const [autoSaving, setAutoSaving] = useState(false)
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
+
+  // 开关滑块平移：autoSaveEnabled 变化时滑到对应位置（替代 framer spring）
+  useEffect(() => {
+    const el = autoSaveKnobRef.current
+    if (el && !prefersReducedMotion()) {
+      gsap.to(el, { x: autoSaveEnabled ? 16 : 0, duration: 0.25, ease: 'power2.out' })
+    }
+  }, [autoSaveEnabled])
   // 基线快照：与自动保存/本地草稿的 snapshot 同构（含 cover），
   // 用于判断「是否有未保存更改」；new 模式以恢复的本地草稿为基线
   const [baseline, setBaseline] = useState(() =>
@@ -379,9 +392,8 @@ function EditorShell({ mode, article }: EditorShellProps) {
           autoSaveEnabled ? 'bg-emerald-500' : 'bg-border'
         }`}
       >
-        <motion.span
-          animate={{ x: autoSaveEnabled ? 16 : 0 }}
-          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+        <span
+          ref={autoSaveKnobRef}
           className="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm"
         />
       </span>
@@ -450,25 +462,22 @@ function EditorShell({ mode, article }: EditorShellProps) {
               <Save className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">存草稿</span>
             </button>
-            <motion.button
+            <button
               type="button"
+              {...hoverTapScale}
               onClick={doPublish}
               disabled={publish.isPending}
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
               className="flex items-center gap-1.5 rounded-md bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
             >
               {publish.isPending ? '保存中...' : primaryLabel}
-            </motion.button>
+            </button>
           </div>
         </div>
       </div>
 
       <div className="mx-auto max-w-4xl px-4 py-8">
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: easeOut }}
+        <Reveal
+          duration={0.45}
           className="rounded-xl border border-border bg-card p-6 sm:p-10"
         >
           {restoredHint && (
@@ -673,18 +682,16 @@ function EditorShell({ mode, article }: EditorShellProps) {
               )}
             </div>
           </div>
-        </motion.div>
+        </Reveal>
 
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
+        <p
+          ref={hintRef}
           className="mt-8 text-center text-xs text-muted-foreground"
         >
           {mode === 'new'
             ? '提示：内容会自动缓存在本浏览器，随时按 Ctrl+S 存为草稿，不怕丢。'
             : `提示：写完点右上角「${primaryLabel}」就能发表。草稿每 2 秒自动保存，Ctrl+S 可随时保存，不用怕丢。`}
-        </motion.p>
+        </p>
       </div>
       {/* 全屏实时预览 */}
       {previewOpen && (
@@ -733,21 +740,20 @@ export function EditArticlePage({ id }: { id: number }) {
   if (isLoading) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-10">
-        <div className="skeleton h-14 rounded-lg" />
-        <div className="skeleton mt-4 h-12 rounded-lg" />
-        <div className="skeleton mt-4 h-96 rounded-lg" />
+        <PageLoading minHeight="3.5rem" className="rounded-lg" />
+        <PageLoading minHeight="3rem" className="mt-4 rounded-lg" />
+        <PageLoading minHeight="24rem" className="mt-4 rounded-lg" />
       </div>
     )
   }
   if (isError || !data) {
     return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+      <Reveal
+        y={0}
         className="mx-auto max-w-5xl px-4 py-24 text-center text-muted-foreground"
       >
         文章不存在或无权访问
-      </motion.div>
+      </Reveal>
     )
   }
 

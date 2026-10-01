@@ -1,10 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import { PanelRight, X } from 'lucide-react'
 import { WidgetRenderer } from '@/components/sidebar-widgets'
-import { easeOut } from '@/components/motion'
+import { Presence } from '@/components/motion'
 import { useMediaQuery } from '@/lib/use-media-query'
 import type { SidebarWidget } from '@/components/site-config-context'
 
@@ -63,46 +62,41 @@ export function SiteSidebar({
         </span>
       </button>
 
-      <AnimatePresence>
-        {open && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2, ease: easeOut }}
-              onClick={() => setOpen(false)}
-              className="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm lg:hidden"
-            />
-            <motion.aside
-              initial={{ x: left ? '-100%' : '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: left ? '-100%' : '100%' }}
-              transition={{ type: 'spring', stiffness: 380, damping: 36 }}
-              className={`fixed inset-y-0 z-[115] flex w-72 max-w-[85vw] flex-col overflow-y-auto border-border bg-card p-4 shadow-2xl lg:hidden ${
-                left ? 'left-0 border-r' : 'right-0 border-l'
-              }`}
-            >
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-sm font-semibold">侧边栏</p>
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  aria-label="关闭侧边栏"
-                  className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="space-y-4">
-                {widgets.map((w, i) => (
-                  <WidgetRenderer key={`${w.type}-${i}`} widget={w} />
-                ))}
-              </div>
-            </motion.aside>
-          </>
-        )}
-      </AnimatePresence>
+      {/* 抽屉遮罩：点击关闭 */}
+      <Presence
+        show={open}
+        duration={0.2}
+        className="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm lg:hidden"
+        onClick={() => setOpen(false)}
+      >
+        {''}
+      </Presence>
+      {/* 侧滑抽屉面板 */}
+      <Presence
+        show={open}
+        x={left ? '-100%' : '100%'}
+        duration={0.35}
+        className={`fixed inset-y-0 z-[115] flex w-72 max-w-[85vw] flex-col overflow-y-auto border-border bg-card p-4 shadow-2xl lg:hidden ${
+          left ? 'left-0 border-r' : 'right-0 border-l'
+        }`}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-sm font-semibold">侧边栏</p>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="关闭侧边栏"
+            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="space-y-4">
+          {widgets.map((w, i) => (
+            <WidgetRenderer key={`${w.type}-${i}`} widget={w} />
+          ))}
+        </div>
+      </Presence>
     </>
   )
 }

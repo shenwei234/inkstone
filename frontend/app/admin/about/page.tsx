@@ -1,7 +1,8 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
+import gsap from 'gsap'
 import { useQuery } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
 import {
   Code2,
   Database,
@@ -15,8 +16,7 @@ import {
 } from 'lucide-react'
 import { fetchSystemInfo } from '@/lib/api'
 import { useSiteConfig } from '@/components/site-config-context'
-
-const easeOut = [0.16, 1, 0.3, 1] as const
+import { Reveal, prefersReducedMotion, useReveal } from '@/components/motion'
 
 const techStack = [
   { name: 'Go + Gin + GORM', desc: '高性能后端框架', icon: Code2, color: 'text-cyan-500' },
@@ -33,18 +33,57 @@ const features = [
   { icon: ShieldCheck, title: '安全', desc: 'JWT 双令牌、限流设计、操作确认' },
 ]
 
+/** 技术栈卡片：入场 + 悬停右移（替代原 motion.div initial/animate/whileHover） */
+function TechItem({ item, delay }: { item: (typeof techStack)[number]; delay: number }) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el || prefersReducedMotion()) return
+    gsap.from(el, { opacity: 0, x: -12, duration: 0.35, delay, ease: 'expo.out' })
+  }, [delay])
+
+  return (
+    <div
+      ref={ref}
+      className="flex items-center gap-3 rounded-lg border border-border bg-background px-4 py-3"
+      onMouseEnter={(e) => {
+        if (prefersReducedMotion()) return
+        gsap.to(e.currentTarget, { x: 3, duration: 0.25, ease: 'power2.out', overwrite: 'auto' })
+      }}
+      onMouseLeave={(e) => {
+        if (prefersReducedMotion()) return
+        gsap.to(e.currentTarget, { x: 0, duration: 0.25, ease: 'power2.out', overwrite: 'auto' })
+      }}
+    >
+      <item.icon className={`h-5 w-5 ${item.color}`} />
+      <div>
+        <p className="text-sm font-medium">{item.name}</p>
+        <p className="text-xs text-muted-foreground">{item.desc}</p>
+      </div>
+    </div>
+  )
+}
+
 export default function AdminAboutPage() {
   const site = useSiteConfig()
   const infoQuery = useQuery({ queryKey: ['system', 'info'], queryFn: fetchSystemInfo })
   const info = infoQuery.data?.info
 
+  // 三个内容分区为语义 section：用 useReveal 挂入场动画（不改 DOM 结构）
+  const introRef = useRef<HTMLElement>(null)
+  const stackRef = useRef<HTMLElement>(null)
+  const featureRef = useRef<HTMLElement>(null)
+  useReveal(introRef, { y: 16, delay: 0.1, duration: 0.45 })
+  useReveal(stackRef, { y: 16, delay: 0.18, duration: 0.45 })
+  useReveal(featureRef, { y: 16, delay: 0.26, duration: 0.45 })
+
   return (
     <div>
       {/* Hero */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: easeOut }}
+      <Reveal
+        y={16}
+        duration={0.5}
         className="relative overflow-hidden rounded-xl border border-border bg-gradient-to-br from-accent/10 via-card to-purple-500/10 p-6"
       >
         <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-accent/15 blur-3xl" />
@@ -71,13 +110,11 @@ export default function AdminAboutPage() {
             <p className="mt-0.5">已稳定运行 {info?.uptime ?? '—'}</p>
           </div>
         </div>
-      </motion.div>
+      </Reveal>
 
       {/* 系统介绍 */}
-      <motion.section
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1, duration: 0.45, ease: easeOut }}
+      <section
+        ref={introRef}
         className="mt-4 rounded-2xl border border-border bg-card p-5"
       >
         <h2 className="flex items-center gap-2 text-sm font-semibold">
@@ -90,13 +127,11 @@ export default function AdminAboutPage() {
           主题外观自定义与站点配置，内置 JWT 双令牌认证与 RBAC 权限体系，
           部署采用 Docker Compose，可运行在任何 VPS 上。由 shenwei 设计与开发。
         </p>
-      </motion.section>
+      </section>
 
       {/* 技术栈 */}
-      <motion.section
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.18, duration: 0.45, ease: easeOut }}
+      <section
+        ref={stackRef}
         className="mt-4 rounded-2xl border border-border bg-card p-5"
       >
         <h2 className="flex items-center gap-2 text-sm font-semibold">
@@ -105,40 +140,24 @@ export default function AdminAboutPage() {
         </h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {techStack.map((t, i) => (
-            <motion.div
-              key={t.name}
-              initial={{ opacity: 0, x: -12 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.25 + i * 0.06, duration: 0.35 }}
-              whileHover={{ x: 3 }}
-              className="flex items-center gap-3 rounded-lg border border-border bg-background px-4 py-3"
-            >
-              <t.icon className={`h-5 w-5 ${t.color}`} />
-              <div>
-                <p className="text-sm font-medium">{t.name}</p>
-                <p className="text-xs text-muted-foreground">{t.desc}</p>
-              </div>
-            </motion.div>
+            <TechItem key={t.name} item={t} delay={0.25 + i * 0.06} />
           ))}
         </div>
         <p className="mt-3 text-xs text-muted-foreground">运行环境：{info?.go_version ?? '—'}</p>
-      </motion.section>
+      </section>
 
       {/* 功能特性 */}
-      <motion.section
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.26, duration: 0.45, ease: easeOut }}
+      <section
+        ref={featureRef}
         className="mt-4 rounded-2xl border border-border bg-card p-5"
       >
         <h2 className="text-sm font-semibold">功能特性</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {features.map((f, i) => (
-            <motion.div
+            <Reveal
               key={f.title}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.32 + i * 0.06, duration: 0.35 }}
+              y={10}
+              delay={0.32 + i * 0.06}
               className="rounded-lg border border-border bg-background p-4"
             >
               <div className="flex items-center gap-2">
@@ -146,10 +165,10 @@ export default function AdminAboutPage() {
                 <p className="text-sm font-medium">{f.title}</p>
               </div>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{f.desc}</p>
-            </motion.div>
+            </Reveal>
           ))}
         </div>
-      </motion.section>
+      </section>
     </div>
   )
 }

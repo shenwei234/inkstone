@@ -6,53 +6,39 @@
 export const inputClass =
   'w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20'
 
-/** 卡片风格输入框（背景使用 card 色） */
-export const inputClassCard =
-  'w-full rounded-lg border border-border bg-card px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20'
-
-// ---------- 容器/卡片 ----------
-
-/** 内容卡片（大面积容器）：圆角 + 边框 + 卡片底色 + 轻阴影 */
-export const cardClass = 'rounded-2xl border border-border bg-card shadow-sm'
-
-/** 小卡片（列表项、行内卡片） */
-export const cardSmClass = 'rounded-xl border border-border bg-card'
-
-/** 空状态容器（虚线边框） */
-export const emptyClass = 'rounded-xl border border-dashed p-16 text-center'
-
-// ---------- 按钮 ----------
-
-const btnBase =
-  'inline-flex items-center justify-center gap-1.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
-
-/** 主按钮（强调色） */
-export const btnPrimary = `${btnBase} rounded-lg bg-accent px-5 py-2 text-white shadow-md shadow-accent/25 hover:opacity-95`
-
-/** 次按钮（描边） */
-export const btnSecondary = `${btnBase} rounded-lg border border-border px-4 py-2 text-muted-foreground hover:border-accent/40 hover:text-accent`
-
-/** 危险按钮（红色文字） */
-export const btnDanger = `${btnBase} rounded-lg px-3 py-1.5 text-red-500 hover:bg-red-500/10`
-
-/** 小尺寸按钮 */
-export const btnSm = `${btnBase} rounded-md px-2.5 py-1.5 text-xs`
-
 // ---------- 徽章 ----------
 
-const badgeBase =
-  'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium'
+const badgeBase = 'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium'
 
 export const badgeSuccess = `${badgeBase} bg-emerald-500/10 text-emerald-600 dark:text-emerald-400`
 export const badgeWarning = `${badgeBase} bg-amber-500/10 text-amber-600 dark:text-amber-400`
 export const badgeDanger = `${badgeBase} bg-red-500/10 text-red-500`
-export const badgeAccent = `${badgeBase} bg-accent/10 text-accent`
-export const badgeMuted = `${badgeBase} bg-muted text-muted-foreground`
 
-// ---------- 页面容器 ----------
+// ---------- 正文排版 ----------
 
-/** 后台页面统一容器（垂直节奏一致） */
-export const pageClass = ''
+/**
+ * 文章/独立页正文（Markdown 渲染的 .prose 容器）统一样式。
+ * 设计取舍：
+ * - prose-lg + leading-1.8：中文长文阅读舒适区
+ * - headings 加 scroll-mt-24：目录锚点跳转时不被 sticky 导航遮挡
+ * - h2 分隔线、引用浅底色、图片边框阴影、代码块描边：结构层次更清晰
+ */
+export const proseBody =
+  'prose prose-neutral dark:prose-invert prose-lg max-w-none overflow-x-auto ' +
+  'prose-p:leading-[1.8] prose-p:text-pretty ' +
+  'prose-headings:scroll-mt-24 prose-headings:font-semibold ' +
+  'prose-h1:mt-10 prose-h1:text-3xl ' +
+  'prose-h2:mt-10 prose-h2:border-b prose-h2:border-border prose-h2:pb-2 prose-h2:text-2xl ' +
+  'prose-h3:mt-8 prose-h3:text-xl ' +
+  'prose-a:font-medium prose-a:text-accent prose-a:no-underline prose-a:decoration-accent/40 prose-a:underline-offset-4 ' +
+  'hover:prose-a:underline ' +
+  'prose-code:rounded prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:text-[0.85em] prose-code:font-normal ' +
+  'prose-code:before:content-none prose-code:after:content-none ' +
+  'prose-pre:rounded-xl prose-pre:border prose-pre:border-border prose-pre:bg-muted prose-pre:shadow-sm ' +
+  'prose-img:rounded-xl prose-img:border prose-img:border-border prose-img:shadow-md ' +
+  'prose-blockquote:not-italic prose-blockquote:border-l-accent prose-blockquote:bg-muted/40 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r-lg ' +
+  'prose-li:marker:text-muted-foreground/60 ' +
+  'prose-hr:my-10 prose-hr:border-border'
 
 // ---------- 工具函数 ----------
 
@@ -64,21 +50,7 @@ export function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`
 }
 
-/** 相对时间（刚刚 / N 分钟前 / N 小时前 / 日期） */
-export function relativeTime(input: string | Date): string {
-  const date = typeof input === 'string' ? new Date(input) : input
-  const diff = Date.now() - date.getTime()
-  const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return '刚刚'
-  if (minutes < 60) return `${minutes} 分钟前`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} 小时前`
-  const days = Math.floor(hours / 24)
-  if (days < 30) return `${days} 天前`
-  return date.toLocaleDateString('zh-CN')
-}
-
 /** 截断文本 */
 export function truncate(text: string, max: number): string {
-  return text.length <= max ? text : text.slice(0, max) + '…'
+  return text.length <= max ? text : text.slice(0, max)
 }

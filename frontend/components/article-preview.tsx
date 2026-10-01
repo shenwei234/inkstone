@@ -1,6 +1,9 @@
 'use client'
 
+import { useRef } from 'react'
 import { CalendarDays, Eye, Tag as TagIcon, User } from 'lucide-react'
+import { useCodeHighlight } from './code-highlight'
+import { useNotify } from './toast'
 
 interface ArticlePreviewProps {
   title: string
@@ -22,6 +25,10 @@ export function ArticlePreview({
   views,
   contentHtml,
 }: ArticlePreviewProps) {
+  const contentRef = useRef<HTMLDivElement>(null)
+  const notify = useNotify()
+  useCodeHighlight(contentRef, contentHtml, { onCopySuccess: () => notify.success('代码已复制') })
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       {/* 标题卡 */}
@@ -56,6 +63,7 @@ export function ArticlePreview({
       {/* 正文白卡 */}
       <div className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-10">
         <div
+          ref={contentRef}
           className="prose prose-neutral dark:prose-invert max-w-none overflow-x-auto prose-headings:font-semibold prose-a:text-accent prose-pre:bg-muted prose-code:bg-muted prose-code:rounded prose-code:px-1.5 prose-code:py-0.5 prose-code:text-[0.9em] prose-code:before:content-none prose-code:after:content-none prose-img:rounded-xl prose-blockquote:border-l-accent"
           dangerouslySetInnerHTML={{ __html: contentHtml || '<p class="text-muted-foreground">（暂无正文）</p>' }}
         />

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { motion } from 'framer-motion'
+import { useReveal } from '@/components/motion'
 import {
   Archive,
   BookOpen,
@@ -100,6 +100,9 @@ export function IconPicker({
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState({ left: 0, top: 0 })
   const wrapRef = useRef<HTMLDivElement>(null)
+  // 图标面板入场动画（Portal 内 fixed 定位的普通 div）
+  const pickerRef = useRef<HTMLDivElement>(null)
+  useReveal(pickerRef, { y: 6, scale: 0.96, duration: 0.18 })
   const current = value && MENU_ICONS[value] ? value : null
   const CurrentIcon = current ? MENU_ICONS[current] : null
 
@@ -137,53 +140,51 @@ export function IconPicker({
       {open &&
         createPortal(
           <>
-            {/* click-away layer */}
+            {/* 点击空白处关闭 */}
             <div className="fixed inset-0 z-[80]" onClick={() => setOpen(false)} />
-            <motion.div
-              initial={{ opacity: 0, y: 6, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            <div
+              ref={pickerRef}
               style={{ position: 'fixed', left: pos.left, top: pos.top }}
               className="z-[90] w-72 rounded-xl border border-border bg-card p-2 shadow-2xl shadow-black/15"
             >
-            <p className="px-2 pb-1.5 text-xs text-muted-foreground">选择菜单图标（可选）</p>
-            <div className="grid max-h-56 grid-cols-6 gap-1 overflow-y-auto">
-              <button
-                type="button"
-                onClick={() => {
-                  onChange('')
-                  setOpen(false)
-                }}
-                title="无图标"
-                className={`flex h-9 items-center justify-center rounded-md text-[10px] transition-colors ${
-                  !value ? 'bg-accent text-white' : 'text-muted-foreground hover:bg-muted'
-                }`}
-              >
-                无
-              </button>
-              {MENU_ICON_NAMES.map((name) => {
-                const Icon = MENU_ICONS[name]
-                return (
-                  <button
-                    key={name}
-                    type="button"
-                    title={name}
-                    onClick={() => {
-                      onChange(name)
-                      setOpen(false)
-                    }}
-                    className={`flex h-9 items-center justify-center rounded-md transition-colors ${
-                      value === name
-                        ? 'bg-accent text-white'
-                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </button>
-                )
-              })}
+              <p className="px-2 pb-1.5 text-xs text-muted-foreground">选择菜单图标（可选）</p>
+              <div className="grid max-h-56 grid-cols-6 gap-1 overflow-y-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange('')
+                    setOpen(false)
+                  }}
+                  title="无图标"
+                  className={`flex h-9 items-center justify-center rounded-md text-[10px] transition-colors ${
+                    !value ? 'bg-accent text-white' : 'text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  无
+                </button>
+                {MENU_ICON_NAMES.map((name) => {
+                  const Icon = MENU_ICONS[name]
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      title={name}
+                      onClick={() => {
+                        onChange(name)
+                        setOpen(false)
+                      }}
+                      className={`flex h-9 items-center justify-center rounded-md transition-colors ${
+                        value === name
+                          ? 'bg-accent text-white'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </button>
+                  )
+                })}
               </div>
-            </motion.div>
+            </div>
           </>,
           document.body,
         )}

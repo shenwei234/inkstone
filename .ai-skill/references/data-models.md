@@ -218,38 +218,6 @@ type OperationLog struct {
 
 ---
 
-## UpdateRecord（系统更新记录，Beta1.15）
-
-```go
-type UpdateRecord struct {
-    ID          uint
-    Type        string    // update / rollback
-    FromVersion string
-    ToVersion   string
-    Status      string    // running / success / failed
-    Phase       string    // checking/downloading/verifying/loading/deploying/done
-    Progress    int       // 下载进度 0-100
-    Mirror      string    // 实际使用的清单源/加速源
-    SHA256      string    // 镜像包校验值
-    RollbackTag string    // 回滚 tag（rollback-<recordID>；空=不可回滚）
-    OldImages   string    // load 前宿主机 latest 镜像 ID 快照（JSON: repo→ID），失败/中断时还原 latest 防「假更新」误杀
-    TriggeredBy string    // auto / manual / rollback
-    Detail      string    // 过程说明或错误原因（中文）
-    StartedAt   time.Time
-    FinishedAt  *time.Time
-}
-```
-
-**索引**：`type`、`status`。查询入口 `UpdateRepository`：
-`Latest / List(limit) / FindRunning / FindInterrupted(before) / LatestRollbackable`。
-
-**关键状态约定**：
-- `status=running` 且 `started_at` 早于 30 分钟前的记录 = 部署中断残留 → 实例重启后 `RecoverInterruptedUpdate` 自动回滚
-- `rollback_tag` 非空 = 打了回滚镜像（按旧镜像 ID tag），可手动/自动回滚
-- agent 容器（一次性）负责写终态；backend 自身只写 `deploying` 前的阶段
-
----
-
 ## 关系图
 
 ```
@@ -267,7 +235,6 @@ Page          （独立，无外键）
 FriendLink    （独立）
 Setting       （键值对）
 DailyStat / VisitorDay（统计）
-UpdateRecord  （系统更新记录，独立）
 ```
 
 ---

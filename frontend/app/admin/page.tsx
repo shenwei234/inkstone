@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { animate, motion } from 'framer-motion'
+import gsap from 'gsap'
+import { CountUp, Reveal, hoverLift, prefersReducedMotion, useReveal } from '@/components/motion'
+import { PageLoading, Spinner } from '@/components/page-loader'
 import {
   Activity,
   Cpu,
@@ -30,25 +32,6 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-
-function AnimatedNumber({ value }: { value: number }) {
-  const ref = useRef<HTMLSpanElement>(null)
-
-  useEffect(() => {
-    const node = ref.current
-    if (!node) return
-    const controls = animate(0, value, {
-      duration: 0.9,
-      ease: [0.16, 1, 0.3, 1],
-      onUpdate: (v) => {
-        node.textContent = String(Math.round(v))
-      },
-    })
-    return () => controls.stop()
-  }, [value])
-
-  return <span ref={ref}>0</span>
-}
 
 const cards = [
   { key: 'total_users', label: '总用户数', icon: Users, color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' },
@@ -87,13 +70,12 @@ function TrafficCharts() {
   const totalUV = points.reduce((sum, p) => sum + p.visitors, 0)
   const totalBytes = points.reduce((sum, p) => sum + p.bytes_in + p.bytes_out, 0)
 
+  // 图表分区为语义 section：用 useReveal 挂入场动画（不改 DOM 结构）
+  const sectionRef = useRef<HTMLElement>(null)
+  useReveal(sectionRef, { y: 16, delay: 0.2, duration: 0.45 })
+
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.2, duration: 0.45 }}
-      className="mt-4 space-y-4"
-    >
+    <section ref={sectionRef} className="mt-4 space-y-4">
       <div className="rounded-2xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -122,7 +104,7 @@ function TrafficCharts() {
 
         <div className="mt-4 h-56">
           {isLoading ? (
-            <div className="skeleton h-full rounded-lg" />
+            <PageLoading minHeight="4rem" />
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={points} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
@@ -190,7 +172,7 @@ function TrafficCharts() {
         </div>
         <div className="mt-4 h-48">
           {isLoading ? (
-            <div className="skeleton h-full rounded-lg" />
+            <PageLoading minHeight="4rem" />
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
@@ -246,7 +228,7 @@ function TrafficCharts() {
           说明：流量按请求头/响应体字节统计，图片等静态资源由反向代理直接返回时不计入。
         </p>
       </div>
-    </motion.section>
+    </section>
   )
 }
 
@@ -291,16 +273,31 @@ function ResourceMonitor() {
   const cpu = data?.cpu_percent ?? 0
   const memPct = data?.mem_percent ?? 0
 
+  // 内存占用进度条：scaleX 补间（合成层，避免 width 动画每帧 layout 重排）
+  const barRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const bar = barRef.current
+    if (!bar) return
+    if (prefersReducedMotion()) {
+      gsap.set(bar, { scaleX: Math.min(100, memPct) / 100 })
+      return
+    }
+    gsap.fromTo(
+      bar,
+      { scaleX: 0 },
+      { scaleX: Math.min(100, memPct) / 100, duration: 0.6, ease: 'power2.out' },
+    )
+  }, [memPct])
+
+  // 资源分区为语义 section：用 useReveal 挂入场动画（不改 DOM 结构）
+  const sectionRef = useRef<HTMLElement>(null)
+  useReveal(sectionRef, { y: 16, delay: 0.3, duration: 0.45 })
+
   const barColor = (p: number) =>
     p >= 85 ? 'bg-red-500' : p >= 60 ? 'bg-amber-500' : 'bg-emerald-500'
 
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.3, duration: 0.45 }}
-      className="mt-4 rounded-2xl border border-border bg-card p-5"
-    >
+    <section ref={sectionRef} className="mt-4 rounded-2xl border border-border bg-card p-5">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="flex items-center gap-2 text-sm font-semibold">
@@ -319,7 +316,7 @@ function ResourceMonitor() {
       </div>
 
       {isLoading ? (
-        <div className="skeleton mt-4 h-40 rounded-lg" />
+        <PageLoading minHeight="10rem" className="mt-4" />
       ) : (
         <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {/* CPU */}
@@ -351,10 +348,9 @@ function ResourceMonitor() {
               <span className="ml-1 text-sm font-normal text-muted-foreground">MB</span>
             </p>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
-              <motion.div
-                className={`h-full rounded-full ${barColor(memPct)}`}
-                animate={{ width: `${Math.min(100, memPct)}%` }}
-                transition={{ duration: 0.6 }}
+              <div
+                ref={barRef}
+                className={`h-full w-full origin-left rounded-full ${barColor(memPct)}`}
               />
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
@@ -381,7 +377,7 @@ function ResourceMonitor() {
           </div>
         </div>
       )}
-    </motion.section>
+    </section>
   )
 }
 
@@ -403,41 +399,41 @@ export default function AdminOverviewPage() {
 
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((card, i) => (
-          <motion.div
+          <Reveal
             key={card.key}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.08, duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-            whileHover={{ y: -4 }}
+            y={20}
+            delay={i * 0.08}
+            duration={0.45}
             className="rounded-2xl border border-border bg-card p-5 shadow-sm"
+            {...hoverLift}
           >
             <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${card.color}`}>
               <card.icon className="h-5 w-5" />
             </div>
             <p className="mt-4 text-3xl font-bold tracking-tight">
               {isLoading ? (
-                <span className="skeleton inline-block h-9 w-16 rounded" />
+                <Spinner className="h-9 w-9" />
               ) : (
-                <AnimatedNumber value={data?.[card.key] ?? 0} />
+                <CountUp value={data?.[card.key] ?? 0} />
               )}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">{card.label}</p>
-          </motion.div>
+          </Reveal>
         ))}
       </div>
 
       <ResourceMonitor />
       <TrafficCharts />
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.35, duration: 0.45 }}
+      <Reveal
+        y={20}
+        delay={0.35}
+        duration={0.45}
         className="mt-6 flex items-start gap-2.5 rounded-xl border border-dashed border-border p-6 text-sm text-muted-foreground"
       >
         <Lightbulb className="mt-0.5 h-4 w-4 shrink-0" />
         <span>提示：概览数据每 15 秒刷新，资源监控每 5 秒刷新，访问趋势每分钟刷新。</span>
-      </motion.div>
+      </Reveal>
     </div>
   )
 }

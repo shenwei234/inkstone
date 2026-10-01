@@ -24,10 +24,6 @@ func NewFileService(files *repository.FileRepository, settings *SettingsService,
 	return &FileService{files: files, settings: settings, dir: dir}
 }
 
-func (s *FileService) Dir() string {
-	return s.dir
-}
-
 // MaxUploadBytes reads the admin-configured upload limit.
 func (s *FileService) MaxUploadBytes() int64 {
 	mb := s.settings.IntValue(SettingUploadMaxMB, 50)

@@ -1,8 +1,8 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import gsap from 'gsap'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
@@ -39,8 +39,9 @@ import type {
 } from '@/lib/api'
 import type { LinkApplication } from '@/lib/types'
 import { useNotify } from '@/components/toast'
-import { PageTransition } from '@/components/motion'
+import { PageTransition, Reveal, easeOut, hoverTapScale, prefersReducedMotion } from '@/components/motion'
 import { Modal } from '@/components/modal'
+import { RowLoading } from '@/components/page-loader'
 import { inputClass, badgeSuccess, badgeWarning, badgeDanger } from '@/lib/ui'
 
 interface DialogState {
@@ -154,16 +155,15 @@ function LinkDialog({
             >
               取消
             </button>
-            <motion.button
+            <button
               type="submit"
               form="friend-link-form"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
+              {...hoverTapScale}
               disabled={save.isPending}
               className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
             >
               {save.isPending ? '保存中...' : editing ? '保存修改' : '添加友链'}
-            </motion.button>
+            </button>
           </div>
         </div>
       }
@@ -215,9 +215,8 @@ function LinkDialog({
 
         {/* 预检结果 */}
         {validation && (
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
+          <Reveal
+            y={-6}
             className={`flex items-start gap-2.5 rounded-lg border p-3 text-xs leading-relaxed ${
               validation.reachable
                 ? validation.has_backlink
@@ -245,7 +244,7 @@ function LinkDialog({
                 <p className="opacity-70">期望反链域名：{validation.expected_hosts}</p>
               )}
             </div>
-          </motion.div>
+          </Reveal>
         )}
 
         <div className="space-y-1.5">
@@ -385,10 +384,8 @@ function LinkApplicationsPanel() {
       </div>
 
       {isLoading ? (
-        <div className="mt-4 space-y-2">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="skeleton h-20 rounded-xl" />
-          ))}
+        <div className="mt-4">
+          <RowLoading rows={3} />
         </div>
       ) : apps.length === 0 ? (
         <div className="mt-4 rounded-xl border border-dashed p-16 text-center">
@@ -398,10 +395,9 @@ function LinkApplicationsPanel() {
       ) : (
         <div className="mt-4 space-y-3">
           {apps.map((app: LinkApplication) => (
-            <motion.div
+            <Reveal
               key={app.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
+              y={10}
               className="rounded-2xl border border-border bg-card p-4 transition-colors hover:border-accent/30"
             >
               <div className="flex flex-wrap items-center gap-2">
@@ -458,7 +454,7 @@ function LinkApplicationsPanel() {
                   删除记录
                 </button>
               </div>
-            </motion.div>
+            </Reveal>
           ))}
         </div>
       )}
@@ -504,6 +500,15 @@ export default function AdminLinksPage() {
   const [dialog, setDialog] = useState<DialogState>({ open: false, editing: null })
   const [checkingId, setCheckingId] = useState<number | null>(null)
   const [tab, setTab] = useState<AdminTab>('links')
+
+  // tab 高亮背景：切换时重挂并做 scaleX 入场（替代原 layoutId 共享布局动画）
+  const tabBgRef = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    const el = tabBgRef.current
+    if (el && !prefersReducedMotion()) {
+      gsap.fromTo(el, { scaleX: 0 }, { scaleX: 1, duration: 0.3, ease: easeOut })
+    }
+  }, [tab])
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin', 'links'],
@@ -570,25 +575,23 @@ export default function AdminLinksPage() {
               <ExternalLink className="h-4 w-4" />
               查看页面
             </Link>
-            <motion.button
+            <button
               onClick={() => checkAll.mutate()}
               disabled={checkAll.isPending || links.length === 0}
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
+              {...hoverTapScale}
               className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50"
             >
               <RefreshCw className={`h-4 w-4 ${checkAll.isPending ? 'animate-spin' : ''}`} />
               {checkAll.isPending ? '检测中...' : '检测全部'}
-            </motion.button>
-            <motion.button
+            </button>
+            <button
               onClick={() => setDialog({ open: true, editing: null })}
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
+              {...hoverTapScale}
               className="flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white shadow-md shadow-accent/25"
             >
               <Plus className="h-4 w-4" />
               添加友链
-            </motion.button>
+            </button>
           </div>
         )}
       </div>
@@ -607,9 +610,9 @@ export default function AdminLinksPage() {
             }`}
           >
             {tab === t.key && (
-              <motion.span
-                layoutId="admin-links-tab"
-                transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+              <span
+                key={t.key}
+                ref={tabBgRef}
                 className="absolute inset-0 rounded-lg border border-border bg-card shadow-sm"
               />
             )}
@@ -633,10 +636,8 @@ export default function AdminLinksPage() {
       ) : (
       <>
       {isLoading ? (
-        <div className="mt-6 space-y-2">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="skeleton h-20 rounded-xl" />
-          ))}
+        <div className="mt-6">
+          <RowLoading rows={3} />
         </div>
       ) : links.length === 0 ? (
         <div className="mt-6 rounded-xl border border-dashed p-16 text-center">
@@ -646,11 +647,11 @@ export default function AdminLinksPage() {
       ) : (
         <div className="mt-6 space-y-3">
           {links.map((link: AdminFriendLink, i: number) => (
-            <motion.div
+            <Reveal
               key={link.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.04, duration: 0.3 }}
+              y={10}
+              delay={i * 0.04}
+              duration={0.3}
               className="flex flex-wrap items-center gap-4 rounded-2xl border border-border bg-card p-4 transition-colors hover:border-accent/30"
             >
               <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-background">
@@ -725,7 +726,7 @@ export default function AdminLinksPage() {
                   删除
                 </button>
               </div>
-            </motion.div>
+            </Reveal>
           ))}
         </div>
       )}

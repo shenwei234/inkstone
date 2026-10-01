@@ -7,6 +7,7 @@ import { Navbar } from "@/components/navbar";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteWallpaper } from "@/components/site-wallpaper";
 import { SiteHead } from "@/components/site-head";
+import { RouteLoader } from "@/components/route-loader";
 
 export const metadata: Metadata = {
   title: {
@@ -20,6 +21,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="zh-CN" className="h-full antialiased">
       <body className="min-h-full flex flex-col">
+        {/* 路由切换加载动画：GSAP 进度条，替代骨架图闪烁 */}
+        <RouteLoader />
         {/* 极验域名预热：提前完成 DNS/TLS 握手，缩短 gt4.js 与验证接口的建连等待 */}
         <link rel="preconnect" href="https://static.geetest.com" />
         <link rel="preconnect" href="https://gcaptcha4.geetest.com" crossOrigin="anonymous" />

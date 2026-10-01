@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { fetchSiteConfig, type EmailCodeConfig, type GeetestConfig } from '@/lib/api'
+import { fetchSiteConfig, type EmailCodeConfig, type GeetestConfig, type LapConfig } from '@/lib/api'
 
 export interface NavMenuItem {
   label: string
@@ -44,6 +44,9 @@ export interface SiteConfig {
   sidebarPosition: 'left' | 'right'
   emailCode: EmailCodeConfig
   geetest: GeetestConfig
+  lap: LapConfig
+  /** 当前启用的验证码提供方：geetest | lap */
+  captchaProvider: string
   wallpaper: string
   wallpaperOpacity: number
   wallpaperBlur: number
@@ -61,6 +64,15 @@ const DEFAULT_GEETEST: GeetestConfig = {
   captcha_id: '',
 }
 
+const DEFAULT_LAP: LapConfig = {
+  enabled: false,
+  on_login: false,
+  on_register: false,
+  on_comment: false,
+  site_key: '',
+  api_endpoint: '',
+}
+
 const DEFAULT_CONFIG: SiteConfig = {
   siteName: 'InkStone',
   siteDescription: 'InkStone — 现代化多用户博客系统',
@@ -72,6 +84,8 @@ const DEFAULT_CONFIG: SiteConfig = {
   sidebarPosition: 'right',
   emailCode: { on_register: false, on_login: false },
   geetest: DEFAULT_GEETEST,
+  lap: DEFAULT_LAP,
+  captchaProvider: 'geetest',
   wallpaper: '',
   wallpaperOpacity: 100,
   wallpaperBlur: 0,
@@ -101,6 +115,8 @@ interface RawSiteConfig {
   sidebar_position?: string
   email_code?: Partial<EmailCodeConfig>
   geetest?: Partial<GeetestConfig>
+  lap?: Partial<LapConfig>
+  captcha_provider?: string
   site_wallpaper?: string
   wallpaper_opacity?: string
   wallpaper_blur?: string
@@ -177,6 +193,15 @@ export function SiteConfigProvider({ children }: { children: ReactNode }) {
             on_comment: cfg.geetest?.on_comment === true,
             captcha_id: cfg.geetest?.captcha_id ?? '',
           },
+          lap: {
+            enabled: cfg.lap?.enabled === true,
+            on_login: cfg.lap?.on_login === true,
+            on_register: cfg.lap?.on_register === true,
+            on_comment: cfg.lap?.on_comment === true,
+            site_key: cfg.lap?.site_key ?? '',
+            api_endpoint: cfg.lap?.api_endpoint ?? '',
+          },
+          captchaProvider: cfg.captcha_provider === 'lap' ? 'lap' : 'geetest',
           wallpaper: cfg.site_wallpaper ?? '',
           wallpaperOpacity: Number(cfg.wallpaper_opacity ?? 100) || 100,
           wallpaperBlur: Number(cfg.wallpaper_blur ?? 0) || 0,

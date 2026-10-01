@@ -1,25 +1,24 @@
 'use client'
 
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
-import { fetchSiteConfig, type GeetestCredential } from '@/lib/api'
+import gsap from 'gsap'
+import { fetchSiteConfig, type CaptchaCredential } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { ApiError } from '@/lib/api'
 import { useSiteConfig } from '@/components/site-config-context'
 import { EmailCodeInput } from '@/components/email-code-input'
-import { useGeetestCaptcha } from '@/components/geetest-captcha'
-import { easeOut } from '@/components/motion'
+import { useCaptcha } from '@/components/captcha'
+import { Reveal, hoverTapScale, prefersReducedMotion, useReveal } from '@/components/motion'
 import { inputClass } from '@/lib/ui'
-
 
 export default function RegisterPage() {
   const { register } = useAuth()
   const site = useSiteConfig()
   const router = useRouter()
-  const captcha = useGeetestCaptcha('register')
+  const captcha = useCaptcha('register')
   const [emailCode, setEmailCode] = useState('')
   const configQuery = useQuery({ queryKey: ['site-config'], queryFn: fetchSiteConfig })
   const registrationOpen = configQuery.data?.allow_registration !== false
@@ -29,7 +28,18 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  const doRegister = async (credential?: GeetestCredential) => {
+  // 表单入场（原 motion.form）
+  const formRef = useRef<HTMLFormElement>(null)
+  useReveal(formRef, { y: 12, delay: 0.25, duration: 0.4 })
+
+  // 错误提示出现时横向滑入（原 motion.p，条件渲染故用命令式动画）
+  const errorRef = useRef<HTMLParagraphElement>(null)
+  useEffect(() => {
+    if (!error || !errorRef.current || prefersReducedMotion()) return
+    gsap.from(errorRef.current, { opacity: 0, x: -8, duration: 0.3, ease: 'expo.out' })
+  }, [error])
+
+  const doRegister = async (credential?: CaptchaCredential) => {
     setSubmitting(true)
     try {
       const newUser = await register(email, username, password, {
@@ -50,7 +60,7 @@ export default function RegisterPage() {
     // 开启人机验证时先弹窗验证，通过后携带凭证提交
     if (captcha.enabled) {
       setSubmitting(true)
-      let credential: GeetestCredential
+      let credential: CaptchaCredential
       try {
         credential = await captcha.run()
       } catch (err) {
@@ -75,9 +85,8 @@ export default function RegisterPage() {
   if (!registrationOpen) {
     return (
       <div className="relative flex min-h-full items-center justify-center px-4 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
+        <Reveal
+          y={16}
           className="w-full max-w-sm rounded-2xl border border-border bg-card p-8 text-center shadow-xl shadow-black/5"
         >
           <h1 className="text-xl font-bold">暂未开放注册</h1>
@@ -90,7 +99,7 @@ export default function RegisterPage() {
           >
             去登录
           </Link>
-        </motion.div>
+        </Reveal>
       </div>
     )
   }
@@ -98,18 +107,14 @@ export default function RegisterPage() {
   return (
     <div className="relative flex min-h-full items-center justify-center overflow-hidden px-4 py-16">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(37,99,235,0.06),transparent_65%)]" />
-      <motion.div
-        initial={{ opacity: 0, y: 24, scale: 0.97 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.5, ease: easeOut }}
+      <Reveal
+        y={24}
+        scale={0.97}
+        duration={0.5}
         className="relative w-full max-w-sm"
       >
         <div className="rounded-2xl border border-border bg-card p-8 shadow-xl shadow-black/5">
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15, duration: 0.4, ease: easeOut }}
-          >
+          <Reveal y={12} delay={0.15} duration={0.4}>
             <h1 className="text-2xl font-bold tracking-tight">创建账号</h1>
             <p className="mt-1.5 text-sm text-muted-foreground">
               已有账号？{' '}
@@ -117,22 +122,20 @@ export default function RegisterPage() {
                 直接登录
               </Link>
             </p>
-          </motion.div>
+          </Reveal>
 
-          <motion.form
+          <form
+            ref={formRef}
             onSubmit={handleSubmit}
             className="mt-8 space-y-5"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25, duration: 0.4, ease: easeOut }}
           >
             {fields.map((f, i) => (
-              <motion.div
+              <Reveal
                 key={f.id}
+                x={-12}
+                delay={0.2 + i * 0.05}
+                duration={0.3}
                 className="space-y-1.5"
-                initial={{ opacity: 0, x: -12 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2 + i * 0.05, duration: 0.3, ease: easeOut }}
               >
                 <label htmlFor={f.id} className="text-sm font-medium">
                   {f.label}
@@ -149,7 +152,7 @@ export default function RegisterPage() {
                   placeholder={f.placeholder}
                   className={inputClass}
                 />
-              </motion.div>
+              </Reveal>
             ))}
 
             {site.emailCode.on_register && (
@@ -162,20 +165,18 @@ export default function RegisterPage() {
             )}
 
             {error && (
-              <motion.p
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
+              <p
+                ref={errorRef}
                 className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300"
               >
                 {error}
-              </motion.p>
+              </p>
             )}
 
-            <motion.button
+            <button
               type="submit"
               disabled={submitting}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              {...hoverTapScale}
               className="w-full rounded-lg bg-accent py-2.5 text-sm font-medium text-white shadow-lg shadow-accent/25 disabled:opacity-60"
             >
               {submitting ? (
@@ -186,11 +187,12 @@ export default function RegisterPage() {
               ) : (
                 '注册'
               )}
-            </motion.button>
-          </motion.form>
+            </button>
+          </form>
         </div>
-      </motion.div>
+      </Reveal>
       {captcha.dialog}
+      {captcha.prewarmNode}
     </div>
   )
 }

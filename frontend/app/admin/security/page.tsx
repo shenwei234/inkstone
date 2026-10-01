@@ -1,15 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
+import { useEffect, useRef, useState } from 'react'
+import gsap from 'gsap'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Fingerprint, Gauge, KeyRound, Mail, ShieldCheck } from 'lucide-react'
+import { Check, Fingerprint, Gauge, KeyRound, Mail, ShieldCheck } from 'lucide-react'
 import { fetchAdminSettings, updateAdminSettings, ApiError } from '@/lib/api'
 import { useNotify } from '@/components/toast'
 import { SecretInput } from '@/components/secret-input'
-import { PageTransition } from '@/components/motion'
-
-const easeOut = [0.16, 1, 0.3, 1] as const
+import { PageTransition, hoverTapScale, prefersReducedMotion, useReveal } from '@/components/motion'
+import { PageLoading } from '@/components/page-loader'
 
 const inputClass =
   'w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20'
@@ -23,6 +22,7 @@ interface SecurityForm {
   security_block_minutes: number
   email_code_on_register: boolean
   email_code_on_login: boolean
+  captcha_provider: string
   geetest_enabled: boolean
   geetest_captcha_id: string
   geetest_captcha_key: string
@@ -30,6 +30,10 @@ interface SecurityForm {
   geetest_on_login: boolean
   geetest_on_register: boolean
   geetest_on_comment: boolean
+  lap_enabled: boolean
+  lap_on_login: boolean
+  lap_on_register: boolean
+  lap_on_comment: boolean
 }
 
 function Toggle({
@@ -43,6 +47,14 @@ function Toggle({
   label: string
   desc?: string
 }) {
+  // 开关滑块：checked 变化时用 GSAP 位移（替代原 framer spring）
+  const knobRef = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (knobRef.current && !prefersReducedMotion()) {
+      gsap.to(knobRef.current, { x: checked ? 20 : 0, duration: 0.25, ease: 'power2.out' })
+    }
+  }, [checked])
+
   return (
     <div className="flex items-center justify-between gap-4 py-3">
       <div className="min-w-0">
@@ -58,9 +70,8 @@ function Toggle({
         role="switch"
         aria-checked={checked}
       >
-        <motion.span
-          animate={{ x: checked ? 20 : 0 }}
-          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+        <span
+          ref={knobRef}
           className="absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow-sm"
         />
       </button>
@@ -77,11 +88,13 @@ function Section({
   title: string
   children: React.ReactNode
 }) {
+  // 分区卡片：语义标签，用 useReveal 挂入场动画（不改 DOM 结构）
+  const sectionRef = useRef<HTMLElement>(null)
+  useReveal(sectionRef, { y: 16, duration: 0.4 })
+
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: easeOut }}
+    <section
+      ref={sectionRef}
       className="rounded-xl border border-border bg-card"
     >
       <div className="flex items-center gap-2 border-b border-border px-5 py-3.5">
@@ -89,7 +102,7 @@ function Section({
         <h2 className="text-sm font-semibold">{title}</h2>
       </div>
       <div className="px-5 py-4">{children}</div>
-    </motion.section>
+    </section>
   )
 }
 
@@ -118,6 +131,7 @@ export default function AdminSecurityPage() {
         security_block_minutes: toNum(s.security_block_minutes, 15),
         email_code_on_register: toBool(s.email_code_on_register, false),
         email_code_on_login: toBool(s.email_code_on_login, false),
+        captcha_provider: s.captcha_provider === 'lap' ? 'lap' : 'geetest',
         geetest_enabled: toBool(s.geetest_enabled, false),
         geetest_captcha_id: typeof s.geetest_captcha_id === 'string' ? s.geetest_captcha_id : '',
         geetest_captcha_key: '',
@@ -125,6 +139,10 @@ export default function AdminSecurityPage() {
         geetest_on_login: toBool(s.geetest_on_login, false),
         geetest_on_register: toBool(s.geetest_on_register, false),
         geetest_on_comment: toBool(s.geetest_on_comment, false),
+        lap_enabled: toBool(s.lap_enabled, false),
+        lap_on_login: toBool(s.lap_on_login, false),
+        lap_on_register: toBool(s.lap_on_register, false),
+        lap_on_comment: toBool(s.lap_on_comment, false),
       })
     }, 0)
     return () => clearTimeout(t)
@@ -132,11 +150,23 @@ export default function AdminSecurityPage() {
 
   const save = useMutation({
     mutationFn: () => {
-      const payload: Record<string, unknown> = { ...form }
-      // 密钥留空 = 保持原值（后端对敏感字段做空值保护，这里不透传只读标记）
-      delete payload.geetest_captcha_key_set
-      if (!form!.geetest_captcha_key) delete payload.geetest_captcha_key
-      return updateAdminSettings(payload as never)
+        const payload: Record<string, unknown> = { ...form }
+        // 密钥留空 = 保持原值（后端对敏感字段做空值保护，这里不透传只读标记）
+        delete payload.geetest_captcha_key_set
+        if (!form!.geetest_captcha_key) delete payload.geetest_captcha_key
+        // Lap 技术配置不在后台展示，绝不进 payload（防止保存时覆盖 DB 里
+        // 已有的自托管 endpoint/siteKey/secret/resolve_ip/proxy 配置）
+        for (const k of [
+          'lap_api_endpoint',
+          'lap_site_key',
+          'lap_secret_key',
+          'lap_secret_key_set',
+          'lap_resolve_ip',
+          'lap_http_proxy',
+        ]) {
+          delete payload[k]
+        }
+        return updateAdminSettings(payload as never)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'settings'] })
@@ -150,10 +180,8 @@ export default function AdminSecurityPage() {
     return (
       <div>
         <h1 className="text-2xl font-bold tracking-tight">安全防护</h1>
-        <div className="mt-6 space-y-4">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="skeleton h-32 rounded-xl" />
-          ))}
+        <div className="mt-6">
+          <PageLoading minHeight="8rem" />
         </div>
       </div>
     )
@@ -171,15 +199,14 @@ export default function AdminSecurityPage() {
             访问限流与邮箱验证码，抵御垃圾注册、暴力破解与刷接口
           </p>
         </div>
-        <motion.button
+        <button
           onClick={() => save.mutate()}
           disabled={save.isPending}
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
+          {...hoverTapScale}
           className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
         >
           {save.isPending ? '保存中...' : '保存设置'}
-        </motion.button>
+        </button>
       </div>
 
       <div className="mt-6 grid gap-4">
@@ -273,79 +300,173 @@ export default function AdminSecurityPage() {
           </div>
         </Section>
 
-        <Section icon={<Fingerprint className="h-4 w-4 text-indigo-500" />} title="人机验证（极验第四代）">
+        <Section icon={<Fingerprint className="h-4 w-4 text-indigo-500" />} title="人机验证">
           <p className="text-xs text-muted-foreground">
-            开启后，登录 / 注册 / 发表评论提交时会弹出极验行为验证（滑块或点选文字），
-            阻挡机器脚本与批量攻击。需先在{' '}
-            <a
-              href="https://www.geetest.com"
-              target="_blank"
-              rel="noreferrer"
-              className="font-medium text-accent hover:underline underline-offset-4"
+            选择验证码提供方。登录 / 注册 / 发表评论提交时将按所选方案弹窗验证，
+            阻挡机器脚本与批量攻击。
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => update('captcha_provider', 'geetest')}
+              className={`rounded-xl border p-4 text-left transition-colors ${
+                form.captcha_provider !== 'lap'
+                  ? 'border-accent bg-accent/5'
+                  : 'border-border hover:border-accent/40'
+              }`}
             >
-              极验官网
-            </a>
-            {' '}获取 captchaId 与 captchaKey。
-          </p>
-          <div className="mt-2 divide-y divide-border border-t border-border">
-            <Toggle
-              checked={form.geetest_enabled}
-              onChange={(v) => update('geetest_enabled', v)}
-              label="启用人机验证"
-              desc="总开关；关闭后下方场景全部失效"
-            />
-            <Toggle
-              checked={form.geetest_on_login}
-              onChange={(v) => update('geetest_on_login', v)}
-              label="登录需人机验证"
-              desc="用户点击登录时先弹窗验证"
-            />
-            <Toggle
-              checked={form.geetest_on_register}
-              onChange={(v) => update('geetest_on_register', v)}
-              label="注册需人机验证"
-              desc="抵御批量注册小号"
-            />
-            <Toggle
-              checked={form.geetest_on_comment}
-              onChange={(v) => update('geetest_on_comment', v)}
-              label="发表评论需人机验证"
-              desc="评论/发帖提交前先验证"
-            />
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold">极验第四代</p>
+                <span
+                  className={`flex h-4 w-4 items-center justify-center rounded-full border ${
+                    form.captcha_provider !== 'lap' ? 'border-accent bg-accent' : 'border-border'
+                  }`}
+                >
+                  {form.captcha_provider !== 'lap' && <Check className="h-3 w-3 text-white" />}
+                </span>
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                滑块 / 点选行为验证，识别度高；需在极验官网注册获取 captchaId 与 captchaKey。
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => update('captcha_provider', 'lap')}
+              className={`rounded-xl border p-4 text-left transition-colors ${
+                form.captcha_provider === 'lap'
+                  ? 'border-accent bg-accent/5'
+                  : 'border-border hover:border-accent/40'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold">Lap（工作量证明）</p>
+                <span
+                  className={`flex h-4 w-4 items-center justify-center rounded-full border ${
+                    form.captcha_provider === 'lap' ? 'border-accent bg-accent' : 'border-border'
+                  }`}
+                >
+                  {form.captcha_provider === 'lap' && <Check className="h-3 w-3 text-white" />}
+                </span>
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                浏览器本地完成 PoW 计算证明你是真人，无行为数据上传；后端可自建于
+                Cloudflare Workers，无需商业账号。
+              </p>
+            </button>
           </div>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">验证 ID（captchaId）</label>
-              <input
-                value={form.geetest_captcha_id}
-                onChange={(e) => update('geetest_captcha_id', e.target.value)}
-                placeholder="极验后台获取，形如 8342ecxxxx0a56c73d8b0a2f8xxxxxx"
-                className={inputClass}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">
-                验证密钥（captchaKey）
-                {form.geetest_captcha_key_set && (
-                  <span className="ml-2 text-xs text-emerald-600 dark:text-emerald-400">
-                    已配置（留空保持不变）
-                  </span>
-                )}
-              </label>
-              <SecretInput
-                key={`geetest-key-${form.geetest_captcha_key_set ? 'set' : 'unset'}`}
-                value={form.geetest_captcha_key}
-                onChange={(v) => update('geetest_captcha_key', v)}
-                isSet={form.geetest_captcha_key_set}
-                placeholder={form.geetest_captcha_key_set ? '已保存，重新输入可覆盖' : '未设置'}
-                className={inputClass}
-              />
-            </div>
-          </div>
-          <p className="mt-3 rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
-            说明：密钥仅保存在服务端用于二次校验，不会下发到浏览器；若已开启场景但未填写 captchaId /
-            密钥，或极验服务不可达时自动放行，不会把用户锁死在登录之外。
-          </p>
+
+          {form.captcha_provider === 'lap' ? (
+            <>
+              <div className="mt-4 divide-y divide-border border-t border-border">
+                <Toggle
+                  checked={form.lap_enabled}
+                  onChange={(v) => update('lap_enabled', v)}
+                  label="启用 Lap 人机验证"
+                  desc="总开关；关闭后下方场景全部失效"
+                />
+                <Toggle
+                  checked={form.lap_on_login}
+                  onChange={(v) => update('lap_on_login', v)}
+                  label="登录需人机验证"
+                  desc="用户点击登录时先弹窗验证"
+                />
+                <Toggle
+                  checked={form.lap_on_register}
+                  onChange={(v) => update('lap_on_register', v)}
+                  label="注册需人机验证"
+                  desc="抵御批量注册小号"
+                />
+                <Toggle
+                  checked={form.lap_on_comment}
+                  onChange={(v) => update('lap_on_comment', v)}
+                  label="发表评论需人机验证"
+                  desc="评论/发帖提交前先验证"
+                />
+              </div>
+              <p className="mt-3 rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+                说明：基于工作量证明（PoW）的人机验证，内置默认实例、开箱即用——
+                开启总开关并按需勾选场景即可，无需任何密钥配置。访客浏览器的
+                widget.js、WASM、challenge / redeem 由本站后端代理转发，不要求访客
+                网络能直连 Cloudflare。自托管实例 / 网络兜底等高级配置不在后台展示，
+                通过环境变量（INKSTONE_LAP_SECRET）或数据库 settings 表覆盖；
+                Lap 服务不可达时自动放行，不会把用户锁死在登录之外。
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="mt-2 text-xs text-muted-foreground">
+                需先在{' '}
+                <a
+                  href="https://www.geetest.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium text-accent hover:underline underline-offset-4"
+                >
+                  极验官网
+                </a>
+                {' '}获取 captchaId 与 captchaKey。
+              </p>
+              <div className="mt-4 divide-y divide-border border-t border-border">
+                <Toggle
+                  checked={form.geetest_enabled}
+                  onChange={(v) => update('geetest_enabled', v)}
+                  label="启用人机验证"
+                  desc="总开关；关闭后下方场景全部失效"
+                />
+                <Toggle
+                  checked={form.geetest_on_login}
+                  onChange={(v) => update('geetest_on_login', v)}
+                  label="登录需人机验证"
+                  desc="用户点击登录时先弹窗验证"
+                />
+                <Toggle
+                  checked={form.geetest_on_register}
+                  onChange={(v) => update('geetest_on_register', v)}
+                  label="注册需人机验证"
+                  desc="抵御批量注册小号"
+                />
+                <Toggle
+                  checked={form.geetest_on_comment}
+                  onChange={(v) => update('geetest_on_comment', v)}
+                  label="发表评论需人机验证"
+                  desc="评论/发帖提交前先验证"
+                />
+              </div>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">验证 ID（captchaId）</label>
+                  <input
+                    value={form.geetest_captcha_id}
+                    onChange={(e) => update('geetest_captcha_id', e.target.value)}
+                    placeholder="极验后台获取，形如 8342ecxxxx0a56c73d8b0a2f8xxxxxx"
+                    className={inputClass}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">
+                    验证密钥（captchaKey）
+                    {form.geetest_captcha_key_set && (
+                      <span className="ml-2 text-xs text-emerald-600 dark:text-emerald-400">
+                        已配置（留空保持不变）
+                      </span>
+                    )}
+                  </label>
+                  <SecretInput
+                    key={`geetest-key-${form.geetest_captcha_key_set ? 'set' : 'unset'}`}
+                    value={form.geetest_captcha_key}
+                    onChange={(v) => update('geetest_captcha_key', v)}
+                    isSet={form.geetest_captcha_key_set}
+                    placeholder={form.geetest_captcha_key_set ? '已保存，重新输入可覆盖' : '未设置'}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+              <p className="mt-3 rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+                说明：密钥仅保存在服务端用于二次校验，不会下发到浏览器；若已开启场景但未填写
+                captchaId / 密钥，或极验服务不可达时自动放行，不会把用户锁死在登录之外。
+              </p>
+            </>
+          )}
         </Section>
 
         <Section icon={<KeyRound className="h-4 w-4 text-amber-500" />} title="安全建议">

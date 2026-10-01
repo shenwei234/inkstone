@@ -63,20 +63,6 @@ func (r *TaxonomyRepository) FindCategoryByID(id uint) (*model.Category, error) 
 	return &c, nil
 }
 
-func (r *TaxonomyRepository) FindOrCreateCategory(name string) (*model.Category, error) {
-	slug := Slugify(name)
-	var c model.Category
-	err := r.db.Where("slug = ?", slug).First(&c).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		c = model.Category{Name: name, Slug: slug}
-		err = r.db.Create(&c).Error
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &c, nil
-}
-
 // CreateTag creates a tag (returns existing one when the slug already exists).
 func (r *TaxonomyRepository) CreateTag(name string) (*model.Tag, error) {
 	name = trimSpace(name)

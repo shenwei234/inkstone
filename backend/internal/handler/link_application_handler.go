@@ -12,16 +12,16 @@ import (
 
 type LinkApplicationHandler struct {
 	apps    *service.LinkApplicationService
-	geetest *service.GeetestService
+	captcha *service.CaptchaService
 	logs    *service.LogService
 }
 
 func NewLinkApplicationHandler(
 	apps *service.LinkApplicationService,
-	geetest *service.GeetestService,
+	captcha *service.CaptchaService,
 	logs *service.LogService,
 ) *LinkApplicationHandler {
-	return &LinkApplicationHandler{apps: apps, geetest: geetest, logs: logs}
+	return &LinkApplicationHandler{apps: apps, captcha: captcha, logs: logs}
 }
 
 // linkApplicationResponse 脱敏后台视图（IP 哈希可不下发，防社工）。
@@ -47,7 +47,7 @@ type submitLinkApplicationRequest struct {
 	Description string `json:"description"`
 	IconURL     string `json:"icon_url"`
 	Email       string `json:"email"`
-	service.GeetestParams
+	service.CaptchaParams
 }
 
 // Submit handles POST /link-applications — 访客自助提交友链申请（公开）。
@@ -58,7 +58,7 @@ func (h *LinkApplicationHandler) Submit(c *gin.Context) {
 		return
 	}
 	// 人机验证复用「评论」场景：开启评论验证码时同时保护友链申请
-	if err := h.geetest.Verify("comment", req.GeetestParams); err != nil {
+	if err := h.captcha.Verify("comment", req.CaptchaParams); err != nil {
 		errorResponse(c, err)
 		return
 	}

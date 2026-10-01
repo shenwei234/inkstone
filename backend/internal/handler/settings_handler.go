@@ -15,12 +15,12 @@ type SettingsHandler struct {
 	settings  *service.SettingsService
 	mailer    *mailer.Mailer
 	emailCode *service.EmailCodeService
-	geetest   *service.GeetestService
+	captcha   *service.CaptchaService
 	logs      *service.LogService
 }
 
-func NewSettingsHandler(settings *service.SettingsService, mailClient *mailer.Mailer, emailCode *service.EmailCodeService, geetest *service.GeetestService, logs *service.LogService) *SettingsHandler {
-	return &SettingsHandler{settings: settings, mailer: mailClient, emailCode: emailCode, geetest: geetest, logs: logs}
+func NewSettingsHandler(settings *service.SettingsService, mailClient *mailer.Mailer, emailCode *service.EmailCodeService, captcha *service.CaptchaService, logs *service.LogService) *SettingsHandler {
+	return &SettingsHandler{settings: settings, mailer: mailClient, emailCode: emailCode, captcha: captcha, logs: logs}
 }
 
 // Get handles GET /admin/settings.
@@ -88,8 +88,13 @@ func (h *SettingsHandler) SiteConfig(c *gin.Context) {
 	if h.emailCode != nil {
 		out["email_code"] = h.emailCode.PublicConfig()
 	}
-	if h.geetest != nil {
-		out["geetest"] = h.geetest.PublicConfig()
+	if h.captcha != nil {
+		cfg := h.captcha.PublicConfig()
+		// geetest 保持顶层键名不变（前台配置读取路径兼容），
+		// 新增 lap 配置与 captcha_provider 选择器
+		out["geetest"] = cfg["geetest"]
+		out["lap"] = cfg["lap"]
+		out["captcha_provider"] = cfg["provider"]
 	}
 	c.JSON(http.StatusOK, out)
 }

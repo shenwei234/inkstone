@@ -158,30 +158,65 @@ func resolveCover(explicit, content string) string {
 }
 ```
 
-### CaptchaService（重要）
-4 种提供方：`none` / `turnstile` / `geetest` / `builtin`
+### 人机验证（`geetest_service.go` / `lap_service.go` / `captcha_service.go`）
 
-```go
-Required(action)   // "register"|"login"|"comment"|"article" 是否需要验证
-Verify(action, token, answer, remoteIP) error
-NewChallenge()     // 生成算式挑战（builtin/降级用）
+三层结构：两个 provider 实现 + 一个门面。
+
+```
+CaptchaService（captcha_service.go，handler 唯一入口）
+ ├── GeetestService（geetest_service.go）极验第四代行为验证
+ └── LapService（lap_service.go）Lap 工作量证明（Cap 的 CF Workers 分支）
 ```
 
-**容错设计（很重要，勿破坏）**：
-1. 未配置密钥 → `return nil`（放行）
-2. 客户端未加载组件（空 token）→ `return nil`（放行）
-3. 第三方服务不可达 → `return nil`（放行）
-4. 只有「答错/伪造」才拒绝
+```go
+// 门面：按设置项 captcha_provider（"geetest" 默认 | "lap"）分发
+captcha.Required(action)              // "register"|"login"|"comment" 场景是否开启
+captcha.Verify(action, CaptchaParams) // 按 provider 校验；CaptchaParams 同时携带两套凭证字段
+captcha.PublicConfig()                // {provider, geetest:{...}, lap:{...}} 下发 /site-config
+```
+
+`CaptchaParams` 请求体字段：极验 `{lot_number, captcha_output, pass_token, gen_time}`，
+Lap `{lap_token}`（widget solve 事件产出的 `SITEKEY:ID:TOKEN`）；未选中的 provider 忽略。
+
+**Lap 协议**（前端由实例的 widget.js 完成 challenge→redeem，后端只做 siteverify）：
+1. widget POST `{endpoint}challenge`（endpoint = 后台配置的 `lap_api_endpoint`）
+2. 浏览器 WASM 本地解 PoW → widget POST `{endpoint}redeem` 换出 `lap_token`
+3. 后端 POST `{origin}/siteverify` body `{secret, response: lap_token}` → `{success, error}`
+   （URL 由 endpoint 推导：`scheme://host/siteverify`，见 `lapSiteVerifyURL`）
+   - `success:true` 通过；业务失败（token 无效/过期）→ 400 拒绝
+   - "Invalid site key or secret"（后台配置问题）/ 网络错误 / 解析失败 → 放行并打日志
+   - 本地 `claimTicket` 防同一令牌重复提交（10 分钟 TTL）
+
+
+**Lap 网络兜底（2026-10 加，两层按设置动态生效）**：
+- `lap_resolve_ip`：后端 Transport 的 DialContext 仅对 lap_api_endpoint 的 host 做固定 IP 拨号
+  （DNS 被污染到假 IP 时用；TLS SNI 不变，jsdelivr 等 host 走正常解析）
+- `lap_http_proxy`：本机到 Lap 实例整段被阻断（TUN 代理黑洞 Cloudflare 段）时，后端经
+  HTTP 代理访问（开发机填 clash 端口；生产服务器留空直连）
+- `lap_transport.go` 的 `NewLapHTTPClient` 同时服务 siteverify 与代理 handler。
+  **`DisableKeepAlives: true` + `LapDo` 重试一次是必需的**：本地代理（clash）
+  切换节点/重启后，Transport 缓存的 idle keep-alive 连接会 EOF，而 POST 不会被
+  自动重试 → 前端持续报「验证组件加载失败」、后端 502（排查现象：curl 经代理
+  通，但 Go 长驻进程仍 502）。禁用 idle 复用使每次请求新建连接，再加连接级
+  错误重试一次（4xx/5xx 业务响应不重试）
+
+**Lap 同源代理（`lap_proxy.go`，公开路由 `api.Any("/lap/*path")`）**：
+访客浏览器**不直连** workers.dev（DNS 污染/超时是真实事故），全部经本站后端转发：
+- GET `/lap/widget.js`、`/lap/widget.compat.js`、`/floating.js` → Lap 实例同路径（缓存 5min）
+- GET `/lap/wasm` → jsdelivr PoW WASM（`LapWasmUpstream`，缓存 5min）
+- POST `/lap/{siteKey}/challenge`、`/lap/{siteKey}/redeem` → 实例同路径（siteKey 须与配置一致，no-store）
+- 白名单外一律 404；请求体 1MB 上限；**必须透传浏览器 UA**（Cloudflare 对 Go-http-client
+  的 POST 直接 403 Blocked）；siteverify 不走代理（后端内部直连）
+**容错设计（很重要，勿破坏）**：两套 provider 同一约定——
+1. 场景未开启 → `return nil`（放行）
+2. 密钥/端点未配置 → `return nil`（放行，打日志）
+3. 第三方服务不可达 / 响应异常 → `return nil`（放行）
+4. 只有「未完成验证 / 凭证无效 / 重放」才拒绝
 
 环境变量 `INKSTONE_DISABLE_CAPTCHA=1` 可全局紧急停用验证码。
 
-**极验 token 格式**：前端把 4 个字段 JSON 序列化后作为 `captcha_token` 提交：
-```json
-{"lot_number":"...","captcha_output":"...","pass_token":"...","gen_time":"..."}
-```
+**极验 token 格式**：前端把 4 个字段 JSON 序列化后随请求提交，
 后端用 `captcha_key` 算 `sign_token = HMAC-SHA256(lot_number, key)` 后调 `https://gcaptcha4.geetest.com/validate`。
-
-**内置算式**：`HMAC-SHA256` 签名的 token（`<base64payload>.<sig>`），5 分钟过期。
 
 ### SettingsService
 键值设置系统，**30 秒内存缓存**。
@@ -206,88 +241,12 @@ AdminView()                    // 管理视图（maskKeys 转为 xxx_set）
 - `Trend(days)` — 返回 N 天趋势，**自动补零日期**
 - `SystemResources()` — 系统资源（跨平台：`stat_linux.go` 读 /proc，`stat_windows.go` 用 PowerShell CIM）
 
-### UpdateService（Beta1.15，系统更新核心）
-
-`internal/service/update_service.go` + `update_agent.go` + `docker_engine.go`。
-
-```
-StartScheduler()            启动每 30s tick 的调度循环（立即查一次，之后按 setting 间隔）
-                            发现新版本且 auto_update 开启 → 自动执行更新
-RecoverInterruptedUpdate()  启动 30s 后自检：上次更新中断（残留 running）→ 自动回滚
-State()                     更新后台首页状态（docker/settings/remote/task/history/rollback）
-CheckNow()                  立即检查（绕过 5 分钟缓存）
-StartUpdate(triggeredBy)    异步启动更新（auto/manual）
-StartRollback()             异步启动回滚
-ApplySettings(payload)      保存更新设置（委托 SettingsService）
-RunUpdateAgent()            子命令入口（`server update-agent`，由 agent 容器执行）
-```
-
-**docker_engine.go**：零依赖 Docker Engine API 客户端（`net/http` + unix socket，API v1.43）：
-ping / images load / images json（ID 查询）/ tag / containers json（compose label 定位）/ inspect /
-create（原始 body 与 inspect 复用两种）/ start / stop / remove。**没有引入 docker SDK**。
-
-**请求头坑（Beta1.24 修复）**：Docker 新版 daemon 对带 body 的请求强制要求 `Content-Type: application/json`，
-缺失报 `malformed Content-Type header (): mime: no media type`（HTTP 400）。`doJSON` 在 body 非空时统一补该头；
-`docker load` 走 `doWithHeaders` 显式设 `application/x-tar`；无 body 的 POST（stop/start/tag）daemon 不校验。
-
-**更新主流程**（`performUpdate`）：
-1. 并发探测版本清单源（raw.githubusercontent.com 直连 + jsDelivr + 各加速源），第一个成功即用，缓存 5 分钟
-2. 下载镜像包：加速源 HEAD 测速排序 → 顺序尝试 → 失败自动切换；流式下载同时算 SHA256 并回调进度
-3. SHA256 校验（清单未提供则跳过）
-4. `docker load` → **镜像 ID 比对**（与「当前运行容器」的镜像一致 = 假更新，报错终止；
-   比的是运行容器而非宿主机 `latest`——上次失败的更新可能已把 latest 残留成新镜像）
-5. 按「当前运行镜像」ID 打 `rollback-<recordID>` tag（回滚要回到正在跑的版本）
-6. `spawnAgent`：用**当前 backend 镜像**创建一次性 agent 容器（`/app/server update-agent`，
-   AutoRemove、只挂 docker.sock、不绑端口、继承 compose 网络与 DB 环境变量）
-7. 记录 `deploying` → `docker stop` 自身（30s）——此后 backend 进程死亡，由 agent 收尾
-
-**latest 残留防护（Beta1.21 事故后修复）**：`docker load` 会无条件把宿主机 `latest` 改写为新镜像。
-load 之后、agent 接管之前的任何同步失败（打 tag 失败/spawnAgent 失败）或进程中断，
-都会留下「latest=新镜像、运行容器=旧版本」的残留，导致重试更新被防呆误判「假更新」而永久卡死。防护：
-- load 前把宿主机 latest 镜像 ID 快照写入 `UpdateRecord.OldImages`（JSON: repo→ID）
-- performUpdate 的所有 load 后失败路径先调 `restoreLatestFromRecord(rec)` 还原 latest 再记失败
-- `recoverInterrupted` 对「未打 rollback tag 就中断」的记录同样先还原再记失败
-- 回滚素材改用**运行容器**镜像 ID（原来用宿主机 latest，残留场景会回滚错版本）
-
-**agent 流程**（daemon 托管，backend 停掉后仍存活）：
-1. sleep 5s → 先 recreate frontend → 再 rm 旧 backend + create 新 backend + start
-2. 健康检查：`http://<容器名>:8080/healthz` 轮询 150s + `/api/v1/system/info` 版本核对
-3. 任一失败 → `agentRollbackFrom`：rollback tag → latest → 重建两个容器 → 再健康检查
-4. 写终态记录后退出（AutoRemove 自动清理）
-
-**并发保护**：`FindRunning()` 查库判重；调度器与手动触发共用；更新期间禁回滚。
-
-**单测**（`internal/service/update_test.go`，23 个用例）：`compareVersion`（Beta1.14>Beta1.9 等字符串比较陷阱）、`versionNumbers`、`joinMirror`（**必须保留目标 URL 的 https://，ghproxy 系解析依赖**）、`manifestToRemote`、`fetchManifestURL`（合法/缺字段/非 JSON）、`rankSources`（httptest 快/慢/503 排序）、`probeLatency`、`progressWriter` 节流、清单 JSON 往返、`DockerClient` 不可用路径、`validateUpdateSettings`（repo 路径注入/间隔越界/非 http 加速源）、`tryBeginUpdate` 互斥、`validateUpdateSettings`、`TestDownloadFileResume`（续传 SHA256 拼接对拍 + 无 Range 服务器从头重下）、`TestUpdateSettingDefaults`（默认值完整性）、`formatBytes`、`sortMirrorLatency`。改更新链路先跑 `go test ./internal/service/`。
-
 **健壮性要点（Beta1.15 审查后补充）**：
-- 清单探测有 **20s 总时限**（多源并行，不会无限等）；镜像源下载失败自动切换下一个
-- `ApplySettings` 入库前校验 repo 格式（`owner/repo`，防 URL 注入）、间隔 1-1440、加速源必须 http(s)
 - `main.go` 优雅停机（SIGTERM → `srv.Shutdown` 30s），保证更新停容器期间在途请求落库
-- `docker load` 显式 `Content-Type: application/x-tar`；Docker 响应读取上限 32MB
-- agent 回滚支持「容器已删除」场景：用 rm 前暂存的 inspect 快照重建 backend，杜绝站点消失
-
-**可用性要点（Beta1.16 审查后补充）**：
-- **周期中断自检**：调度器每 5 分钟调 `recoverInterrupted()`（不再仅启动时）——agent 崩溃/残留 running 记录会被清理或自动回滚，否则记录卡 running 会永久挡住手动更新
-- **快速失败回滚**：`waitHealthy` 轮询中检测容器已退出（crash-loop）立即返回失败，不等满 150s 超时
-- **磁盘预检**：下载前 `diskFreeBytes`（Linux Statfs，`update_disk_linux.go`；Windows 构建 tag 跳过）要求 镜像包大小 + 512MB 余量，不足直接报错
-- 记录查询统一 `latestOne`（`Limit(1).Find`）：无记录不打 GORM not-found 日志
 
 **安全要点（Beta1.18 审查后补充）**：
-- 更新链路强制 https：加速源设置仅接受 `https://`；manifest/asset URL 均过 `requireHTTPSURL`
-- **强制 SHA256**：清单未提供校验值直接拒绝下载（防镜像包被中间人替换）
-- **镜像白名单**：`allowedImageRepos` 仅 `inkstone-backend/inkstone-frontend` + tag 必须 latest + service 必须已知，防恶意清单把任意镜像写进 tag/部署；agent 部署前二次校验（纵深防御）
-- 更新/回滚接口独立限流 **5 次/分钟**、check/测速 10 次/分钟（apiLimiter，`Message=update/update-probe`）
-- agent 容器最小权限：`Privileged=false`、`CapAdd=nil`、`CapDrop=ALL`、`no-new-privileges`、只挂 docker.sock(ro)、不绑端口、禁重启
 - compose backend 同样 `cap_drop: ALL` + `no-new-privileges`（Go 静态服务无需任何 capability）
 - `SecurityHeaders` 含 HSTS（max-age 1 年 + includeSubDomains）；JWT_SECRET<32 启动 Warn
-- 更新清单来自 GitHub（可信源）+ TLS + 白名单 + SHA256 四层校验，任何一层不过即中止
-
-**性能要点（Beta1.15 审查后补充）**：
-- 下载/`docker load` 均用 **512KB buffer**（默认 32KB syscall 过多）；下载带 `ResponseHeaderTimeout=60s` 防挂死
-- **断点续传**：下载失败换源时带 `Range: bytes=N-` 续拉，旧内容先喂 SHA256 再追加（500MB 包慢网重下不从头）；服务端不支持 Range 自动从头
-- 清单/测速请求共享 `updateProbeClient`（连接池复用）+ `context` 取消（首源成功后其余请求立即中断，无 goroutine 泄漏）
-- `State()` 用**单次** `List(20)` 查询推导 task/rollback/history（轮询 30s 一次，避免 3 次 DB 往返）；`DockerEnvInfo` 10s 缓存
-- 测速用 `Range: bytes=0-2047` 只取 2KB，不为探测拉全量
 
 ### LogService（`service/log_service.go`，Beta1.12 增强）
 ```go
@@ -360,15 +319,3 @@ Stats()                   // 各分类计数（旧接口）
 ```bash
 docker exec blog-postgres psql -U blog -d blog_platform -c "SELECT * FROM settings LIMIT 10;"
 ```
-## 下载慢的治理（Beta1.20）
-
-实例端下载 109MB 镜像包慢的根因与对策：
-
-1. **GitHub 直连被 QoS 限速**（实测服务器出口下载仅 ~3KB/s）
-2. **选源逻辑曾经按 RTT 排序**：直连 RTT ~300ms 排第一，但它带宽 KB/s；加速源 RTT 略高但带宽 MB/s → 持续选中慢源
-3. **修复**：`rankSourcesBySpeed` 每个源 GET Range 取 4MB 实测带宽，按速度降序选源
-4. **断流卡死修复**：`idleTimeoutReader` 2 分钟无数据即失败换源（原来 body 传输无超时会永久挂起）
-5. **自检误杀修复**：本进程任务由 `updating` 标志豁免；跨进程残留窗口 10 分钟
-6. 加速源均不可达时（如当前资产 404），更新会快速失败并在「更新历史」展示真实原因，不再假死
-
-**若仍慢**：更新设置里只留实测最快的 1-2 个加速源（设置页「测试延迟」有下载延迟参考）；或将清单 asset.url 指向自有服务器（走 update_mirror_urls 同级机制）。

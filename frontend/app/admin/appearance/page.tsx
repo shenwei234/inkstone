@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
+import { useEffect, useRef, useState } from 'react'
+import gsap from 'gsap'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
   ArrowDown,
@@ -16,12 +16,11 @@ import {
   Trash2,
 } from 'lucide-react'
 import { IconPicker } from '@/components/menu-icon'
+import { Reveal, easeOut, hoverTapScale, prefersReducedMotion } from '@/components/motion'
 import { updateAdminSettings, fetchAdminPages, ApiError } from '@/lib/api'
 import { useNotify } from '@/components/toast'
 import type { NavMenuItem, SidebarWidget, WidgetType } from '@/components/site-config-context'
 import { fetchSiteConfig } from '@/lib/api'
-
-const easeOut = [0.16, 1, 0.3, 1] as const
 
 const WIDGET_TYPES: { type: WidgetType; label: string; desc: string }[] = [
   { type: 'profile', label: '站长信息', desc: '头像 + 简介 + 统计' },
@@ -124,10 +123,9 @@ function MenuTab() {
       )}
 
       {items.map((item, i) => (
-        <motion.div
+        <Reveal
           key={`${item.label}-${i}`}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
+          y={8}
           className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card p-3"
         >
           <IconPicker
@@ -159,7 +157,7 @@ function MenuTab() {
           >
             <Trash2 className="h-4 w-4" />
           </button>
-        </motion.div>
+        </Reveal>
       ))}
 
       <div className="flex flex-wrap items-center gap-2">
@@ -186,22 +184,20 @@ function MenuTab() {
         >
           <Link2 className="h-4 w-4" /> 添加友链页
         </button>
-        <motion.button
+        <button
           type="button"
           onClick={() => save.mutate()}
           disabled={save.isPending}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.97 }}
+          {...hoverTapScale}
           className="ml-auto rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
         >
           {save.isPending ? '保存中...' : '保存菜单'}
-        </motion.button>
+        </button>
       </div>
 
       {addPageOpen && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
+        <Reveal
+          y={8}
           className="rounded-2xl border border-border bg-card p-3"
         >
           <p className="mb-2 text-xs text-muted-foreground">
@@ -228,7 +224,7 @@ function MenuTab() {
               ))}
             </div>
           )}
-        </motion.div>
+        </Reveal>
       )}
     </div>
   )
@@ -293,10 +289,9 @@ function WidgetsTab() {
       )}
 
       {widgets.map((w, i) => (
-        <motion.div
+        <Reveal
           key={`${w.type}-${i}`}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
+          y={8}
           className="rounded-2xl border border-border bg-card p-4"
         >
           <div className="flex items-center gap-2">
@@ -415,7 +410,7 @@ function WidgetsTab() {
               <p className="text-xs text-muted-foreground">无需额外配置</p>
             )}
           </div>
-        </motion.div>
+        </Reveal>
       ))}
 
       <div className="flex flex-wrap items-center gap-2">
@@ -437,16 +432,15 @@ function WidgetsTab() {
         >
           <Plus className="h-4 w-4" /> 添加小工具
         </button>
-        <motion.button
+        <button
           type="button"
           onClick={() => save.mutate()}
           disabled={save.isPending}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.97 }}
+          {...hoverTapScale}
           className="ml-auto rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
         >
           {save.isPending ? '保存中...' : '保存小工具'}
-        </motion.button>
+        </button>
       </div>
     </div>
   )
@@ -520,16 +514,15 @@ function SidebarPositionTab() {
         ))}
       </div>
       <div className="flex justify-end">
-        <motion.button
+        <button
           type="button"
           onClick={() => save.mutate()}
           disabled={save.isPending}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.97 }}
+          {...hoverTapScale}
           className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
         >
           {save.isPending ? '保存中...' : '保存位置'}
-        </motion.button>
+        </button>
       </div>
     </div>
   )
@@ -542,6 +535,15 @@ export default function AdminAppearancePage() {
     { key: 'widgets' as const, label: '侧边栏小工具', icon: PanelLeft },
     { key: 'sidebar' as const, label: '侧边栏位置', icon: PanelTop },
   ]
+
+  // tab 高亮背景：切换时重挂并做 scaleX 入场（替代原 layoutId 共享布局动画）
+  const tabBgRef = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    const el = tabBgRef.current
+    if (el && !prefersReducedMotion()) {
+      gsap.fromTo(el, { scaleX: 0 }, { scaleX: 1, duration: 0.3, ease: easeOut })
+    }
+  }, [tab])
 
   return (
     <div>
@@ -560,10 +562,10 @@ export default function AdminAppearancePage() {
               }`}
             >
               {tab === t.key && (
-                <motion.span
-                  layoutId="appearance-tab"
+                <span
+                  key={t.key}
+                  ref={tabBgRef}
                   className="absolute inset-0 rounded-md bg-accent"
-                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                 />
               )}
               <t.icon className="relative h-4 w-4" />
@@ -573,15 +575,14 @@ export default function AdminAppearancePage() {
         </div>
       </div>
 
-      <motion.div
+      <Reveal
         key={tab}
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, ease: easeOut }}
+        y={12}
+        duration={0.35}
         className="mt-6 rounded-2xl border border-border bg-card p-5"
       >
         {tab === 'menu' ? <MenuTab /> : tab === 'widgets' ? <WidgetsTab /> : <SidebarPositionTab />}
-      </motion.div>
+      </Reveal>
 
       <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
         <Eye className="h-3.5 w-3.5" />

@@ -53,18 +53,6 @@ func uniqueViolationField(err error) (string, bool) {
 	return "", false
 }
 
-func (r *UserRepository) FindByEmail(email string) (*model.User, error) {
-	var user model.User
-	err := r.db.Where("email = ?", email).First(&user).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, ErrNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &user, nil
-}
-
 // FindByLogin looks a user up by email or username (email是唯一的，用户名也唯一).
 func (r *UserRepository) FindByLogin(identifier string) (*model.User, error) {
 	identifier = strings.TrimSpace(identifier)

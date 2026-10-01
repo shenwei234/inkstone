@@ -23,12 +23,3 @@ func (h *SystemHandler) Info(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"info": service.BuildSystemInfo(name)})
 }
-
-// Changelog handles GET /admin/updates — current version + changelog.
-func (h *SystemHandler) Changelog(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"current":   service.AppVersion,
-		"changelog": service.ChangelogList(),
-		"version":   service.AppVersion,
-	})
-}

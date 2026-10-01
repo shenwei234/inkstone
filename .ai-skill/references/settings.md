@@ -45,15 +45,31 @@
 ### 人机验证
 | Key | 默认值 | 说明 |
 |---|---|---|
-| `captcha_provider` | `none` | `none` / `turnstile` / `geetest` / `builtin` |
-| `captcha_site_key` | `""` | Turnstile Site Key（公开） |
-| `captcha_secret_key` | `""` | Turnstile Secret（✅ 脱敏） |
-| `geetest_captcha_id` | `""` | 极验 Captcha ID（公开） |
-| `geetest_captcha_key` | `""` | 极验 Captcha Key（✅ 脱敏） |
-| `captcha_on_register` | `true` | 注册开启验证 |
-| `captcha_on_login` | `false` | 登录开启验证 |
-| `captcha_on_comment` | `true` | 评论开启验证 |
-| `captcha_on_article` | `true` | 发布文章开启验证 |
+| `captcha_provider` | `lap` | `lap`（Lap 工作量证明，**默认，内置实例开箱即用**）/ `geetest`（极验第四代） |
+| `lap_enabled` | `false` | Lap 总开关（零配置可用；后台一键开启） |
+| `lap_api_endpoint` | `""` | 留空 = 内置默认实例（lap-serverless.2465813064.workers.dev）；含 siteKey 且以 / 结尾，自托管时填自己的。**后台不展示**（DB/env 覆盖） |
+| `lap_site_key` | `""` | 留空 = 内置默认实例的 site key。**后台不展示** |
+| `lap_secret_key` | `""` | 留空 = 内置默认实例的 secret（✅ 脱敏）；也可用环境变量 `INKSTONE_LAP_SECRET` 覆盖。**后台不展示** |
+| `lap_resolve_ip` | `""` | DNS 覆盖：后端访问 Lap 实例时拨号固定 IP（DNS 被污染填真实 IP，可 DoH/`doh.pub` 查询）。**后台不展示** |
+| `lap_http_proxy` | `""` | HTTP 代理：本机整段被阻断（TUN 黑洞 CF 段）时后端经代理访问（形如 `http://127.0.0.1:7897`，生产留空）。**后台不展示** |
+| `lap_on_login` | `false` | 登录需人机验证 |
+| `lap_on_register` | `false` | 注册需人机验证 |
+| `lap_on_comment` | `false` | 评论/发表/友链申请需人机验证 |
+| `geetest_enabled` | `false` | 极验总开关（provider=geetest 时生效） |
+| `geetest_captcha_id` | `""` | 极验验证 ID（前台初始化用，非敏感） |
+| `geetest_captcha_key` | `""` | 极验密钥（✅ 脱敏，仅服务端二次验证用） |
+| `geetest_on_login` | `false` | 登录需人机验证 |
+| `geetest_on_register` | `false` | 注册需人机验证 |
+| `geetest_on_comment` | `false` | 评论/发表/友链申请需人机验证 |
+| `lap_enabled` | `false` | Lap 总开关（provider=lap 时生效） |
+| `lap_api_endpoint` | `""` | Lap 实例地址（**含 siteKey 且以 / 结尾**，形如 `https://xxx.workers.dev/SITEKEY/`） |
+| `lap_site_key` | `""` | Lap site key（前台 widget 初始化用，非敏感） |
+| `lap_secret_key` | `""` | Lap secret（✅ 脱敏，仅服务端 siteverify 二次验证用） |
+| `lap_resolve_ip` | `""` | DNS 覆盖：后端访问 Lap 实例时拨号固定 IP（DNS 被污染填真实 IP，可 DoH/`doh.pub` 查询） |
+| `lap_http_proxy` | `""` | HTTP 代理：本机整段被阻断（TUN 黑洞 CF 段）时后端经代理访问（形如 `http://127.0.0.1:7897`，生产留空） |
+| `lap_on_login` | `false` | 登录需人机验证 |
+| `lap_on_register` | `false` | 注册需人机验证 |
+| `lap_on_comment` | `false` | 评论/发表/友链申请需人机验证 |
 
 ### 邮箱验证码
 | Key | 默认值 | 说明 |
@@ -79,16 +95,6 @@
 | `upload_speed_kb` | `0` | 上传限速 KB/s（0=不限） |
 | `download_speed_kb` | `0` | 下载限速 KB/s（0=不限） |
 
-### 系统更新（Beta1.15，零配置默认全自动）
-| Key | 默认值 | 敏感 | 说明 |
-|---|---|---|---|
-| `update_enabled` | `true` | | 自动更新总开关（关闭后仅手动更新） |
-| `update_check_interval` | `15` | | 检查间隔（分钟，1-1440） |
-| `update_mirror_urls` | `[]` | | GitHub 加速源 JSON 数组；**留空走内置 5 个源**（ghfast/gh-proxy 等） |
-| `update_repo` | `shenwei234/inkstone` | | 发布仓库 owner/repo（fork 用户改为自己的） |
-
-`update_mirror_urls` 已登记 `jsonSettingKeys`（数组自动编解码）。
-
 ### 友链自助申请（Beta1.19）
 | Key | 默认值 | 说明 |
 |---|---|---|
@@ -103,9 +109,8 @@
 ```go
 var maskKeys = map[string]bool{
     SettingSMTPPass:          true,
-    SettingCaptchaSecretKey:  true,
-    SettingGeeTestCaptchaKey: true,
-    SettingUpdateToken:       true,
+    SettingGeetestCaptchaKey: true,
+    SettingLapSecretKey:      true,
 }
 ```
 

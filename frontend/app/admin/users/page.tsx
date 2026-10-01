@@ -1,9 +1,11 @@
 ﻿'use client'
 
-import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
+import { useEffect, useRef, useState } from 'react'
 import { UserPlus } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import gsap from 'gsap'
+import { easeOut, hoverTapScale, prefersReducedMotion, useReveal } from '@/components/motion'
+import { RowLoading } from '@/components/page-loader'
 import {
   createAdminUser,
   deleteAdminUser,
@@ -42,6 +44,14 @@ function AddUserDialog({
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<'user' | 'admin'>('user')
 
+  // 角色选中胶囊：切换时以 scaleX 入场（替代 framer layoutId 滑动）
+  const pillRef = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (pillRef.current && !prefersReducedMotion()) {
+      gsap.fromTo(pillRef.current, { scaleX: 0 }, { scaleX: 1, duration: 0.25, ease: easeOut })
+    }
+  }, [role])
+
   const create = useMutation({
     mutationFn: () =>
       createAdminUser({ email, username, password, role }),
@@ -77,16 +87,15 @@ function AddUserDialog({
           >
             取消
           </button>
-          <motion.button
+          <button
             type="submit"
             form="add-user-form"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.97 }}
+            {...hoverTapScale}
             disabled={create.isPending}
             className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
           >
             {create.isPending ? '创建中...' : '创建用户'}
-          </motion.button>
+          </button>
         </div>
       }
     >
@@ -141,12 +150,12 @@ function AddUserDialog({
                 }`}
               >
                 {role === r && (
-                  <motion.span
-                    layoutId="role-pill"
-                    className={`absolute inset-0 rounded-md ${
+                  <span
+                    key={`role-pill-${role}`}
+                    ref={pillRef}
+                    className={`absolute inset-0 origin-left rounded-md ${
                       r === 'admin' ? 'bg-purple-500' : 'bg-accent'
                     }`}
-                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                   />
                 )}
                 <span className="relative">{r === 'admin' ? '管理员' : '普通用户'}</span>
@@ -204,16 +213,15 @@ function EditUserDialog({
           >
             取消
           </button>
-          <motion.button
+          <button
             type="submit"
             form="edit-user-form"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.97 }}
+            {...hoverTapScale}
             disabled={save.isPending}
             className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
           >
             {save.isPending ? '保存中...' : '保存修改'}
-          </motion.button>
+          </button>
         </div>
       }
     >
@@ -328,23 +336,20 @@ export default function AdminUsersPage() {
             placeholder="搜索邮箱或用户名..."
             className="w-full min-w-0 rounded-lg border border-border bg-card px-3.5 py-2 text-sm outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20 sm:w-56"
           />
-          <motion.button
+          <button
             onClick={() => setAddOpen(true)}
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
+            {...hoverTapScale}
             className="flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white shadow-md shadow-accent/25"
           >
             <UserPlus className="h-4 w-4" />
             添加用户
-          </motion.button>
+          </button>
         </div>
       </div>
 
       {isLoading ? (
-        <div className="mt-6 space-y-2">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="skeleton h-16 rounded-xl" />
-          ))}
+        <div className="mt-6">
+          <RowLoading rows={4} />
         </div>
       ) : (
         <div className="mt-6 overflow-x-auto rounded-xl border border-border bg-card">
@@ -360,123 +365,19 @@ export default function AdminUsersPage() {
               </tr>
             </thead>
             <tbody>
-              {(data?.users ?? []).map((u, i) => {
-                const isSelf = u.id === me?.id
-                const banned = u.status === 'banned'
-                return (
-                  <motion.tr
-                    key={u.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05, duration: 0.35 }}
-                    className={`border-b border-border/60 transition-colors last:border-0 hover:bg-muted/50 ${
-                      banned ? 'opacity-60' : ''
-                    }`}
-                  >
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <span
-                          className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
-                            banned
-                              ? 'bg-red-500/10 text-red-500'
-                              : 'bg-accent/10 text-accent'
-                          }`}
-                        >
-                          {u.username.charAt(0).toUpperCase()}
-                        </span>
-                        <span className="font-medium">{u.username}</span>
-                        {isSelf && (
-                          <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] text-accent">我</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-muted-foreground">{u.email}</td>
-                    <td className="px-5 py-3.5">
-                      {isSelf ? (
-                        <span className="rounded-full bg-purple-500/10 px-2.5 py-0.5 text-xs font-medium text-purple-600 dark:text-purple-400">
-                          管理员
-                        </span>
-                      ) : (
-                        <select
-                          value={u.role}
-                          onChange={(e) =>
-                            roleMutation.mutate({ id: u.id, role: e.target.value as 'admin' | 'user' })
-                          }
-                          disabled={roleMutation.isPending}
-                          className="rounded-md border border-border bg-transparent px-2 py-1 text-xs outline-none transition-colors hover:border-accent/40 disabled:opacity-50"
-                        >
-                          <option value="user">用户</option>
-                          <option value="admin">管理员</option>
-                        </select>
-                      )}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      {banned ? (
-                        <span className="rounded-full bg-red-500/10 px-2.5 py-0.5 text-xs font-medium text-red-500">
-                          已封禁
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                          正常
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3.5 text-xs text-muted-foreground">
-                      {new Date(u.created_at).toLocaleDateString('zh-CN')}
-                    </td>
-                    <td className="px-5 py-3.5 text-right">
-                      <div className="inline-flex items-center gap-1">
-                        {banned ? (
-                          <button
-                            onClick={() => statusMutation.mutate({ id: u.id, status: 'active' })}
-                            disabled={isSelf || statusMutation.isPending}
-                            className="rounded-md px-2.5 py-1.5 text-xs text-emerald-600 transition-colors hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-30 dark:text-emerald-400"
-                          >
-                            解封
-                          </button>
-                        ) : (
-                          <button
-                            onClick={async () => {
-                              const ok = await notify.confirm({
-                                title: `封禁用户「${u.username}」？`,
-                                message: '封禁后该用户将无法登录和操作，可随时解封。',
-                                confirmText: '确认封禁',
-                                danger: true,
-                              })
-                              if (ok) statusMutation.mutate({ id: u.id, status: 'banned' })
-                            }}
-                            disabled={isSelf || statusMutation.isPending}
-                            className="rounded-md px-2.5 py-1.5 text-xs text-amber-600 transition-colors hover:bg-amber-500/10 disabled:cursor-not-allowed disabled:opacity-30 dark:text-amber-400"
-                          >
-                            封禁
-                          </button>
-                        )}
-                        <button
-                          onClick={() => setEditTarget(u)}
-                          className="rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        >
-                          编辑
-                        </button>
-                        <button
-                          onClick={async () => {
-                            const ok = await notify.confirm({
-                              title: `删除用户「${u.username}」？`,
-                              message: '该用户的所有文章将一并删除，此操作无法撤销。',
-                              confirmText: '确认删除',
-                              danger: true,
-                            })
-                            if (ok) deleteMutation.mutate(u.id)
-                          }}
-                          disabled={isSelf || deleteMutation.isPending}
-                          className="rounded-md px-2.5 py-1.5 text-xs text-red-500 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-30"
-                        >
-                          删除
-                        </button>
-                      </div>
-                    </td>
-                  </motion.tr>
-                )
-              })}
+              {(data?.users ?? []).map((u, i) => (
+                <UserRow
+                  key={u.id}
+                  u={u}
+                  index={i}
+                  isSelf={u.id === me?.id}
+                  pending={roleMutation.isPending || statusMutation.isPending || deleteMutation.isPending}
+                  onRoleChange={(id, role) => roleMutation.mutate({ id, role })}
+                  onStatusChange={(id, status) => statusMutation.mutate({ id, status })}
+                  onEdit={(target) => setEditTarget(target)}
+                  onDelete={(id) => deleteMutation.mutate(id)}
+                />
+              ))}
               {(data?.users.length ?? 0) === 0 && (
                 <tr>
                   <td colSpan={6} className="px-5 py-12 text-center text-muted-foreground">
@@ -497,15 +398,149 @@ export default function AdminUsersPage() {
         />
       )}
 
-      {addOpen && (
-        <AddUserDialog
-          onClose={() => setAddOpen(false)}
-          onCreated={(username) => {
-            invalidate()
-            notify.success(`用户「${username}」创建成功`)
-          }}
-        />
-      )}
+  {addOpen && (
+    <AddUserDialog
+      onClose={() => setAddOpen(false)}
+      onCreated={(username) => {
+        invalidate()
+        notify.success(`用户「${username}」创建成功`)
+      }}
+    />
+  )}
     </div>
+  )
+}
+
+/** 用户表格行：独立组件，入场动画只在挂载时播放一次（useReveal 自带 rAF 兜底） */
+function UserRow({
+  u,
+  index,
+  isSelf,
+  pending,
+  onRoleChange,
+  onStatusChange,
+  onEdit,
+  onDelete,
+}: {
+  u: AdminUser
+  index: number
+  isSelf: boolean
+  pending: boolean
+  onRoleChange: (id: number, role: 'admin' | 'user') => void
+  onStatusChange: (id: number, status: 'active' | 'banned') => void
+  onEdit: (u: AdminUser) => void
+  onDelete: (id: number) => void
+}) {
+  const notify = useNotify()
+  const rowRef = useRef<HTMLTableRowElement>(null)
+  // 逐行淡入上移；行数多时收敛总时长（封顶 0.3s），避免长列表入场拖沓
+  useReveal(rowRef, { y: 10, duration: 0.35, delay: Math.min(index * 0.04, 0.3) })
+  const banned = u.status === 'banned'
+
+  return (
+    <tr
+      ref={rowRef}
+      className={`border-b border-border/60 transition-colors last:border-0 hover:bg-muted/50 ${
+        banned ? 'opacity-60' : ''
+      }`}
+    >
+      <td className="px-5 py-3.5">
+        <div className="flex items-center gap-2.5">
+          <span
+            className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
+              banned ? 'bg-red-500/10 text-red-500' : 'bg-accent/10 text-accent'
+            }`}
+          >
+            {u.username.charAt(0).toUpperCase()}
+          </span>
+          <span className="font-medium">{u.username}</span>
+          {isSelf && (
+            <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] text-accent">我</span>
+          )}
+        </div>
+      </td>
+      <td className="px-5 py-3.5 text-muted-foreground">{u.email}</td>
+      <td className="px-5 py-3.5">
+        {isSelf ? (
+          <span className="rounded-full bg-purple-500/10 px-2.5 py-0.5 text-xs font-medium text-purple-600 dark:text-purple-400">
+            管理员
+          </span>
+        ) : (
+          <select
+            value={u.role}
+            onChange={(e) => onRoleChange(u.id, e.target.value as 'admin' | 'user')}
+            disabled={pending}
+            className="rounded-md border border-border bg-transparent px-2 py-1 text-xs outline-none transition-colors hover:border-accent/40 disabled:opacity-50"
+          >
+            <option value="user">用户</option>
+            <option value="admin">管理员</option>
+          </select>
+        )}
+      </td>
+      <td className="px-5 py-3.5">
+        {banned ? (
+          <span className="rounded-full bg-red-500/10 px-2.5 py-0.5 text-xs font-medium text-red-500">
+            已封禁
+          </span>
+        ) : (
+          <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            正常
+          </span>
+        )}
+      </td>
+      <td className="px-5 py-3.5 text-xs text-muted-foreground">
+        {new Date(u.created_at).toLocaleDateString('zh-CN')}
+      </td>
+      <td className="px-5 py-3.5 text-right">
+        <div className="inline-flex items-center gap-1">
+          {banned ? (
+            <button
+              onClick={() => onStatusChange(u.id, 'active')}
+              disabled={isSelf || pending}
+              className="rounded-md px-2.5 py-1.5 text-xs text-emerald-600 transition-colors hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-30 dark:text-emerald-400"
+            >
+              解封
+            </button>
+          ) : (
+            <button
+              onClick={async () => {
+                const ok = await notify.confirm({
+                  title: `封禁用户「${u.username}」？`,
+                  message: '封禁后该用户将无法登录和操作，可随时解封。',
+                  confirmText: '确认封禁',
+                  danger: true,
+                })
+                if (ok) onStatusChange(u.id, 'banned')
+              }}
+              disabled={isSelf || pending}
+              className="rounded-md px-2.5 py-1.5 text-xs text-amber-600 transition-colors hover:bg-amber-500/10 disabled:cursor-not-allowed disabled:opacity-30 dark:text-amber-400"
+            >
+              封禁
+            </button>
+          )}
+          <button
+            onClick={() => onEdit(u)}
+            className="rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            编辑
+          </button>
+          <button
+            onClick={async () => {
+              const ok = await notify.confirm({
+                title: `删除用户「${u.username}」？`,
+                message: '该用户的所有文章将一并删除，此操作无法撤销。',
+                confirmText: '确认删除',
+                danger: true,
+              })
+              if (ok) onDelete(u.id)
+            }}
+            disabled={isSelf || pending}
+            className="rounded-md px-2.5 py-1.5 text-xs text-red-500 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            删除
+          </button>
+        </div>
+      </td>
+    </tr>
   )
 }

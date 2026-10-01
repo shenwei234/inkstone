@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { motion } from 'framer-motion'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Reveal } from '@/components/motion'
+import { RowLoading } from '@/components/page-loader'
 import { MessageSquare, Trash2 } from 'lucide-react'
 import { deleteAdminComment, fetchAdminComments, ApiError } from '@/lib/api'
 import { useNotify } from '@/components/toast'
@@ -36,10 +37,8 @@ export default function AdminCommentsPage() {
       </div>
 
       {isLoading ? (
-        <div className="mt-6 space-y-2">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="skeleton h-20 rounded-xl" />
-          ))}
+        <div className="mt-6">
+          <RowLoading rows={4} />
         </div>
       ) : (data?.comments ?? []).length === 0 ? (
         <div className="mt-6 rounded-xl border border-dashed p-16 text-center">
@@ -49,12 +48,11 @@ export default function AdminCommentsPage() {
       ) : (
         <div className="mt-6 space-y-3">
           {(data?.comments ?? []).map((comment: CommentItem, i: number) => (
-            <motion.div
+            <Reveal
               key={comment.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, x: -24 }}
-              transition={{ delay: i * 0.04, duration: 0.3 }}
+              y={12}
+              delay={i * 0.04}
+              duration={0.3}
               className="group flex items-start gap-3 rounded-2xl border border-border bg-card p-4 transition-colors hover:border-accent/30"
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-sm font-bold text-accent">
@@ -98,7 +96,7 @@ export default function AdminCommentsPage() {
               >
                 <Trash2 className="h-4 w-4" />
               </button>
-            </motion.div>
+            </Reveal>
           ))}
         </div>
       )}

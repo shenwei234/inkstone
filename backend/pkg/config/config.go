@@ -2,7 +2,6 @@ package config
 
 import (
 	"os"
-	"strings"
 	"time"
 )
 
@@ -21,8 +20,6 @@ type Config struct {
 	PublicAPIURL string
 	UploadDir    string
 	FilesDir     string
-	DockerHost   string
-	UpdateRepo   string
 }
 
 func Load() *Config {
@@ -41,23 +38,7 @@ func Load() *Config {
 		PublicAPIURL: getEnv("PUBLIC_API_URL", ""),
 		UploadDir:    getEnv("UPLOAD_DIR", "./data/uploads"),
 		FilesDir:     getEnv("FILES_DIR", "./data/files"),
-		// DOCKER_HOST 为空时默认挂载在标准路径的 unix socket（compose 挂载场景）
-		DockerHost: getEnv("DOCKER_HOST", "unix:///var/run/docker.sock"),
-		// 发布仓库 owner/repo（更新推送后台发布版本清单的 GitHub 仓库）
-		UpdateRepo: getEnv("UPDATE_REPO", "shenwei234/inkstone"),
 	}
-}
-
-// DockerSocketPath 返回 docker daemon 的 unix socket 路径。
-// 仅支持 unix:// 形式；TCP 形式（tcp://host:port）不适用于自动更新。
-func (c *Config) DockerSocketPath() string {
-	if strings.HasPrefix(c.DockerHost, "unix://") {
-		return strings.TrimPrefix(c.DockerHost, "unix://")
-	}
-	if strings.HasPrefix(c.DockerHost, "/") {
-		return c.DockerHost
-	}
-	return c.DockerHost
 }
 
 // AbsoluteUploadBase returns the public base URL for serving uploaded files.

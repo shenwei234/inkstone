@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { motion } from 'framer-motion'
 import { Mail } from 'lucide-react'
 import { sendEmailCode, ApiError } from '@/lib/api'
 import { useNotify } from '@/components/toast'
+import { Reveal, hoverTapScale } from '@/components/motion'
 import { inputClass } from '@/lib/ui'
 
 interface Props {
@@ -62,11 +62,7 @@ export function EmailCodeInput({ email, purpose, value, onChange }: Props) {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-1.5"
-    >
+    <Reveal y={8} className="space-y-1.5">
       <label className="text-sm font-medium">邮箱验证码</label>
       <div className="flex items-center gap-2">
         <div className="relative min-w-0 flex-1">
@@ -79,20 +75,20 @@ export function EmailCodeInput({ email, purpose, value, onChange }: Props) {
             className={`${inputClass} pl-9 tracking-widest`}
           />
         </div>
-        <motion.button
+        {/* 原 whileHover/whileTap 为条件式（countdown > 0 时禁用），迁移为无条件 spread */}
+        <button
           type="button"
           onClick={send}
           disabled={sending || countdown > 0}
-          whileHover={countdown > 0 ? undefined : { scale: 1.02 }}
-          whileTap={countdown > 0 ? undefined : { scale: 0.97 }}
+          {...hoverTapScale}
           className="shrink-0 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50"
         >
           {sending ? '发送中...' : countdown > 0 ? `${countdown}s 后重发` : '获取验证码'}
-        </motion.button>
+        </button>
       </div>
       <p className="text-xs text-muted-foreground">
         验证码将发送到上方邮箱，有效期 10 分钟
       </p>
-    </motion.div>
+    </Reveal>
   )
 }

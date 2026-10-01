@@ -1,7 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { motion } from 'framer-motion'
+import { useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Check,
@@ -15,9 +14,10 @@ import {
   X,
 } from 'lucide-react'
 import { fetchSitemapData } from '@/lib/api'
-import type { SitemapEntry } from '@/lib/types'
+import type { SitemapEntry, SitemapGroup } from '@/lib/types'
 import { useNotify } from '@/components/toast'
-import { PageTransition, easeOut } from '@/components/motion'
+import { PageTransition, Reveal, useReveal } from '@/components/motion'
+import { PageLoading } from '@/components/page-loader'
 import { inputClass } from '@/lib/ui'
 
 /** 复制按钮：复制成功显示对勾 1.5s */
@@ -71,12 +71,48 @@ function EntryRow({ entry }: { entry: SitemapEntry }) {
   )
 }
 
+/** 分组卡片：语义 section，用 useReveal 挂入场动画（不改 DOM 结构） */
+function GroupSection({ group, delay }: { group: SitemapGroup; delay: number }) {
+  const ref = useRef<HTMLElement>(null)
+  useReveal(ref, { y: 16, duration: 0.4, delay })
+
+  return (
+    <section
+      ref={ref}
+      className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+    >
+      <header className="flex items-center justify-between border-b border-border bg-muted/40 px-4 py-2.5">
+        <h2 className="text-sm font-semibold">{group.label}</h2>
+        <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">
+          {group.count}
+        </span>
+      </header>
+      <div className="hidden items-center gap-x-3 border-b border-border/60 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:flex">
+        <span className="min-w-0 flex-1">名称</span>
+        <span className="min-w-0 flex-1">地址</span>
+        <span className="w-24 shrink-0 text-right">频率</span>
+        <span className="w-12 shrink-0 text-right">权重</span>
+        <span className="hidden w-36 shrink-0 text-right lg:block">最后更新</span>
+      </div>
+      <div className="max-h-96 overflow-y-auto">
+        {group.entries.map((e) => (
+          <EntryRow key={e.loc} entry={e} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
 export default function AdminSitemapPage() {
   const [filter, setFilter] = useState('')
   const { data, isLoading } = useQuery({
     queryKey: ['admin', 'sitemap'],
     queryFn: fetchSitemapData,
   })
+
+  // 页面标题区：语义 header，用 useReveal 挂入场动画（不改 DOM 结构）
+  const headerRef = useRef<HTMLElement>(null)
+  useReveal(headerRef, { y: 16, duration: 0.4 })
 
   const sitemap = data?.data
   const groups = useMemo(() => {
@@ -107,11 +143,7 @@ export default function AdminSitemapPage() {
   return (
     <PageTransition>
       <div className="space-y-6">
-        <motion.header
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: easeOut }}
-        >
+        <header ref={headerRef}>
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
             <MapIcon className="h-6 w-6 text-accent" />
             站点地图
@@ -119,17 +151,16 @@ export default function AdminSitemapPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             搜索引擎通过 sitemap.xml 发现站点内容。发布/更新文章、独立页后自动收录于此，无需手动操作。
           </p>
-        </motion.header>
+        </header>
 
         {isLoading || !sitemap ? (
-          <div className="skeleton h-64 rounded-2xl" />
+          <PageLoading minHeight="16rem" />
         ) : (
           <>
             {/* 统计 + 入口 */}
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.05, ease: easeOut }}
+            <Reveal
+              y={16}
+              delay={0.05}
               className="grid gap-4 sm:grid-cols-3"
             >
               <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
@@ -175,7 +206,7 @@ export default function AdminSitemapPage() {
                   <CopyButton text={sitemap.robots} label="复制内容" />
                 </div>
               </div>
-            </motion.div>
+            </Reveal>
 
             {/* 过滤 */}
             <div className="relative max-w-md">
@@ -206,32 +237,7 @@ export default function AdminSitemapPage() {
                 </div>
               ) : (
                 groups.map((g, i) => (
-                  <motion.section
-                    key={g.type}
-                    initial={{ opacity: 0, y: 16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: 0.1 + i * 0.05, ease: easeOut }}
-                    className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
-                  >
-                    <header className="flex items-center justify-between border-b border-border bg-muted/40 px-4 py-2.5">
-                      <h2 className="text-sm font-semibold">{g.label}</h2>
-                      <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">
-                        {g.count}
-                      </span>
-                    </header>
-                    <div className="hidden items-center gap-x-3 border-b border-border/60 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:flex">
-                      <span className="min-w-0 flex-1">名称</span>
-                      <span className="min-w-0 flex-1">地址</span>
-                      <span className="w-24 shrink-0 text-right">频率</span>
-                      <span className="w-12 shrink-0 text-right">权重</span>
-                      <span className="hidden w-36 shrink-0 text-right lg:block">最后更新</span>
-                    </div>
-                    <div className="max-h-96 overflow-y-auto">
-                      {g.entries.map((e) => (
-                        <EntryRow key={e.loc} entry={e} />
-                      ))}
-                    </div>
-                  </motion.section>
+                  <GroupSection key={g.type} group={g} delay={0.1 + i * 0.05} />
                 ))
               )}
             </div>

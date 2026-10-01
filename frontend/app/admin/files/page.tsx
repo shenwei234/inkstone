@@ -1,8 +1,8 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import { motion } from 'framer-motion'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import gsap from 'gsap'
 import {
   Copy,
   Check,
@@ -28,10 +28,9 @@ import {
 } from '@/lib/api'
 import type { FileAssetItem } from '@/lib/api'
 import { useNotify } from '@/components/toast'
-import { PageTransition } from '@/components/motion'
+import { PageLoading, RowLoading } from '@/components/page-loader'
+import { PageTransition, Reveal, hoverTapScale, prefersReducedMotion } from '@/components/motion'
 import { formatSize, inputClass } from '@/lib/ui'
-
-const easeOut = [0.16, 1, 0.3, 1] as const
 
 function FileTypeIcon({ mime, name }: { mime: string; name: string }) {
   const ext = name.split('.').pop()?.toLowerCase() ?? ''
@@ -76,7 +75,7 @@ function TransferSettings() {
   })
 
   if (!form) {
-    return <div className="skeleton h-24 rounded-xl" />
+    return <PageLoading minHeight="6rem" />
   }
 
   return (
@@ -120,16 +119,15 @@ function TransferSettings() {
         </div>
       </div>
       <div className="mt-4 flex justify-end">
-        <motion.button
+        <button
           type="button"
           onClick={() => save.mutate()}
           disabled={save.isPending}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.97 }}
+          {...hoverTapScale}
           className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
         >
           {save.isPending ? '保存中...' : '保存传输设置'}
-        </motion.button>
+        </button>
       </div>
     </div>
   )
@@ -144,6 +142,19 @@ export default function AdminFilesPage() {
   const [dragging, setDragging] = useState(false)
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // 上传进度条：scaleX 补间（合成层，避免 width 动画每帧 layout 重排）
+  const progressBarRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const bar = progressBarRef.current
+    if (!bar) return
+    const target = Math.max(0, Math.min(100, progress ?? 0)) / 100
+    if (prefersReducedMotion()) {
+      gsap.set(bar, { scaleX: target })
+      return
+    }
+    gsap.fromTo(bar, { scaleX: 0 }, { scaleX: target, duration: 0.2, ease: 'power2.out' })
+  }, [progress])
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin', 'files', query],
@@ -224,16 +235,15 @@ export default function AdminFilesPage() {
               className="w-full rounded-lg border border-border bg-card py-2 pl-9 pr-3 text-sm outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/20 sm:w-52"
             />
           </div>
-          <motion.button
+          <button
             onClick={() => fileRef.current?.click()}
             disabled={progress !== null}
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
+            {...hoverTapScale}
             className="flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
           >
             <UploadCloud className="h-4 w-4" />
             {progress !== null ? `上传中 ${progress}%` : '上传文件'}
-          </motion.button>
+          </button>
           <input
             ref={fileRef}
             type="file"
@@ -271,22 +281,16 @@ export default function AdminFilesPage() {
           单个文件最大 {data?.max_upload_mb ?? 50} MB
         </p>
         {progress !== null && (
-          <div className="mx-auto mt-3 h-1.5 w-64 overflow-hidden rounded-full bg-muted">
-            <motion.div
-              className="h-full rounded-full bg-accent"
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.2 }}
-            />
-          </div>
+            <div className="mx-auto mt-3 h-1.5 w-64 overflow-hidden rounded-full bg-muted">
+              <div ref={progressBarRef} className="h-full w-full origin-left rounded-full bg-accent" />
+            </div>
         )}
       </div>
 
       {/* 文件列表 */}
       {isLoading ? (
-        <div className="mt-4 space-y-2">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="skeleton h-16 rounded-xl" />
-          ))}
+        <div className="mt-4">
+          <RowLoading rows={4} />
         </div>
       ) : files.length === 0 ? (
         <div className="mt-4 rounded-xl border border-dashed p-12 text-center text-muted-foreground">
@@ -295,11 +299,11 @@ export default function AdminFilesPage() {
       ) : (
         <div className="mt-4 space-y-2">
           {files.map((file, i) => (
-            <motion.div
+            <Reveal
               key={file.id}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.03, duration: 0.25, ease: easeOut }}
+              y={8}
+              delay={i * 0.03}
+              duration={0.25}
               className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-3.5 transition-colors hover:border-accent/30"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
@@ -355,7 +359,7 @@ export default function AdminFilesPage() {
                   删除
                 </button>
               </div>
-            </motion.div>
+            </Reveal>
           ))}
         </div>
       )}

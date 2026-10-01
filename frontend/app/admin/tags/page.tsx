@@ -2,16 +2,14 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, Pencil, Plus, Tag as TagIcon, Trash2, X } from 'lucide-react'
 import { createTag, deleteTag, fetchTags, updateTag, ApiError } from '@/lib/api'
 import type { TagCount } from '@/lib/types'
 import { useNotify } from '@/components/toast'
-import { PageTransition } from '@/components/motion'
+import { PageTransition, Reveal, hoverTapScale } from '@/components/motion'
+import { RowLoading } from '@/components/page-loader'
 import { inputClass } from '@/lib/ui'
-
-const easeOut = [0.16, 1, 0.3, 1] as const
 
 export default function AdminTagsPage() {
   const notify = useNotify()
@@ -70,10 +68,9 @@ export default function AdminTagsPage() {
       </div>
 
       {/* 新建标签 */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: easeOut }}
+      <Reveal
+        y={12}
+        duration={0.4}
         className="mt-6 flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card p-4"
       >
         <input
@@ -85,7 +82,7 @@ export default function AdminTagsPage() {
           placeholder="输入新标签名称，回车创建"
           className={`${inputClass} max-w-xs flex-1`}
         />
-        <motion.button
+        <button
           type="button"
           onClick={() => {
             if (!newName.trim()) {
@@ -95,21 +92,18 @@ export default function AdminTagsPage() {
             create.mutate(newName.trim())
           }}
           disabled={create.isPending}
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
+          {...hoverTapScale}
           className="flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
         >
           <Plus className="h-4 w-4" />
           {create.isPending ? '创建中...' : '创建标签'}
-        </motion.button>
-      </motion.div>
+        </button>
+      </Reveal>
 
       {/* 标签列表 */}
       {isLoading ? (
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="skeleton h-14 rounded-xl" />
-          ))}
+        <div className="mt-4">
+          <RowLoading rows={6} />
         </div>
       ) : tags.length === 0 ? (
         <div className="mt-4 rounded-xl border border-dashed p-16 text-center">
@@ -119,11 +113,11 @@ export default function AdminTagsPage() {
       ) : (
         <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {tags.map((tag: TagCount, i) => (
-            <motion.div
+            <Reveal
               key={tag.id}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.03, duration: 0.25, ease: easeOut }}
+              y={8}
+              delay={i * 0.03}
+              duration={0.25}
               className="flex items-center gap-2 rounded-xl border border-border bg-card px-3.5 py-2.5 transition-colors hover:border-accent/40"
             >
               <TagIcon className="h-4 w-4 shrink-0 text-accent" />
@@ -200,7 +194,7 @@ export default function AdminTagsPage() {
                   </button>
                 </>
               )}
-            </motion.div>
+            </Reveal>
           ))}
         </div>
       )}

@@ -102,6 +102,16 @@ export interface SiteSettings {
   geetest_on_login?: boolean
   geetest_on_register?: boolean
   geetest_on_comment?: boolean
+  captcha_provider?: string
+  lap_enabled?: boolean
+  lap_api_endpoint?: string
+  lap_site_key?: string
+  lap_secret_key_set?: boolean
+  lap_resolve_ip?: string
+  lap_http_proxy?: string
+  lap_on_login?: boolean
+  lap_on_register?: boolean
+  lap_on_comment?: boolean
   site_wallpaper?: string
   wallpaper_opacity?: string
   wallpaper_blur?: string
@@ -114,12 +124,6 @@ export interface ArticleListResponse {
   total: number
   page: number
   page_size: number
-}
-
-export interface Pagination {
-  page: number
-  page_size: number
-  total: number
 }
 
 export interface AdminStats {
@@ -143,75 +147,6 @@ export interface AdminUserListResponse {
   total: number
   page: number
   page_size: number
-}
-
-// ---------- 系统更新 ----------
-export interface UpdateRemote {
-  version: string
-  released_at: string
-  notes: string
-  size: number
-  sha256: string
-  asset_url: string
-  mirror: string
-  min_version: string
-}
-
-export interface UpdateRecord {
-  id: number
-  type: 'update' | 'rollback'
-  from_version: string
-  to_version: string
-  status: 'running' | 'success' | 'failed'
-  phase: string
-  progress: number
-  mirror: string
-  sha256: string
-  rollback_tag: string
-  triggered_by: string
-  detail: string
-  started_at: string
-  finished_at: string | null
-}
-
-export interface UpdateState {
-  docker: { available: boolean; socket: string; message: string }
-  current_version: string
-  settings: {
-    auto_update: boolean
-    interval_mins: number
-    repo: string
-    mirrors: string[]
-  }
-  remote: UpdateRemote | null
-  checked_at: string | null
-  has_update: boolean
-  last_error: string
-  task: UpdateRecord | null
-  history: UpdateRecord[]
-  rollback_tag: string
-}
-
-export interface UpdateSettingsInput {
-  auto_update?: boolean
-  interval_mins?: number
-  repo?: string
-  mirrors?: string[]
-}
-
-export interface ChangelogEntry {
-  version: string
-  date: string
-  items: string[]
-}
-
-export interface MirrorLatency {
-  url: string
-  latency_ms: number
-  asset_url?: string
-  download_latency_ms: number
-  direct: boolean
-  from: string
 }
 
 // ---------- 友链自助申请 ----------

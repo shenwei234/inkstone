@@ -15,7 +15,7 @@ import {
   login as apiLogin,
   register as apiRegister,
   saveTokens,
-  type GeetestCredential,
+  type CaptchaCredential,
 } from './api'
 import type { TokenPair, User } from './types'
 
@@ -25,13 +25,13 @@ interface AuthContextValue {
   login: (
     email: string,
     password: string,
-    extra?: { email_code?: string } & Partial<GeetestCredential>,
+    extra?: { email_code?: string } & CaptchaCredential,
   ) => Promise<User>
   register: (
     email: string,
     username: string,
     password: string,
-    extra?: { email_code?: string } & Partial<GeetestCredential>,
+    extra?: { email_code?: string } & CaptchaCredential,
   ) => Promise<User>
   logout: () => void
   applyTokens: (token: TokenPair, user: User) => void
@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (
       email: string,
       password: string,
-      extra?: { email_code?: string } & Partial<GeetestCredential>,
+      extra?: { email_code?: string } & CaptchaCredential,
     ) => {
       const res = await apiLogin(email, password, extra)
       applyTokens(res.token, res.user)
@@ -91,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: string,
       username: string,
       password: string,
-      extra?: { email_code?: string } & Partial<GeetestCredential>,
+      extra?: { email_code?: string } & CaptchaCredential,
     ) => {
       const res = await apiRegister(email, username, password, extra)
       applyTokens(res.token, res.user)

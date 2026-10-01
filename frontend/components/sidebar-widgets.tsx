@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
+import gsap from 'gsap'
 import {
   Cloud,
   CloudDrizzle,
@@ -19,7 +19,116 @@ import {
   Wind,
 } from 'lucide-react'
 import { fetchArticles, fetchCategories, fetchTags } from '@/lib/api'
+import {
+  Reveal,
+  StaggerList,
+  createLoop,
+  hoverLift,
+  prefersReducedMotion,
+  releaseLoop,
+  useReveal,
+} from '@/components/motion'
+import { PageLoading } from '@/components/page-loader'
 import type { SidebarWidget } from '@/components/site-config-context'
+
+/** 循环动画类型：rotate 旋转 / scale 脉冲 / y 浮动 / opacity 呼吸闪烁 / wiggle 摆动 */
+type LoopKind = 'rotate' | 'scale' | 'y' | 'opacity' | 'wiggle'
+
+/**
+ * 无限循环动画容器：以命令式 GSAP 替代 framer 的 repeat: Infinity 动画。
+ * kind/amount/duration 均为原始类型，effect 依赖稳定，父组件每秒重渲染也不会重启动画。
+ */
+function LoopAnim({
+  kind,
+  amount,
+  duration = 2,
+  className,
+  children,
+}: {
+  kind: LoopKind
+  amount?: number
+  duration?: number
+  className?: string
+  children?: ReactNode
+}) {
+  const ref = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || prefersReducedMotion()) return
+    // createLoop：循环动画纳入全局管理，页面隐藏时自动暂停
+    let tween: gsap.core.Tween
+    if (kind === 'rotate') {
+      tween = createLoop(() => gsap.to(el, { rotate: 360, duration, repeat: -1, ease: 'none' }))
+    } else if (kind === 'scale') {
+      const to = 1 + (amount ?? 0.08)
+      tween = createLoop(() =>
+        gsap.fromTo(el, { scale: 1 }, { scale: to, duration, repeat: -1, yoyo: true, ease: 'sine.inOut' }),
+      )
+    } else if (kind === 'y') {
+      const to = -(amount ?? 4)
+      tween = createLoop(() =>
+        gsap.fromTo(el, { y: 0 }, { y: to, duration, repeat: -1, yoyo: true, ease: 'sine.inOut' }),
+      )
+    } else if (kind === 'opacity') {
+      tween = createLoop(() =>
+        gsap.fromTo(
+          el,
+          { opacity: 1 },
+          { opacity: amount ?? 0.2, duration, repeat: -1, yoyo: true, ease: 'none' },
+        ),
+      )
+    } else {
+      tween = createLoop(() =>
+        gsap.fromTo(
+          el,
+          { rotate: 0 },
+          { rotate: 12, duration, repeat: -1, repeatDelay: 1, yoyo: true, ease: 'sine.inOut' },
+        ),
+      )
+    }
+    return () => {
+      tween.kill()
+      releaseLoop(tween)
+    }
+  }, [kind, amount, duration])
+  return (
+    <span ref={ref} className={className}>
+      {children}
+    </span>
+  )
+}
+
+/** 数值变化时的淡入上移（key 变化即重放入场，替代 framer 的 motion.span key + initial/animate） */
+function FadeIn({
+  value,
+  y = 6,
+  duration = 0.35,
+  className,
+}: {
+  value: ReactNode
+  y?: number
+  duration?: number
+  className?: string
+}) {
+  const ref = useRef<HTMLSpanElement>(null)
+  useReveal(ref, { y, duration })
+  return (
+    <span ref={ref} className={className}>
+      {value}
+    </span>
+  )
+}
+
+/** 倒计时数字变化时的放大回弹（key 变化即重放） */
+function PopNumber({ value }: { value: string }) {
+  const ref = useRef<HTMLParagraphElement>(null)
+  useReveal(ref, { y: 0, scale: 1.18, duration: 0.25 })
+  return (
+    <p ref={ref} className="text-xl font-bold tabular-nums">
+      {value}
+    </p>
+  )
+}
 
 function WidgetCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -144,9 +253,8 @@ function ProfileWidget({ widget }: { widget: SidebarWidget }) {
   const total = data?.total ?? 0
 
   return (
-    <motion.div
-      whileHover={{ y: -3 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+    <div
+      {...hoverLift}
       className="relative overflow-hidden rounded-xl border border-border bg-card p-5"
     >
       <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-accent/15 blur-2xl" />
@@ -164,9 +272,10 @@ function ProfileWidget({ widget }: { widget: SidebarWidget }) {
               {widget.title.charAt(0).toUpperCase()}
             </div>
           )}
-          <motion.span
-            animate={{ scale: [1, 1.25, 1] }}
-            transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+          <LoopAnim
+            kind="scale"
+            amount={0.25}
+            duration={2}
             className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-card bg-emerald-500"
           />
         </div>
@@ -183,9 +292,7 @@ function ProfileWidget({ widget }: { widget: SidebarWidget }) {
       <div className="relative mt-4 grid grid-cols-2 gap-2 text-center">
         <div className="rounded-lg bg-background/60 py-2">
           <p className="text-lg font-bold text-accent">
-            <motion.span key={total} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
-              {total}
-            </motion.span>
+            <FadeIn key={total} value={total} />
           </p>
           <p className="text-[11px] text-muted-foreground">文章</p>
         </div>
@@ -194,7 +301,7 @@ function ProfileWidget({ widget }: { widget: SidebarWidget }) {
           <p className="text-[11px] text-muted-foreground">热爱</p>
         </div>
       </div>
-    </motion.div>
+    </div>
   )
 }
 
@@ -288,12 +395,12 @@ function WeatherWidget({ widget }: { widget: SidebarWidget }) {
       {failed ? (
         <p className="relative text-sm text-muted-foreground">天气服务暂不可用</p>
       ) : !weather || !info ? (
-        <div className="relative space-y-2">
-          <div className="skeleton h-8 w-24 rounded" />
-          <div className="skeleton h-4 w-32 rounded" />
+        /* 天气加载态：GSAP 加载动画替换原骨架图 */
+        <div className="relative">
+          <PageLoading minHeight="4rem" hint="加载天气…" />
         </div>
       ) : (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="relative">
+        <Reveal y={8} className="relative">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-3xl font-bold tracking-tight">
@@ -304,12 +411,9 @@ function WeatherWidget({ widget }: { widget: SidebarWidget }) {
                 {info.desc} · {weather.city}
               </p>
             </div>
-            <motion.div
-              animate={{ y: [0, -4, 0] }}
-              transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
-            >
+            <LoopAnim kind="y" amount={4} duration={1.5}>
               <info.Icon className="h-12 w-12 text-sky-500" />
-            </motion.div>
+            </LoopAnim>
           </div>
           <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
@@ -318,7 +422,7 @@ function WeatherWidget({ widget }: { widget: SidebarWidget }) {
             </span>
             <span>湿度 {weather.humidity}%</span>
           </div>
-        </motion.div>
+        </Reveal>
       )}
     </div>
   )
@@ -374,23 +478,24 @@ function CountdownWidget({ widget }: { widget: SidebarWidget }) {
 
   return (
     <div className="relative overflow-hidden rounded-xl border border-border bg-card p-5">
-      <motion.div
-        animate={{ rotate: 360 }}
-        transition={{ repeat: Infinity, duration: 24, ease: 'linear' }}
+      {/* 装饰环旋转 / 光斑呼吸 / 鞭炮摆动：命令式 GSAP 循环动画替代 framer repeat: Infinity */}
+      <LoopAnim
+        kind="rotate"
+        duration={24}
         className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full border-[6px] border-dashed border-red-500/20"
       />
-      <motion.div
-        animate={{ scale: [1, 1.08, 1] }}
-        transition={{ repeat: Infinity, duration: 2.4, ease: 'easeInOut' }}
+      {/* 光斑只做 opacity 呼吸：blur(filter) 元素做 transform 动画时每帧重绘模糊区域，
+          远程桌面（CPU 合成）下是明显卡顿源；opacity 走合成层 */}
+      <LoopAnim
+        kind="opacity"
+        amount={0.55}
+        duration={2.4}
         className="pointer-events-none absolute -bottom-6 -left-6 h-20 w-20 rounded-full bg-orange-400/15 blur-xl"
       />
       <h3 className="relative mb-1 flex items-center gap-2 text-sm font-semibold tracking-wide">
-        <motion.span
-          animate={{ rotate: [0, -12, 12, 0] }}
-          transition={{ repeat: Infinity, duration: 2, repeatDelay: 1 }}
-        >
+        <LoopAnim kind="wiggle" duration={1}>
           🧨
-        </motion.span>
+        </LoopAnim>
         距离{label}
       </h3>
       <p className="relative text-xs text-muted-foreground">
@@ -399,15 +504,7 @@ function CountdownWidget({ widget }: { widget: SidebarWidget }) {
       <div className="relative mt-4 grid grid-cols-4 gap-2">
         {cells.map((c) => (
           <div key={c.unit} className="rounded-lg bg-background/70 py-2.5 text-center shadow-sm">
-            <motion.p
-              key={c.value}
-              initial={{ scale: 1.18 }}
-              animate={{ scale: 1 }}
-              transition={{ duration: 0.25 }}
-              className="text-xl font-bold tabular-nums"
-            >
-              {String(c.value).padStart(2, '0')}
-            </motion.p>
+            <PopNumber key={c.value} value={String(c.value).padStart(2, '0')} />
             <p className="text-[11px] text-muted-foreground">{c.unit}</p>
           </div>
         ))}
@@ -438,13 +535,9 @@ function ClockWidget({ widget }: { widget: SidebarWidget }) {
       <h3 className="relative mb-2 text-sm font-semibold tracking-wide">{widget.title}</h3>
       <p className="relative text-4xl font-bold tabular-nums tracking-tight">
         {hh}
-        <motion.span
-          animate={{ opacity: [1, 0.2, 1] }}
-          transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-          className="text-indigo-400"
-        >
+        <LoopAnim kind="opacity" duration={1} className="text-indigo-400">
           :
-        </motion.span>
+        </LoopAnim>
         {mm}
         <span className="text-xl text-muted-foreground">:{ss}</span>
       </p>
@@ -477,29 +570,20 @@ function StatsWidget({ title }: { title: string }) {
   return (
     <div className="rounded-xl border border-border bg-card p-5">
       <h3 className="mb-3 text-sm font-semibold tracking-wide">{title}</h3>
-      <div className="grid grid-cols-3 gap-2">
-        {stats.map((s, i) => (
-          <motion.div
+      {/* 统计卡：列表 stagger 入场 + 悬停上浮 */}
+      <StaggerList className="grid grid-cols-3 gap-2">
+        {stats.map((s) => (
+          <div
             key={s.label}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.08, duration: 0.35 }}
-            whileHover={{ y: -3 }}
+            {...hoverLift}
             className="rounded-lg bg-muted/60 py-3 text-center"
           >
             <s.Icon className={`mx-auto h-4 w-4 ${s.color}`} />
-            <motion.p
-              key={s.value}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="mt-1 text-lg font-bold"
-            >
-              {s.value}
-            </motion.p>
+            <FadeIn key={s.value} value={s.value} y={0} className="mt-1 text-lg font-bold" />
             <p className="text-[11px] text-muted-foreground">{s.label}</p>
-          </motion.div>
+          </div>
         ))}
-      </div>
+      </StaggerList>
     </div>
   )
 }
@@ -542,17 +626,15 @@ function HitokotoWidget({ widget }: { widget: SidebarWidget }) {
         </button>
       </div>
       {quote ? (
-        <motion.div
-          key={quote.text}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
-        >
+        <Reveal key={quote.text} y={8} duration={0.35}>
           <p className="text-sm leading-relaxed text-foreground/85">「{quote.text}」</p>
           {quote.from && <p className="mt-2 text-right text-xs text-muted-foreground">—— {quote.from}</p>}
-        </motion.div>
+        </Reveal>
       ) : (
-        <div className="skeleton h-12 w-full rounded" />
+        /* 一言加载态：GSAP 加载动画替换原骨架图 */
+        <div className="w-full">
+          <PageLoading minHeight="3rem" hint="加载一言…" />
+        </div>
       )}
     </div>
   )

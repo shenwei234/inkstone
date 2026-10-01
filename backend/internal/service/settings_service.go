@@ -51,6 +51,22 @@ const (
 	SettingGeetestOnRegister = "geetest_on_register" // 注册需人机验证
 	SettingGeetestOnComment  = "geetest_on_comment"  // 评论/发表需人机验证
 
+	// 人机验证 provider：决定前台加载哪套验证组件、后端走哪条校验链路。
+	// 默认 lap：内置默认实例（lap_defaults.go）开箱即用，无需后台配置密钥；
+	// 老部署在后台可随时切回 geetest。
+	SettingCaptchaProvider = "captcha_provider" // "lap"（默认）| "geetest"
+
+	// 人机验证（Lap —— Cap 的 Cloudflare Workers 分支，工作量证明验证码）
+	SettingLapEnabled     = "lap_enabled"      // 总开关
+	SettingLapAPIEndpoint = "lap_api_endpoint" // Lap 实例地址（含 siteKey，形如 https://xxx.workers.dev/SITEKEY/）
+	SettingLapSiteKey     = "lap_site_key"     // Lap site key（前台 widget 初始化用，非敏感）
+	SettingLapSecretKey   = "lap_secret_key"   // Lap secret（仅服务端 siteverify 二次验证用，敏感字段）
+	SettingLapResolveIP   = "lap_resolve_ip"   // DNS 覆盖：访问 Lap 实例时拨号固定 IP（本机 DNS 被污染时填真实 IP）
+	SettingLapHTTPProxy   = "lap_http_proxy"   // HTTP 代理：服务器无法直连 Lap 实例时经代理访问（形如 http://127.0.0.1:7897，生产留空）
+	SettingLapOnLogin     = "lap_on_login"     // 登录需人机验证
+	SettingLapOnRegister  = "lap_on_register"  // 注册需人机验证
+	SettingLapOnComment   = "lap_on_comment"   // 评论/发表需人机验证
+
 	// 站点外观
 	SettingSiteWallpaper    = "site_wallpaper"    // 全站壁纸图片地址
 	SettingWallpaperOpacity = "wallpaper_opacity" // 壁纸不透明度（0-100）
@@ -62,12 +78,6 @@ const (
 
 	// 友链自助申请（默认开放，后台审核）
 	SettingFriendApplyEnabled = "friend_apply_enabled" // "true"/"false" 前台开放友链自助申请
-
-	// 系统更新（自动更新，默认零配置全自动）
-	SettingUpdateEnabled       = "update_enabled"        // "true"/"false" 自动更新总开关
-	SettingUpdateCheckInterval = "update_check_interval" // 检查间隔（分钟）
-	SettingUpdateMirrorURLs    = "update_mirror_urls"    // GitHub 加速源 JSON 数组（留空用内置源）
-	SettingUpdateRepo          = "update_repo"           // 发布仓库 owner/repo
 )
 
 var settingDefaults = map[string]string{
@@ -107,25 +117,29 @@ var settingDefaults = map[string]string{
 	SettingGeetestOnRegister: "false",
 	SettingGeetestOnComment:  "false",
 
+	SettingCaptchaProvider: "lap",
+	SettingLapEnabled:      "false",
+	SettingLapAPIEndpoint:  "",
+	SettingLapSiteKey:      "",
+	SettingLapSecretKey:    "",
+	SettingLapResolveIP:    "",
+	SettingLapHTTPProxy:    "",
+	SettingLapOnLogin:      "false",
+	SettingLapOnRegister:   "false",
+	SettingLapOnComment:    "false",
+
 	SettingSiteWallpaper:      "",
 	SettingWallpaperOpacity:   "100",
 	SettingWallpaperBlur:      "0",
 	SettingArticleSidebar:     "true",
 	SettingMaintenanceMode:    "false",
 	SettingFriendApplyEnabled: "true",
-
-	// 系统更新：默认开启自动更新，检查间隔 15 分钟，加速源留空走内置列表
-	SettingUpdateEnabled:       "true",
-	SettingUpdateCheckInterval: "15",
-	SettingUpdateMirrorURLs:    "[]",
-	SettingUpdateRepo:          DefaultUpdateRepo,
 }
 
 // jsonSettingKeys hold JSON arrays; they are decoded before leaving the API.
 var jsonSettingKeys = map[string]bool{
-	SettingNavMenu:          true,
-	SettingSidebarWidgets:   true,
-	SettingUpdateMirrorURLs: true,
+	SettingNavMenu:        true,
+	SettingSidebarWidgets: true,
 }
 
 func decodeJSONSetting(value string) any {
@@ -143,6 +157,18 @@ func decodeJSONSetting(value string) any {
 var maskKeys = map[string]bool{
 	SettingSMTPPass:          true,
 	SettingGeetestCaptchaKey: true,
+	SettingLapSecretKey:      true,
+}
+
+// lapHiddenKeys 是后台不再展示的 Lap 技术配置（自托管场景仍可通过 DB /
+// 环境变量覆盖）。Update 对它们做「空值保持原值」保护：任何渠道（含后台
+// 误操作/API 直调）提交空串都不会把已配置的自托管值清空——配置丢失时
+// 系统回退 lap_defaults.go 的内置默认实例，不会把人机验证打挂。
+var lapHiddenKeys = map[string]bool{
+	SettingLapAPIEndpoint: true,
+	SettingLapSiteKey:     true,
+	SettingLapResolveIP:   true,
+	SettingLapHTTPProxy:   true,
 }
 
 type SettingsService struct {
@@ -159,6 +185,10 @@ func NewSettingsService(db *gorm.DB) *SettingsService {
 
 // All returns every known setting, applying defaults for unset keys.
 func (s *SettingsService) All() (map[string]string, error) {
+	if s == nil || s.db == nil {
+		// 未装配数据库（单测/极端启动顺序）：返回内置默认，绝不 panic
+		return copyMap(settingDefaults), nil
+	}
 	s.mu.RLock()
 	fresh := time.Since(s.cacheTime) < 30*time.Second
 	cache := s.cache
@@ -253,6 +283,11 @@ func (s *SettingsService) Update(payload map[string]any) error {
 		// 敏感字段（SMTP 密码 / 各类密钥）的空白值表示「保持原值不变」，
 		// 避免用户在后台清空输入框时误删已保存的密钥。
 		if maskKeys[key] && strings.TrimSpace(value) == "" {
+			continue
+		}
+		// Lap 隐藏技术配置同样做空值保护：后台已不展示这些字段，任何
+		// 空串提交都视为「无变更」，绝不清空已配置的自托管值。
+		if lapHiddenKeys[key] && strings.TrimSpace(value) == "" {
 			continue
 		}
 		setting := model.Setting{Key: key, Value: value, UpdatedAt: time.Now()}

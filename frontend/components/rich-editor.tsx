@@ -13,7 +13,8 @@ import Suggestion from '@tiptap/suggestion'
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { Presence, Reveal, hoverTapScale } from '@/components/motion'
+import { PageLoading } from '@/components/page-loader'
 import {
   ChevronDown,
   ChevronUp,
@@ -46,6 +47,9 @@ interface DialogOptions {
   hint?: string
   confirmText?: string
 }
+
+/** 弹窗状态：配置项 + Promise 的 resolve 回调 */
+type DialogState = (DialogOptions & { resolve: (v: string | null) => void }) | null
 
 const promptOpener: {
   current: ((opts: DialogOptions) => Promise<string | null>) | null
@@ -451,13 +455,17 @@ export function RichEditor({ content, onChange, variant = 'card' }: RichEditorPr
   const [block, setBlock] = useState<BlockInfo | null>(null)
   const [slash, setSlash] = useState<SlashState>(INITIAL_SLASH)
   const [plusOpen, setPlusOpen] = useState(false)
-  const [dialog, setDialog] = useState<(DialogOptions & { resolve: (v: string | null) => void }) | null>(null)
+  const [dialog, setDialog] = useState<DialogState>(null)
   const dialogRef = useRef<HTMLInputElement>(null)
+  // 保留最近一次弹窗配置：退场动画期间（dialog 已置 null）仍可渲染面板内容
+  const [lastDialog, setLastDialog] = useState<DialogOptions | null>(null)
+  const shownDialog = dialog ?? lastDialog
 
   const openPrompt = useCallback(
     (opts: DialogOptions) =>
       new Promise<string | null>((resolve) => {
         setDialog({ ...opts, resolve })
+        setLastDialog(opts)
       }),
     [],
   )
@@ -630,7 +638,7 @@ export function RichEditor({ content, onChange, variant = 'card' }: RichEditorPr
   }, [editor])
 
   if (!editor) {
-    return <div className="skeleton min-h-[420px] rounded-lg" />
+    return <PageLoading minHeight="420px" />
   }
 
   const plusRect = block?.el
@@ -644,10 +652,9 @@ export function RichEditor({ content, onChange, variant = 'card' }: RichEditorPr
     : null
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
+    <Reveal
+      y={8}
+      duration={0.3}
       className={plain ? 'relative overflow-visible' : 'overflow-hidden rounded-lg border border-border bg-card transition-colors focus-within:border-accent/50'}
     >
       {plain ? (
@@ -717,25 +724,24 @@ export function RichEditor({ content, onChange, variant = 'card' }: RichEditorPr
       <EditorContent editor={editor} />
 
       {/* Styled prompt dialog（Portal 渲染，避免被后台 transform 容器困住） */}
-      <AnimatePresence>
-        {dialog &&
-          createPortal(
-            <motion.div
-              key="dialog-overlay"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <>
+            {/* 全屏遮罩：淡入淡出，点击空白处关闭 */}
+            <Presence
+              show={!!dialog}
+              duration={0.15}
               className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
               onMouseDown={(e) => {
                 if (e.target === e.currentTarget) closeDialog(null)
               }}
             >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.94, y: 12 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 8 }}
-                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              {/* 弹窗面板：缩放 + 位移进场（遮罩内居中） */}
+              <Presence
+                show={!!dialog}
+                y={12}
+                scale={0.94}
+                duration={0.2}
                 className="w-[420px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/25"
                 role="dialog"
                 aria-modal="true"
@@ -750,56 +756,61 @@ export function RichEditor({ content, onChange, variant = 'card' }: RichEditorPr
                   }
                 }}
               >
-                <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-                  <p className="text-sm font-semibold">{dialog.title}</p>
-                  <button
-                    type="button"
-                    onClick={() => closeDialog(null)}
-                    className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-                <div className="space-y-2 px-5 py-5">
-                  <label className="text-sm font-medium">{dialog.label}</label>
-                  <input
-                    ref={dialogRef}
-                    type="text"
-                    defaultValue={dialog.defaultValue ?? ''}
-                    placeholder={dialog.placeholder}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        e.stopPropagation()
-                        closeDialog(null)
-                      }
-                    }}
-                    className="w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20"
-                  />
-                  {dialog.hint && <p className="text-xs text-muted-foreground">{dialog.hint}</p>}
-                </div>
-                <div className="flex justify-end gap-2 border-t border-border bg-muted/40 px-5 py-3.5">
-                  <button
-                    type="button"
-                    onClick={() => closeDialog(null)}
-                    className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
-                  >
-                    取消
-                  </button>
-                  <motion.button
-                    type="button"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.97 }}
-                    onClick={confirmDialog}
-                    className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25"
-                  >
-                    {dialog.confirmText ?? '确定'}
-                  </motion.button>
-                </div>
-              </motion.div>
-            </motion.div>,
-            document.body,
-          )}
-      </AnimatePresence>
-    </motion.div>
+                {shownDialog && (
+                  <>
+                    <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+                      <p className="text-sm font-semibold">{shownDialog.title}</p>
+                      <button
+                        type="button"
+                        onClick={() => closeDialog(null)}
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="space-y-2 px-5 py-5">
+                      <label className="text-sm font-medium">{shownDialog.label}</label>
+                      <input
+                        ref={dialogRef}
+                        type="text"
+                        defaultValue={shownDialog.defaultValue ?? ''}
+                        placeholder={shownDialog.placeholder}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            e.stopPropagation()
+                            closeDialog(null)
+                          }
+                        }}
+                        className="w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-accent focus:ring-2 focus:ring-accent/20"
+                      />
+                      {shownDialog.hint && (
+                        <p className="text-xs text-muted-foreground">{shownDialog.hint}</p>
+                      )}
+                    </div>
+                    <div className="flex justify-end gap-2 border-t border-border bg-muted/40 px-5 py-3.5">
+                      <button
+                        type="button"
+                        onClick={() => closeDialog(null)}
+                        className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+                      >
+                        取消
+                      </button>
+                      <button
+                        type="button"
+                        {...hoverTapScale}
+                        onClick={confirmDialog}
+                        className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25"
+                      >
+                        {shownDialog.confirmText ?? '确定'}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </Presence>
+            </Presence>
+          </>,
+          document.body,
+        )}
+    </Reveal>
   )
 }

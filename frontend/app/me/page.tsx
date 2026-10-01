@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
+import gsap from 'gsap'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Eye,
@@ -24,8 +24,8 @@ import {
 } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { useNotify } from '@/components/toast'
-import { PageTransition } from '@/components/motion'
-import { easeOut } from '@/components/motion'
+import { PageLoading, RowLoading } from '@/components/page-loader'
+import { PageTransition, Reveal, hoverTapScale, prefersReducedMotion } from '@/components/motion'
 import { inputClass } from '@/lib/ui'
 import type { Article } from '@/lib/types'
 
@@ -66,10 +66,9 @@ function AccountTab() {
 
   return (
     <div className="space-y-4">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: easeOut }}
+      <Reveal
+        y={12}
+        duration={0.4}
         className="rounded-xl border border-border bg-card p-5"
       >
         <h2 className="flex items-center gap-2 text-sm font-semibold">
@@ -91,7 +90,7 @@ function AccountTab() {
           </div>
         </div>
         <div className="mt-4 flex justify-end">
-          <motion.button
+          <button
             type="button"
             onClick={() => {
               if (!username.trim()) {
@@ -101,19 +100,18 @@ function AccountTab() {
               rename.mutate()
             }}
             disabled={rename.isPending || username === user?.username}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.97 }}
+            {...hoverTapScale}
             className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
           >
             {rename.isPending ? '保存中...' : '保存资料'}
-          </motion.button>
+          </button>
         </div>
-      </motion.div>
+      </Reveal>
 
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.08, duration: 0.4, ease: easeOut }}
+      <Reveal
+        y={12}
+        delay={0.08}
+        duration={0.4}
         className="rounded-xl border border-border bg-card p-5"
       >
         <h2 className="flex items-center gap-2 text-sm font-semibold">
@@ -143,7 +141,7 @@ function AccountTab() {
           </div>
         </div>
         <div className="mt-4 flex justify-end">
-          <motion.button
+          <button
             type="button"
             onClick={() => {
               if (!currentPw || !newPw) {
@@ -153,24 +151,23 @@ function AccountTab() {
               changePw.mutate()
             }}
             disabled={changePw.isPending}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.97 }}
+            {...hoverTapScale}
             className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
           >
             {changePw.isPending ? '提交中...' : '更新密码'}
-          </motion.button>
+          </button>
         </div>
-      </motion.div>
+      </Reveal>
 
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.16, duration: 0.4, ease: easeOut }}
+      <Reveal
+        y={12}
+        delay={0.16}
+        duration={0.4}
         className="flex items-start gap-2.5 rounded-xl border border-dashed border-border p-4 text-xs text-muted-foreground"
       >
         <Lock className="mt-0.5 h-4 w-4 shrink-0" />
         <span>账户安全提示：密码至少 8 位，建议混合字母、数字与符号；不要与其他网站使用相同密码。</span>
-      </motion.div>
+      </Reveal>
     </div>
   )
 }
@@ -192,13 +189,7 @@ function MyArticlesTab() {
     .concat(draftsQuery.data?.articles ?? [])
 
   if (draftsQuery.isLoading || publishedQuery.isLoading) {
-    return (
-      <div className="space-y-2">
-        {[...Array(3)].map((_, i) => (
-          <div key={i} className="skeleton h-16 rounded-xl" />
-        ))}
-      </div>
-    )
+    return <RowLoading rows={3} />
   }
 
   return (
@@ -209,11 +200,11 @@ function MyArticlesTab() {
         </div>
       ) : (
         mine.map((article: Article, i) => (
-          <motion.div
+          <Reveal
             key={article.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.04, duration: 0.3 }}
+            y={10}
+            delay={i * 0.04}
+            duration={0.3}
             className="flex items-center justify-between rounded-xl border border-border bg-card px-5 py-4"
           >
             <div className="min-w-0">
@@ -249,7 +240,7 @@ function MyArticlesTab() {
                 查看
               </Link>
             </div>
-          </motion.div>
+          </Reveal>
         ))
       )}
     </div>
@@ -274,13 +265,7 @@ function MyCommentsTab() {
   })
 
   if (isLoading) {
-    return (
-      <div className="space-y-2">
-        {[...Array(3)].map((_, i) => (
-          <div key={i} className="skeleton h-16 rounded-xl" />
-        ))}
-      </div>
-    )
+    return <RowLoading rows={3} />
   }
 
   const comments = data?.comments ?? []
@@ -295,12 +280,11 @@ function MyCommentsTab() {
   return (
     <div className="space-y-3">
       {comments.map((c, i) => (
-        <motion.div
+        <Reveal
           key={c.id}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, x: -24 }}
-          transition={{ delay: i * 0.04, duration: 0.3 }}
+          y={10}
+          delay={i * 0.04}
+          duration={0.3}
           className="rounded-xl border border-border bg-card p-4"
         >
           <div className="flex items-center justify-between gap-2">
@@ -336,7 +320,7 @@ function MyCommentsTab() {
             </button>
           </div>
           <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{c.content}</p>
-        </motion.div>
+        </Reveal>
       ))}
     </div>
   )
@@ -351,10 +335,18 @@ export default function MePage() {
     if (!loading && !user) router.push('/login')
   }, [loading, user, router])
 
+  // 选中标签的滑动底块（原 layoutId 共享布局动画，改用重挂载 + scaleX 入场）
+  const pillRef = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (pillRef.current && !prefersReducedMotion()) {
+      gsap.fromTo(pillRef.current, { scaleX: 0 }, { scaleX: 1, duration: 0.3, ease: 'expo.out' })
+    }
+  }, [tab])
+
   if (loading || !user) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-12">
-        <div className="skeleton h-40 rounded-xl" />
+        <PageLoading minHeight="10rem" />
       </div>
     )
   }
@@ -368,10 +360,9 @@ export default function MePage() {
   return (
     <PageTransition>
       <div className="mx-auto max-w-4xl px-4 py-10">
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: easeOut }}
+        <Reveal
+          y={16}
+          duration={0.45}
           className="relative overflow-hidden rounded-xl border border-border bg-gradient-to-br from-accent/10 via-card to-purple-500/10 p-6"
         >
           <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-accent/15 blur-2xl" />
@@ -389,7 +380,7 @@ export default function MePage() {
               </span>
             )}
           </div>
-        </motion.div>
+        </Reveal>
 
         <div className="mt-6 flex items-center gap-1 rounded-lg border border-border bg-card p-1">
           {tabs.map((t) => (
@@ -401,10 +392,10 @@ export default function MePage() {
               }`}
             >
               {tab === t.key && (
-                <motion.span
-                  layoutId="me-tab-pill"
-                  className="absolute inset-0 rounded-md bg-accent"
-                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                <span
+                  key={t.key}
+                  ref={pillRef}
+                  className="absolute inset-0 origin-left rounded-md bg-accent"
                 />
               )}
               <t.icon className="relative h-4 w-4" />
@@ -413,15 +404,14 @@ export default function MePage() {
           ))}
         </div>
 
-        <motion.div
+        <Reveal
           key={tab}
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, ease: easeOut }}
+          y={12}
+          duration={0.3}
           className="mt-4"
         >
           {tab === 'account' ? <AccountTab /> : tab === 'articles' ? <MyArticlesTab /> : <MyCommentsTab />}
-        </motion.div>
+        </Reveal>
       </div>
     </PageTransition>
   )

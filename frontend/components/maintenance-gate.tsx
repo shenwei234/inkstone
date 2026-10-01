@@ -6,7 +6,7 @@ import { gsap } from 'gsap'
 import { Construction } from 'lucide-react'
 import { useSiteConfig } from '@/components/site-config-context'
 import { useAuth } from '@/lib/auth-context'
-import { prefersReducedMotion } from '@/components/gsap'
+import { createLoop, prefersReducedMotion, releaseLoop } from '@/components/motion'
 
 /**
  * 全屏「网站维护中」页面。背景不透明（首帧即实底，无白屏闪烁），
@@ -26,15 +26,6 @@ function MaintenanceScreen() {
           { opacity: 0, scale: 0.6 },
           { opacity: 1, scale: 1, duration: 0.6, ease: 'back.out(1.6)' },
         )
-        if (!prefersReducedMotion()) {
-          gsap.to(iconRef.current, {
-            rotation: 360,
-            duration: 9,
-            repeat: -1,
-            ease: 'none',
-            transformOrigin: '50% 50%',
-          })
-        }
       }
       if (titleRef.current) {
         gsap.fromTo(titleRef.current, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.5, delay: 0.15, ease: 'power3.out' })
@@ -44,6 +35,24 @@ function MaintenanceScreen() {
       }
     })
     return () => ctx.revert()
+  }, [])
+
+  // 齿轮持续旋转：循环动画必须走 createLoop 纳管（页面隐藏时自动暂停，否则切 tab 仍空转）
+  useEffect(() => {
+    if (!iconRef.current || prefersReducedMotion()) return
+    const tween = createLoop(() =>
+      gsap.to(iconRef.current, {
+        rotation: 360,
+        duration: 9,
+        repeat: -1,
+        ease: 'none',
+        transformOrigin: '50% 50%',
+      }),
+    )
+    return () => {
+      tween.kill()
+      releaseLoop(tween)
+    }
   }, [])
 
   return (

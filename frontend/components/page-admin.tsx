@@ -4,7 +4,6 @@ import { FormEvent, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
 import { FileText, Pencil, Plus, Trash2 } from 'lucide-react'
 import {
   createPage,
@@ -16,7 +15,8 @@ import {
 } from '@/lib/api'
 import { useNotify } from '@/components/toast'
 import { RichEditor } from '@/components/rich-editor'
-import { PageTransition } from '@/components/motion'
+import { PageTransition, Reveal, hoverTapScale } from '@/components/motion'
+import { PageLoading, RowLoading } from '@/components/page-loader'
 import type { PageItem } from '@/lib/api'
 
 const templates = [
@@ -132,15 +132,14 @@ function PageEditor({
       )}
 
       <div className="flex items-center gap-3">
-        <motion.button
+        <button
           type="submit"
           disabled={mutation.isPending}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.97 }}
+          {...hoverTapScale}
           className="rounded-lg bg-accent px-6 py-2.5 text-sm font-medium text-white shadow-md shadow-accent/25 disabled:opacity-50"
         >
           {mutation.isPending ? '保存中...' : pageId ? '保存页面' : '创建页面'}
-        </motion.button>
+        </button>
         <Link
           href="/admin/pages"
           className="rounded-lg px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -179,7 +178,7 @@ export function PageList() {
             独立页面（关于、友链、联系方式等），支持三种模板
           </p>
         </div>
-        <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+        <div {...hoverTapScale}>
           <Link
             href="/admin/pages/new"
             className="flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white shadow-md shadow-accent/25"
@@ -187,14 +186,13 @@ export function PageList() {
             <Plus className="h-4 w-4" />
             新建页面
           </Link>
-        </motion.div>
+        </div>
       </div>
 
       {isLoading ? (
-        <div className="mt-6 space-y-2">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="skeleton h-16 rounded-xl" />
-          ))}
+        /* 页面列表加载态：行加载动画替换原骨架图 */
+        <div className="mt-6">
+          <RowLoading rows={3} />
         </div>
       ) : (data?.pages ?? []).length === 0 ? (
         <div className="mt-6 rounded-xl border border-dashed p-16 text-center">
@@ -204,12 +202,10 @@ export function PageList() {
       ) : (
         <div className="mt-6 space-y-2">
           {(data?.pages ?? []).map((page, i) => (
-            <motion.div
+            <Reveal
               key={page.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, x: -24 }}
-              transition={{ delay: i * 0.04, duration: 0.3 }}
+              delay={i * 0.04}
+              duration={0.3}
               className="group flex items-center justify-between rounded-xl border border-border bg-card px-5 py-4 transition-colors hover:border-accent/30"
             >
               <div className="min-w-0">
@@ -262,7 +258,7 @@ export function PageList() {
                   <Trash2 className="h-3.5 w-3.5" /> 删除
                 </button>
               </div>
-            </motion.div>
+            </Reveal>
           ))}
         </div>
       )}
@@ -293,8 +289,11 @@ export function EditPageScreen({ id }: { id: number }) {
   if (isLoading) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-10">
-        <div className="skeleton h-14 rounded-lg" />
-        <div className="skeleton mt-4 h-96 rounded-lg" />
+        {/* 编辑器加载态：GSAP 加载动画替换原骨架图 */}
+        <PageLoading minHeight="3.5rem" hint="加载标题…" />
+        <div className="mt-4">
+          <PageLoading minHeight="24rem" hint="加载编辑器…" />
+        </div>
       </div>
     )
   }

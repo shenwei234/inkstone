@@ -44,19 +44,21 @@ export function ArticleToc({ items, contentRef }: { items: TocItem[]; contentRef
     })
   }, [items, contentRef])
 
-  // 滚动高亮：取视口上方最近的标题（在事件回调里 setState，非 effect 同步路径）
+  // 滚动高亮：取视口上方最近的标题（在事件回调里 setState，非 effect 同步路径）。
+  // headings 在 effect 内缓存一次——rAF 回调每帧执行，逐项 getElementById
+  // 会反复强制同步 layout，长文章滚动时是明显卡顿源。
   useEffect(() => {
     if (items.length === 0) return
     let raf = 0
+    const headings = items.map((item) => document.getElementById(item.id))
     const onScroll = () => {
       if (raf) return
       raf = requestAnimationFrame(() => {
         raf = 0
         let current = items[0]?.id ?? ''
-        for (const item of items) {
-          const el = document.getElementById(item.id)
-          if (el && el.getBoundingClientRect().top <= 120) current = item.id
-        }
+        headings.forEach((el, i) => {
+          if (el && el.getBoundingClientRect().top <= 120) current = items[i].id
+        })
         setActiveId(current)
       })
     }

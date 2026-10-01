@@ -1,6 +1,6 @@
 # 前端架构详解
 
-Next.js（App Router）+ React 19 + TypeScript + Tailwind CSS v4 + React Query + Framer Motion + TipTap。
+Next.js（App Router）+ React 19 + TypeScript + Tailwind CSS v4 + React Query + GSAP + TipTap。
 
 ## 目录结构
 
@@ -201,21 +201,80 @@ export function downloadFile(id: number, filename: string)  // 鉴权下载
 > baseline 快照含 `{t, c, g, s, v}`（title/content/category/tags/cover），
 > 任何保存动作（自动保存/存草稿/发布）成功后刷新，避免误报 dirty。
 
-### 人机验证（`components/geetest-captcha.tsx`）
-极验 GT4 hook（旧版 `components/captcha.tsx` 已被替换）：
+### 人机验证（`components/captcha.tsx` 门面 + 两个 provider hook）
+
+页面统一调用门面 hook，由后台 `captcha_provider` 设置自动选用 provider：
 
 ```tsx
-const captcha = useGeetestCaptcha('login') // 'login' | 'register' | 'comment'
-{...}
-{captcha.dialog}  // 常驻 DOM 的验证弹窗（display 切换显隐）
+import { useCaptcha } from '@/components/captcha'
+const captcha = useCaptcha('login') // 'login' | 'register' | 'comment'
+// ...
+{captcha.dialog}  // 常驻 DOM 的验证弹窗（portal 到 body，display 切换显隐）
 ```
 
-- 弹窗**必须 `createPortal` 到 `document.body`**：调用方页面（如友链申请表单）外层常是
-  带 `transform` 动画的 `motion.div`，内联渲染 `fixed inset-0` 会被 transform 包含块困住，
-  遮罩只覆盖表单卡片区域 → 「只有提交窗口模糊」。portal 用 `useSyncExternalStore`
-  感知挂载（SSR 首帧 false，hydration 后 true），避免 hydration mismatch 与
-  `react-hooks/set-state-in-effect` 规则
-- 开关由 `site-config` 的 `geetest.on_login/on_register/on_comment` 按场景控制
+- `useGeetestCaptcha`（`geetest-captcha.tsx`）：极验 GT4，动态加载 gt4.js，
+  `getValidate()` 拿 `{lot_number, captcha_output, pass_token, gen_time}`
+- `useLapCaptcha`（`lap-captcha.tsx`）：Lap 工作量证明，按 `lap.api_endpoint`
+  推导并加载同实例 `widget.js`，挂载 `lap-widget` 自定义元素，监听其
+  `solve`（detail.token）/ `error`（detail.message）事件拿 `lap_token`。
+  每次打开弹窗都重建 widget 元素（PoW 完成后实例无法原地复位）。
+  开启时即预加载脚本（与极验同策略）
+- **Lap widget 的两段式流程（Cap 设计，勿改）**：
+  1. **speculative 静默预跑**：挂载后由 `mousemove` / `touchstart` / `keydown`
+     触发（Cap 的真人检测，listener 在 connectedCallback 绑定，触发一次后自解绑，
+     之后 2.5s 发起 challenge）→ PoW → redeem 全部**静默**完成，widget 置为
+     done（不派发任何事件，label 仍停在 initial 按钮态）
+  2. **用户点击才 solve**：`solve()` 命中 done 快路径后派发 `solve` 事件
+     （detail.token），一点即过。所以弹窗文案是「点击下方按钮即可通过」而非
+     「自动继续」——speculative 只是让点击变成零延迟
+  - **e2e 自动化**：必须 ① 显式移动/派发鼠标事件触发 speculative ② 等 redeem
+    200 后**真实点击 widget 中心**（`page.mouse.click`；合成 `.click()` 无效，
+    widget 监听 mousedown）才会派发 solve。漏任一步都永远等不到令牌
+- **全链路走后端代理（2026-10 修复 DNS 污染事故）**：`lap-captcha.tsx` 不直连
+  Lap 实例——widget.js / `LAP_CUSTOM_WASM_URL` / `data-lap-api-endpoint` 全部
+  指向本站 `/api/v1/lap/*`（见 backend.md 的 LapProxyHandler 白名单）。
+  访客浏览器与 workers.dev 零接触
+- **PoW 预热（2026-10 提速）**：`useLapCaptcha(scene, { prewarm })`，门面
+  `useCaptcha` 对 login/register 开启、comment 关闭（文章页访客量大不浪费
+  配额）。预热把 widget 挂到**屏幕外但渲染可见**的容器
+  （`fixed left-[-9999px] opacity-100`——`checkVisibility` 对非 `display:none`
+  + opacity:1 返回 true，视口外无妨），用户填表单时 speculative 已静默完成；
+  提交时弹窗直接**移动**该实例（DOM appendChild 保状态，不重建）→ 一点即过。
+  成功后 `solvedRef` 标记销毁实例并重建预热（token 已消费防重放）；
+  未消费的实例关闭时移回屏幕外保留 done。弹窗文案随 `progress` 事件显示
+  「正在本地计算工作量证明… n%」，成功后展示 600ms 即关闭
+- 两个 hook **provider 互斥**：未选中的 enabled=false，不加载任何外部脚本
+
+弹窗**必须 `createPortal` 到 `document.body`**：调用方页面（如友链申请表单）外层常是
+带动画（GSAP `transform`）的容器 div，内联渲染 `fixed inset-0` 会被 transform 包含块困住，
+遮罩只覆盖表单卡片区域 → 「只有提交窗口模糊」。portal 用 `useSyncExternalStore`
+感知挂载（SSR 首帧 false，hydration 后 true），避免 hydration mismatch 与
+`react-hooks/set-state-in-effect` 规则
+
+### 文章代码高亮与代码块增强（`components/code-highlight.ts`）
+
+共享实现 `enhanceCodeBlocks(root, opts?)`：给容器内每个 `pre > code[class=language-x]`
+包 wrapper + 头部（**语言标签 + 复制按钮**，`.md-codeblock` 系列样式见 globals.css，
+已含 `.prose` 适配）并按 `language-*` 跑 hljs。另导出 `useCodeHighlight(ref, html)`
+hook 包装给 React 正文容器用：
+
+```tsx
+const contentRef = useRef<HTMLDivElement>(null)
+useCodeHighlight(contentRef, articleHtml) // ref 挂到 dangerouslySetInnerHTML 容器上
+```
+
+- **编辑器预览**（`markdown-editor.tsx`）与**文章正文**共用同一函数。复制交互：
+  按钮内「复制 → 已复制」1.5s 回翻 + **成功 toast**（`onCopySuccess`，各处接
+  `notify.success('代码已复制')`）；失败时编辑器接 `onCopyError` toast，
+  文章页留空则按钮内显示「失败」
+- 已接入：文章详情页、自定义页面三模板（hook 调用**必须在 early return 之前**）、
+  后台实时预览（`article-preview.tsx`）。**新增长 HTML 正文容器处都要接**
+- 行为约定（浏览器实测）：
+  - 语言集 `highlight.js/lib/common`（含 go/ts/js/json/python/bash/yaml 等约 40 种）
+  - `language-text`/`plaintext` 走 plaintext 高亮（零 token 无色，良性）
+  - 真未知语言（`language-zzzunknown`）或无 `language-*` class → **原样不动**，不误判着色
+  - 幂等：`.md-codeblock` 祖先检测 + `dataset.mdHighlighted`；React 重建 DOM 后自动重跑
+  - 后端 `sanitize.go` 已全局放行 `class` 属性（`language-*` / `hljs-*` 不过滤）
 
 ### 侧边栏小工具（`components/sidebar-widgets.tsx`）
 11 种小工具，通过 `type` 分发：
@@ -251,16 +310,60 @@ const captcha = useGeetestCaptcha('login') // 'login' | 'register' | 'comment'
 - 右侧小眼睛切换明文/密文
 - 已保存且未输入新值时显示 `••••••••••••`
 
-### 动画工具（`components/motion.tsx`）
+### 动画工具（`components/motion.tsx`，GSAP 封装）
+全站动画统一走 GSAP（`gsap` 3.15）；**framer-motion 已彻底移除**，禁止再引入。
+
 ```tsx
-<PageTransition>...</PageTransition>          // 页面淡入上移
+<PageTransition>...</PageTransition>              // 页面淡入
+<Reveal y={16} delay={0.1}>卡片</Reveal>           // 通用入场（opacity + y/x/scale/delay/duration）
 <StaggerList className="grid gap-4">
-  <StaggerItem>卡片</StaggerItem>              // 交错入场
+  <StaggerItem>卡片</StaggerItem>                   // 交错入场（StaggerItem 现为纯透传 div）
 </StaggerList>
-<HoverLift>悬浮上浮</HoverLift>
-easeOut  // 统一缓动曲线 [0.16, 1, 0.3, 1]
+<HoverLift>悬浮上浮</HoverLift>                    // 悬停 y:-4 上浮
+<InView>滚入视口淡入一次</InView>                   // 替代 whileInView + viewport once
+<Presence show={open} y={8} scale={0.96}>弹层</Presence>  // 替代 AnimatePresence：退场播完自动卸载
+<button {...hoverTapScale}>按钮</button>           // 替代 whileHover/whileTap：悬停放大、按压缩放
+<div {...hoverLift}>悬浮元素</div>                  // 替代 whileHover={{y:-4}}
+<CountUp value={1234} />                           // 数字滚动
 ```
-**⚠️ 性能**：长列表项**不要用** `layout` 属性（会导致卡顿），只用 `initial`/`animate`。
+语义标签（header/aside/article/span/p…）不要换标签，用 hook 挂动画：
+```tsx
+const ref = useRef<HTMLElement>(null)
+useReveal(ref, { y: 16, duration: 0.4 })   // 挂载时 gsap.from
+```
+命令式场景（响应式 rotate/x、宽度进度条、路由 key 重挂的 tab 滑块）直接在
+useEffect/事件回调里 `gsap.to/fromTo`，用 `prefersReducedMotion()` 守卫。
+
+**⚠️ 入场动画铁律（务必遵守）**：
+- **只允许从可见到动的动画**：入场一律用 `Reveal / InView / useReveal / StaggerList`（自带完成清理 `clearProps` + 超时看门狗）；
+  **禁止**手搓 `gsap.from(el, { opacity: 0 })`——GSAP 是 rAF 逐帧 tween，远程桌面/窗口遮挡时 rAF 被
+  浏览器节流会永久停在透明态，表现为「内容被白色遮挡」（framer 时代走 WAAPI 无此问题）。
+  `motion.tsx` 已全局 patch `gsap.from/fromTo` 兜底，但新代码仍应按本铁律走封装组件
+- **逐行/逐项列表**（表格 tr、管理列表项）：抽行子组件 + `useReveal(rowRef, { delay: i * 0.05 })`；
+  不要把动画写进 ref 回调（每次父组件重渲染都会重播动画，反复闪烁）
+- 悬停/按压缩放、进度条宽度、tab 滑块 scaleX 等**非可见性动画**可自由用 `gsap.to`，卡住无感
+- **进度条一律 `scaleX` 不用 `width`**：`width` 动画每帧触发 layout 重排，长页面/远程桌面（CPU 合成）下是明显卡顿源；bar 容器 `w-full`/`overflow-hidden`，bar 加 `origin-left`，动画 `gsap.fromTo(bar,{scaleX:0},{scaleX:pct/100})`（route-loader / admin/page / admin/files 均已按此实现）。同理输入框 focus 展宽（navbar 搜索框）也别 `transition-all`+`focus:w-XX`，用 `transition-[border-color,box-shadow]` 只过渡颜色、宽度瞬时变化
+- **循环动画必须走 `createLoop`**（`motion.tsx`）：`repeat:-1` 的 tween 纳入全局登记，`visibilitychange` 时页面隐藏自动 `pause()`、恢复 `resume()`——标签页切后台/最小化时不再空转烧 CPU；组件卸载 `kill + releaseLoop`。已接入：`page-loader.tsx`（PageLoading/RowLoading/Spinner）、`sidebar-widgets` 的 `LoopAnim`、`maintenance-gate` 的齿轮旋转、`links` 页 hero 图标浮动
+- **blur(filter) 元素禁止做 transform 动画**：装饰光斑（`blur-xl` 等）scale/y/rotate 时每帧重绘整片模糊区域，远程桌面 CPU 合成下极重；一律改用 `opacity` 呼吸（`LoopAnim kind="opacity"`，走合成层）。侧栏 CountdownWidget 光斑已按此实现
+- **滚动 handler 里禁止逐帧查 DOM**：rAF 回调中逐项 `getElementById` + `getBoundingClientRect` 会反复强制同步 layout（长文章滚动明显卡顿）；headings 等在 effect 内一次性缓存数组，回调里只读缓存（article-toc 已按此实现）
+- **`RowLoading` 只渲染一个旋转环**：早期每行一个环，8 行同时跑 8 个 transform 动画在软渲染环境下明显卡顿；现在首行单环 + 后续行静态文字
+- **长列表 stagger 封顶**：`StaggerList` 自动把 stagger 压到「总时长 ≤ duration+0.5s」（20+ 项时逐项 0.06 会拖 1.2s+，体感像卡住）；列表行动画 delay 同样手动 cap（如 users 页 `Math.min(index*0.04, 0.3)`）
+
+**⚠️ 性能与规则**：
+- 长列表逐项入场用 `StaggerList` 一次 timeline，**不要**给每个元素自建组件
+- `Presence` 内部用「渲染期同步挂载 + GSAP onComplete 延迟卸载」规避 effect 内同步 setState
+- React Compiler 规则（`preserve-manual-memoization`）：**组件体内不要写 `useCallback`**，会被 eslint 报 error；把函数提到模块级或放进 effect 内
+
+### 加载动画与路由切换（`components/route-loader.tsx` + `components/page-loader.tsx`）
+- **`RouteLoader`**（挂在根 layout `body` 顶部）：GSAP 顶部进度条。
+  拦截站内 `<a>` 点击（capture）+ patch `history.pushState`（覆盖 `router.push`）+ `popstate`；
+  `pathname` 变化即收尾；6s 兜底自动收起
+- **`PageLoading`**：区块/页面级加载动画（GSAP 双环旋转 + 墨点呼吸），`minHeight` 保持版面高度
+- **`RowLoading rows={n}`**：行列表加载态（GSAP 驱动旋转环，替代旧的多行骨架）
+- **`Spinner`**：inline 小号旋转环（GSAP）
+- **全站不再使用 `.skeleton` 骨架图**（class 与 `@keyframes shimmer` 已从 globals.css 删除）：
+  页面 `isLoading` 分支一律换成上述三个组件；路由切换期间只显示 RouteLoader 进度条，
+  不会闪骨架
 
 ### 壁纸（`components/site-wallpaper.tsx`）
 从 `site.wallpaper` 读取，固定背景层。有壁纸时 `body.has-wallpaper` 类生效，卡片变半透明（`globals.css`）。
@@ -289,14 +392,20 @@ easeOut  // 统一缓动曲线 [0.16, 1, 0.3, 1]
 
 **文章目录（`components/article-toc.tsx`）**：`parseToc()` 在 `useMemo` 里对正文 HTML 做 DOMParser 提取 h1-h3
 （`useIsMounted` gate：SSR 无 document 返回空，hydration 后出现），ArticleToc 组件负责补锚点 id + 滚动高亮 +
-点击跳转。布局联动：**目录贴「没有侧边栏的一侧」**——无侧栏→右侧（`max-w-5xl` 两列）、侧栏在右→目录在左、
+点击跳转。滚动高亮的 headings DOM 在 effect 内缓存一次（rAF 回调只读缓存，不逐帧 `getElementById`）。
+布局联动：**目录贴「没有侧边栏的一侧」**——无侧栏→右侧（`max-w-5xl` 两列）、侧栏在右→目录在左、
 侧栏在左→目录在右（`max-w-7xl` 三列）；正文无标题则整列隐藏退回两列/单列。
 
 **分享（`components/article-share.tsx`）**：移动端优先 `navigator.share` 原生面板，桌面端下拉菜单
 （复制链接/微博/Twitter/邮件）；`useIsMounted` 不需要——`navigator.share` 运行时判定即可。
 
-**回顶（`components/back-to-top.tsx`）**：滚动超过 480px 显示 `fixed bottom-6 right-6` 悬浮按钮，
-`AnimatePresence` 出入场，点击平滑回顶。目前挂在文章页（组件通用，可按需全局挂载）。
+**回顶（`components/back-to-top.tsx`）**：滚动超过 480px 显示 `fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6`
+悬浮按钮（safe-area 防 iOS 手势条遮挡），点击平滑回顶。目前挂在文章页（组件通用，可按需全局挂载）。
+**三个要点**：①**滞回阈值**（480 显示 / 320 隐藏）——单阈值在临界点来回滚动会反复挂载重播动画，图标闪烁；
+②**入场用纯 CSS `.animate-scale-in` 不用 Presence**——GSAP opacity tween 在远程桌面 rAF 节流时停透明态，
+表现为「滚动后图标半天不显示」；CSS keyframes 走合成器线程无此问题（`prefers-reduced-motion` 由 CSS 自动处理）；
+③scroll 监听 rAF 节流 + 函数式 setState。hover 反馈：button 用 `hoverTapScale`，箭头图标另用
+`group-hover:-translate-y-0.5` 微上移（两个元素互不冲突）。
 
 ### 站点 head（`components/site-head.tsx`）
 在根布局渲染 `<title>` / `<link rel="icon">`（React 19 metadata hoist 到 head），
@@ -306,7 +415,7 @@ React 19 metadata 管理覆盖/清理，后台改了前台不生效（踩过）�
 
 ### 管理后台（`app/admin/`）
 - `layout.tsx` 做**权限守卫**：未登录跳 `/login`，非管理员显示「需要管理员权限」
-- 侧边栏导航入口，用 `layoutId="admin-nav-pill"` 做滑动高亮
+- 侧边栏导航入口，激活项用 `key` 重挂 + GSAP `scaleX` 入场做高亮滑块
 
 #### 站点地图页（`app/admin/sitemap/page.tsx`）
 - 数据：`useQuery(['admin','sitemap'], fetchSitemapData)`（GET `/admin/sitemap`）
@@ -323,18 +432,6 @@ React 19 metadata 管理覆盖/清理，后台改了前台不生效（踩过）�
 - 导出 CSV：`downloadLogs()` 用 `fetch + Bearer` 直接取 blob（**不能走 `api()` JSON 客户端**），401 时 `tryRefresh()` 刷新重试；通过 `a[download]` + `URL.createObjectURL` 触发浏览器下载
 - 分页：每页 30 条
 
-#### 系统更新页（`app/admin/updates/page.tsx`，Beta1.15）
-
-- 数据：`useQuery(['update','status'], fetchUpdateStatus)`，**进行中任务时 2s 轮询，否则 30s**（refetchInterval 回调按 `task` 是否存在切换）
-- 版本对比卡：当前运行版本（大字号 + 运行中徽章）vs 最新发布版本（发布时间/大小/SHA256 截断/清单来源/更新说明 pre-wrap），有新版时出主按钮「立即更新到 x.y.z」
-- 任务进度卡：phase 中文映射（checking/downloading/verifying/loading/deploying）+ `motion` 宽度进度条 + detail 说明
-- 更新历史：type 徽章（更新/回滚）+ `from → to` + 状态徽章 + 触发方式 + 时间（`relativeTime`）+ detail；`rollback_tag` 存在时出「回滚到上一版本」按钮
-- 更新设置卡：自动更新 Toggle、检查间隔、发布仓库、加速源 textarea（每行一个，保存时 split/filter）
-- Docker 未挂载警示卡：给出 compose volumes 片段 (`/var/run/docker.sock:/var/run/docker.sock:ro`)
-- 加速源为**列表编辑**（非 textarea）：每行一个源 + 延迟徽章（绿 `xxms` / 红「不可达」）+ 删除；「测试延迟」按钮调 `testUpdateMirrors()`（POST mirror-test），结果按 url 映射展示
-- 版本更新记录卡：`fetchChangelog()`（GET /admin/updates）展示内置 changelog 最近 6 条，当前版本带徽章；更新说明用 `NotesBlock` 组件按行渲染（`-`/`•`/`1.` 开头转列表项，不引入 markdown 依赖）
-- 危险操作全部走 `notify.confirm()`（立即更新/回滚），API 函数在 `lib/api.ts`：`fetchUpdateStatus / checkUpdate / runUpdate / rollbackUpdate / saveUpdateSettings / testUpdateMirrors / fetchChangelog`
-
 ### 用户中心（`app/me/page.tsx`）
 所有登录用户可用：账户安全（改用户名/密码）、我的文章、我的评论。
 
@@ -342,20 +439,19 @@ React 19 metadata 管理覆盖/清理，后台改了前台不生效（踩过）�
 
 ## 样式规范
 
-### 动画与感知性能（Beta1.15 更新页实践）
-- **进度条用 `scaleX` 不用 `width`**：`origin-left` + `animate={{scaleX: pct/100}}`，走合成层不触发 layout/paint
-- **纯 CSS 优先于 framer-motion**：列表逐项淡入（`.list-stagger > li` 30ms 阶梯）、骨架屏 shimmer（`.skeleton`）、tab 切换淡入（`.tab-enter`）全部是 keyframes，不为每项创建 motion 组件
-- **`prefers-reduced-motion: reduce` 全局降级**：`.animate-fade-*`/`.skeleton`/`.list-stagger`/`.tab-enter` 动画全部关闭（主 frontend 与 update-hub 两个 globals.css 均已加）
-- **渐进骨架**：首屏页头/按钮常驻，仅数据区 skeleton（`/admin/updates` loading 态），避免整页 skeleton → 整页内容的跳变
-- **轮询优化**：`refetchOnWindowFocus: false`（30s 轮询已保新鲜，切 tab 回来不再立即请求）；任务运行中 2s、空闲 30s
-- update-hub 是独立 Next 应用，globals.css 需自带上述 `.skeleton`/`.tab-enter`/`.list-stagger`（不与主 frontend 共享 CSS）
+### 动画与感知性能
+- **路由切换不显示骨架**：导航期间由 `RouteLoader` 顶部 GSAP 进度条提示；页面数据加载态统一
+  `PageLoading` / `RowLoading` / `Spinner`（GSAP 动画）。`.skeleton` 与 `@keyframes shimmer` 已删除，
+  **禁止新增骨架图**；首屏页头/按钮常驻、仅数据区显示加载动画，避免整块跳变
+- **进度条动画用 `gsap.to(width)`**，`SPA` 内由 effect 按数据驱动；tab 滑块用路由/状态 `key` 重挂 + `scaleX` 入场
+- **纯 CSS keyframes 保留**：列表逐项淡入（`.list-stagger > li`）、tab 切换淡入（`.tab-enter`）、
+  极验成功对勾（`@keyframes captcha-check-pop`）等为轻量装饰；组件级交互动画一律 GSAP
+- **`prefers-reduced-motion: reduce` 全局降级**：`.animate-fade-*`/`.list-stagger`/`.tab-enter` 由 CSS 关闭；
+  GSAP 侧由 `prefersReducedMotion()` 统一守卫（motion.tsx / page-loader.tsx 内已处理）
 
-### 视觉层次约定（Beta1.15 更新系统实践）
-- **状态可视化优先**：任务进度用「五阶段步骤条」`StepProgress`（当前步 `animate-pulse` + 完成步打勾）+ 进度条 shimmer 流光叠加（`.skeleton opacity-40`）；历史项左侧 6px 状态色条（成功 emerald/失败 red/进行 amber）
-- **单一主动线**：重要 CTA 只出现一次（`/admin/updates` 顶部「新版本横幅」放立即更新，卡片内按钮降为 ghost 次级），避免双按钮抢焦点
-- **渐变强调**：版本号大字用 `bg-gradient-to-r from-accent to-purple-500 bg-clip-text text-transparent`；Docker 运行状态用 ping 脉冲圆点
-- **入场时机**：Section 用 `whileInView` + `viewport={{once:true}}`（长页面进入视口才播）+ `whileHover={{y:-2}}` 微浮；framer `layoutId` 滑块只用于 tab 指示器（单个元素，非列表）
-- update-hub：登录页背景 blur-3xl 光斑 + 卡片 `bg-card/80 backdrop-blur-sm`；header `sticky backdrop-blur-md`；上传区支持点击/拖放（dragOver/drop 高亮）
+### 视觉层次约定
+- **入场时机**：Section 用 `<InView>`（长页面进入视口才播）、悬停微浮用 `{...hoverLift}`；
+  tab/导航高亮滑块用 `key` 重挂 + `gsap.fromTo(scaleX)`（单元素，非列表）
 
 ### 统一的设计令牌（`app/globals.css`）
 ```css
@@ -370,8 +466,15 @@ Tailwind 中直接用 `bg-card`、`text-muted-foreground`、`border-border`、`t
 按钮(主)：rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white shadow-md shadow-accent/25
 按钮(次)：rounded-lg border border-border px-4 py-2 text-sm hover:border-accent/40 hover:text-accent
 输入框：  lib/ui.ts 的 inputClass
-骨架屏：  skeleton class（自定义 shimmer 动画）
+加载态：  PageLoading / RowLoading / Spinner（components/page-loader.tsx，GSAP；skeleton 已移除）
 ```
+
+### 正文排版（`lib/ui.ts` 的 `proseBody`）
+文章正文（`app/posts/[slug]`、独立页 `app/p/[slug]`）统一用 `proseBody` 常量，**不要再手写 prose 类串**。约定：
+- `prose-lg` + `prose-p:leading-[1.8]` + `text-pretty`：中文长文阅读舒适区
+- `prose-headings:scroll-mt-24`：目录锚点跳转不被 sticky 导航遮挡
+- h2 加分隔线、引用浅底色圆角、图片边框阴影、代码块描边：结构层次
+- `.prose table` 的框线/表头底色/斑马纹在 `globals.css` 单独定制；`::selection` 用 accent 底色
 
 ### 深色模式
 全部用 `dark:` 前缀，不需要额外配置（跟随系统）。
@@ -383,8 +486,9 @@ Tailwind 中直接用 `bg-card`、`text-muted-foreground`、`border-border`、`t
 ### 新增一个页面
 1. `app/新路径/page.tsx`
 2. `'use client'`（需要交互时）
-3. 用 `<PageTransition>` 包裹
+3. 用 `<PageTransition>` 包裹，数据 loading 分支用 `<PageLoading>` / `<RowLoading>`（**不要骨架图**）
 4. 数据用 `useQuery` + `lib/api.ts` 的函数
+5. 路由切换进度条由根 layout 的 `RouteLoader` 自动接管，新页面无需额外配置
 
 ### 新增一个管理页
 1. `app/admin/新路径/page.tsx`

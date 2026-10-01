@@ -24,6 +24,7 @@ import { downloadLogs, fetchLogOverview, fetchLogs } from '@/lib/api'
 import type { OperationLog } from '@/lib/api'
 import { useNotify } from '@/components/toast'
 import { PageTransition } from '@/components/motion'
+import { RowLoading, Spinner } from '@/components/page-loader'
 
 const PAGE_SIZE = 30
 
@@ -187,7 +188,7 @@ export default function AdminLogsPage() {
             </div>
             <p className="mt-1 text-xl font-bold tabular-nums">
               {card.value === undefined ? (
-                <span className="skeleton inline-block h-6 w-12 rounded align-middle" />
+                <Spinner className="h-5 w-5" />
               ) : (
                 card.value
               )}
@@ -271,10 +272,8 @@ export default function AdminLogsPage() {
 
       {/* 日志列表（紧凑列表样式：每行一条，点击展开完整详情与 UA） */}
       {logsQuery.isLoading ? (
-        <div className="mt-5 space-y-2">
-          {[...Array(8)].map((_, i) => (
-            <div key={i} className="skeleton h-12 rounded-lg" />
-          ))}
+        <div className="mt-5">
+          <RowLoading rows={8} />
         </div>
       ) : logs.length === 0 ? (
         <div className="mt-5 rounded-xl border border-dashed p-16 text-center">

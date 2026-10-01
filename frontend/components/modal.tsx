@@ -3,6 +3,7 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { gsap } from 'gsap'
+import { prefersReducedMotion } from '@/components/motion'
 import { X } from 'lucide-react'
 
 interface ModalProps {
@@ -51,26 +52,26 @@ export function Modal({
 
   useEffect(() => {
     if (!open) return
-    // 等一帧确保 DOM 已挂载
-    const raf = requestAnimationFrame(() => {
-      if (overlayRef.current) {
-        gsap.fromTo(overlayRef.current, { opacity: 0 }, { opacity: 1, duration: 0.2, ease: 'power2.out' })
-      }
-      if (cardRef.current) {
-        gsap.fromTo(
-          cardRef.current,
-          { opacity: 0, scale: 0.9, y: 20 },
-          { opacity: 1, scale: 1, y: 0, duration: 0.45, ease: 'back.out(1.4)' },
-        )
-      }
-    })
-    return () => cancelAnimationFrame(raf)
+    // 直接执行（不用 rAF gate）：effect 触发时 DOM 已挂载，gsap.fromTo 首帧自会应用初始态。
+    // rAF 在远程桌面/窗口遮挡时会被节流，包一层反而让回调不执行、弹窗卡在 opacity:0。
+    if (overlayRef.current) {
+      gsap.fromTo(overlayRef.current, { opacity: 0 }, { opacity: 1, duration: 0.2, ease: 'power2.out' })
+    }
+    if (cardRef.current) {
+      gsap.fromTo(
+        cardRef.current,
+        { opacity: 0, scale: 0.9, y: 20 },
+        { opacity: 1, scale: 1, y: 0, duration: 0.45, ease: 'back.out(1.4)' },
+      )
+    }
   }, [open])
 
   if (!open) return null
 
   const closeWithAnim = () => {
-    if (cardRef.current && overlayRef.current) {
+    if (cardRef.current && overlayRef.current && !prefersReducedMotion()) {
+      // 兜底：退场 tween 的 onComplete 依赖 rAF 推进，被节流时会导致弹窗关不掉；
+      // 延迟调用兜底 onClose（幂等，重复调用无副作用）
       gsap.to(cardRef.current, { opacity: 0, scale: 0.94, y: 12, duration: 0.18, ease: 'power2.in' })
       gsap.to(overlayRef.current, {
         opacity: 0,
@@ -78,6 +79,7 @@ export function Modal({
         ease: 'power2.in',
         onComplete: onClose,
       })
+      gsap.delayedCall(0.6, onClose)
     } else {
       onClose()
     }

@@ -1,8 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
-import { motion } from 'framer-motion'
+import { useEffect, useRef, useState } from 'react'
+import gsap from 'gsap'
+import { Reveal, easeOut, hoverTapScale, prefersReducedMotion } from '@/components/motion'
+import { RowLoading } from '@/components/page-loader'
 import { PenLine } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -36,6 +38,14 @@ export default function AdminArticlesPage() {
   const [status, setStatus] = useState<'' | 'published' | 'draft'>('')
   const notify = useNotify()
   const queryClient = useQueryClient()
+
+  // 标签页选中胶囊：切换时以 scaleX 入场（替代 framer layoutId 滑动）
+  const pillRef = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (pillRef.current && !prefersReducedMotion()) {
+      gsap.fromTo(pillRef.current, { scaleX: 0 }, { scaleX: 1, duration: 0.25, ease: easeOut })
+    }
+  }, [status])
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin', 'articles', status],
@@ -72,7 +82,7 @@ export default function AdminArticlesPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
+            <div {...hoverTapScale}>
               <Link
                 href="/admin/articles/new"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white shadow-lg shadow-accent/25"
@@ -80,7 +90,7 @@ export default function AdminArticlesPage() {
                 <PenLine className="h-4 w-4" />
                 写文章
               </Link>
-            </motion.div>
+            </div>
             <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
           {tabs.map((t) => (
             <button
@@ -91,10 +101,10 @@ export default function AdminArticlesPage() {
               }`}
             >
               {status === t.key && (
-                <motion.span
-                  layoutId="article-tab-pill"
-                  className="absolute inset-0 rounded-md bg-accent"
-                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                <span
+                  key={`article-tab-pill-${status}`}
+                  ref={pillRef}
+                  className="absolute inset-0 origin-left rounded-md bg-accent"
                 />
               )}
               <span className="relative">{t.label}</span>
@@ -105,20 +115,17 @@ export default function AdminArticlesPage() {
       </div>
 
       {isLoading ? (
-        <div className="mt-6 space-y-2">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="skeleton h-16 rounded-xl" />
-          ))}
+        <div className="mt-6">
+          <RowLoading rows={4} />
         </div>
       ) : (
         <div className="mt-6 space-y-2">
           {(data?.articles ?? []).map((a, i) => (
-            <motion.div
+            <Reveal
               key={a.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, x: -24 }}
-              transition={{ delay: i * 0.04, duration: 0.3 }}
+              y={12}
+              delay={i * 0.04}
+              duration={0.3}
               className="group flex items-center justify-between rounded-2xl border border-border bg-card px-5 py-4 transition-colors hover:border-accent/30"
             >
               <div className="min-w-0">
@@ -171,16 +178,15 @@ export default function AdminArticlesPage() {
                   删除
                 </button>
               </div>
-            </motion.div>
+            </Reveal>
           ))}
           {(data?.articles.length ?? 0) === 0 && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+            <Reveal
+              y={0}
               className="rounded-xl border border-dashed py-16 text-center text-muted-foreground"
             >
               没有符合条件的文章
-            </motion.div>
+            </Reveal>
           )}
         </div>
       )}

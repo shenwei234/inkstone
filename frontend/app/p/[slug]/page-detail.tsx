@@ -1,29 +1,56 @@
 'use client'
 
+import { useRef } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
 import { ArrowLeft, SearchX } from 'lucide-react'
 import { fetchPageBySlug } from '@/lib/api'
-import { PageTransition, easeOut } from '@/components/motion'
+import { proseBody } from '@/lib/ui'
+import { PageTransition, Reveal, useReveal } from '@/components/motion'
+import { PageLoading } from '@/components/page-loader'
+import { useCodeHighlight } from '@/components/code-highlight'
 import { useSiteConfig } from '@/components/site-config-context'
+import { useNotify } from '@/components/toast'
 
 export function StaticPageDetail({ slug }: { slug: string }) {
   const site = useSiteConfig()
+  const notify = useNotify()
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['page', slug],
     queryFn: () => fetchPageBySlug(slug),
   })
 
+  // 语义标签 header/footer 的入场动效：useReveal 保留原 DOM 结构
+  const headerRef = useRef<HTMLHeadingElement>(null)
+  const footerRef = useRef<HTMLElement>(null)
+  const fullwidthContentRef = useRef<HTMLDivElement>(null)
+  const defaultContentRef = useRef<HTMLDivElement>(null)
+  const templateContentRef = useRef<HTMLDivElement>(null)
+  useReveal(headerRef, { duration: 0.55 })
+  useReveal(footerRef, { duration: 0.55, delay: 0.4 })
+  useReveal(fullwidthContentRef, { delay: 0.12, duration: 0.55 })
+  useReveal(defaultContentRef, { delay: 0.12, duration: 0.55 })
+
+  // 三个模板的正文都走 hljs 高亮 + 复制按钮（复制成功弹 toast）。
+  // 必须在下方 early return 之前调用，保证 hooks 顺序稳定
+  const pending = data?.page
+  const copyOpts = { onCopySuccess: () => notify.success('代码已复制') }
+  useCodeHighlight(templateContentRef, pending?.template === 'landing' ? pending.content ?? '' : '', copyOpts)
+  useCodeHighlight(fullwidthContentRef, pending?.template === 'fullwidth' ? pending.content ?? '' : '', copyOpts)
+  useCodeHighlight(
+    defaultContentRef,
+    pending && pending.template !== 'landing' && pending.template !== 'fullwidth' ? pending.content ?? '' : '',
+    copyOpts,
+  )
+
   if (isLoading) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-12">
-        <div className="skeleton h-10 w-2/3 rounded-lg" />
-        <div className="mt-8 space-y-3">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="skeleton h-4 rounded" style={{ width: `${90 - i * 8}%` }} />
-          ))}
+        {/* 加载态统一使用 GSAP 加载动画，替换原骨架图 */}
+        <PageLoading minHeight="2.5rem" hint="加载标题…" />
+        <div className="mt-8">
+          <PageLoading minHeight="10rem" hint="加载内容…" />
         </div>
       </div>
     )
@@ -31,10 +58,8 @@ export function StaticPageDetail({ slug }: { slug: string }) {
 
   if (isError || !data) {
     return (
-      <motion.div
-        initial={false}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: easeOut }}
+      <Reveal
+        y={0}
         className="mx-auto max-w-3xl px-4 py-24 text-center"
       >
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted">
@@ -47,7 +72,7 @@ export function StaticPageDetail({ slug }: { slug: string }) {
         >
           返回首页
         </Link>
-      </motion.div>
+      </Reveal>
     )
   }
 
@@ -59,6 +84,7 @@ export function StaticPageDetail({ slug }: { slug: string }) {
     return (
       <PageTransition>
         <div
+          ref={templateContentRef}
           className="min-h-[60vh] overflow-x-auto px-4"
           dangerouslySetInnerHTML={{ __html: html }}
         />
@@ -71,20 +97,16 @@ export function StaticPageDetail({ slug }: { slug: string }) {
     return (
       <PageTransition>
         <div className="mx-auto max-w-6xl px-4 py-12">
-          <motion.h1
-            initial={false}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, ease: easeOut }}
+          <h1
+            ref={headerRef}
             className="text-center text-3xl font-bold tracking-tight sm:text-4xl"
           >
             {page.title}
-          </motion.h1>
-          <motion.div
-            initial={false}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, delay: 0.12, ease: easeOut }}
-            className="prose prose-neutral dark:prose-invert mx-auto mt-10 max-w-none overflow-x-auto prose-headings:font-semibold prose-a:text-accent prose-img:rounded-xl"
-            dangerouslySetInnerHTML={{ __html: page.content ?? "" }}
+          </h1>
+          <div
+            ref={fullwidthContentRef}
+            className={`${proseBody} mx-auto mt-10`}
+            dangerouslySetInnerHTML={{ __html: page.content ?? '' }}
           />
         </div>
       </PageTransition>
@@ -95,28 +117,22 @@ export function StaticPageDetail({ slug }: { slug: string }) {
   return (
     <PageTransition>
       <div className="mx-auto max-w-3xl px-4 py-12">
-        <motion.header
-          initial={false}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55, ease: easeOut }}
+        <header
+          ref={headerRef}
           className="mb-8 border-b border-border pb-6"
         >
           <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
             {page.title}
           </h1>
           <p className="mt-3 text-sm text-muted-foreground">{site.siteName}</p>
-        </motion.header>
-        <motion.div
-          initial={false}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55, delay: 0.12, ease: easeOut }}
-          className="prose prose-neutral dark:prose-invert max-w-none overflow-x-auto prose-headings:font-semibold prose-a:text-accent prose-pre:bg-muted prose-code:bg-muted prose-code:rounded prose-code:px-1.5 prose-code:py-0.5 prose-code:before:content-none prose-code:after:content-none prose-img:rounded-xl"
-          dangerouslySetInnerHTML={{ __html: page.content ?? "" }}
+        </header>
+        <div
+          ref={defaultContentRef}
+          className={proseBody}
+          dangerouslySetInnerHTML={{ __html: page.content ?? '' }}
         />
-        <motion.footer
-          initial={false}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
+        <footer
+          ref={footerRef}
           className="mt-16 border-t border-border pt-8"
         >
           <Link
@@ -125,7 +141,7 @@ export function StaticPageDetail({ slug }: { slug: string }) {
           >
             <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" /> 返回首页
           </Link>
-        </motion.footer>
+        </footer>
       </div>
     </PageTransition>
   )

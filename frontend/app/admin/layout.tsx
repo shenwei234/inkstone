@@ -1,9 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowLeft,
   FileStack,
@@ -17,7 +16,6 @@ import {
   Menu,
   MessageSquare,
   Paintbrush,
-  Rocket,
   ScrollText,
   Settings,
   ShieldCheck,
@@ -25,6 +23,8 @@ import {
   Users,
   X,
 } from 'lucide-react'
+import { Presence, Reveal, useReveal } from '@/components/motion'
+import { PageLoading } from '@/components/page-loader'
 import { useAuth } from '@/lib/auth-context'
 
 const navItems = [
@@ -40,7 +40,6 @@ const navItems = [
   { href: '/admin/appearance', label: '外观管理', icon: Paintbrush },
   { href: '/admin/security', label: '安全防护', icon: ShieldCheck },
   { href: '/admin/settings', label: '网站管理', icon: Settings },
-  { href: '/admin/updates', label: '系统更新', icon: Rocket },
   { href: '/admin/logs', label: '网站日志', icon: ScrollText },
   { href: '/admin/about', label: '关于系统', icon: Info },
 ]
@@ -51,6 +50,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [lastPath, setLastPath] = useState(pathname)
+  const asideRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
     if (!loading && !user) router.push('/login')
@@ -72,10 +72,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setMobileNavOpen(false)
   }
 
+  // 桌面端侧边栏入场
+  useReveal(asideRef, { x: -20, duration: 0.45 })
+
   if (loading) {
     return (
       <div className="mx-auto max-w-6xl px-4 py-16">
-        <div className="skeleton h-64 rounded-xl" />
+        <PageLoading minHeight="16rem" />
       </div>
     )
   }
@@ -137,10 +140,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
 
       <div className="flex gap-6">
-        <motion.aside
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+        <aside
+          ref={asideRef}
           className="sticky top-24 hidden h-fit w-52 shrink-0 rounded-xl border border-border bg-card p-3 sm:block"
         >
           <p className="px-3 pb-2 pt-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -155,63 +156,52 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <ArrowLeft className="h-4 w-4" /> 返回前台
             </Link>
           </div>
-        </motion.aside>
+        </aside>
 
         <div className="min-w-0 flex-1">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-          >
-            {children}
-          </motion.div>
+          <Reveal duration={0.45}>{children}</Reveal>
         </div>
       </div>
 
       {/* 移动端抽屉导航 */}
-      <AnimatePresence>
-        {mobileNavOpen && (
-          <div className="fixed inset-0 z-[120] sm:hidden">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              onClick={() => setMobileNavOpen(false)}
-              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            />
-            <motion.aside
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'spring', stiffness: 380, damping: 36 }}
-              className="absolute inset-y-0 left-0 flex w-72 max-w-[82vw] flex-col rounded-r-2xl border-r border-border bg-card p-3 shadow-2xl"
-            >
-              <div className="flex items-center justify-between px-3 pb-2 pt-1">
-                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">管理控制台</p>
-                <button
-                  type="button"
-                  onClick={() => setMobileNavOpen(false)}
-                  aria-label="关闭菜单"
-                  className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto">{renderNav(true)}</nav>
-              <div className="mt-2 border-t border-border px-3 pb-1 pt-3">
-                <Link
-                  href="/"
-                  onClick={() => setMobileNavOpen(false)}
-                  className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  <ArrowLeft className="h-4 w-4" /> 返回前台
-                </Link>
-              </div>
-            </motion.aside>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* 抽屉遮罩：点击关闭 */}
+      <Presence
+        show={mobileNavOpen}
+        duration={0.2}
+        className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm sm:hidden"
+        onClick={() => setMobileNavOpen(false)}
+      >
+        {''}
+      </Presence>
+      {/* 侧滑抽屉面板 */}
+      <Presence
+        show={mobileNavOpen}
+        x="-100%"
+        duration={0.35}
+        className="fixed inset-y-0 left-0 z-[120] flex w-72 max-w-[82vw] flex-col rounded-r-2xl border-r border-border bg-card p-3 shadow-2xl sm:hidden"
+      >
+        <div className="flex items-center justify-between px-3 pb-2 pt-1">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">管理控制台</p>
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen(false)}
+            aria-label="关闭菜单"
+            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto">{renderNav(true)}</nav>
+        <div className="mt-2 border-t border-border px-3 pb-1 pt-3">
+          <Link
+            href="/"
+            onClick={() => setMobileNavOpen(false)}
+            className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" /> 返回前台
+          </Link>
+        </div>
+      </Presence>
     </div>
   )
 }

@@ -12,13 +12,13 @@ import (
 type AuthHandler struct {
 	auth      *service.AuthService
 	emailCode *service.EmailCodeService
-	geetest   *service.GeetestService
+	captcha   *service.CaptchaService
 	limiter   *middleware.SlidingLimiter
 	logs      *service.LogService
 }
 
-func NewAuthHandler(auth *service.AuthService, emailCode *service.EmailCodeService, geetest *service.GeetestService, limiter *middleware.SlidingLimiter, logs *service.LogService) *AuthHandler {
-	return &AuthHandler{auth: auth, emailCode: emailCode, geetest: geetest, limiter: limiter, logs: logs}
+func NewAuthHandler(auth *service.AuthService, emailCode *service.EmailCodeService, captcha *service.CaptchaService, limiter *middleware.SlidingLimiter, logs *service.LogService) *AuthHandler {
+	return &AuthHandler{auth: auth, emailCode: emailCode, captcha: captcha, limiter: limiter, logs: logs}
 }
 
 // resetAuthLimit clears the rate-limit budget for the caller after a
@@ -38,14 +38,14 @@ type registerRequest struct {
 	Username  string `json:"username" binding:"required"`
 	Password  string `json:"password" binding:"required"`
 	EmailCode string `json:"email_code"`
-	service.GeetestParams
+	service.CaptchaParams
 }
 
 type loginRequest struct {
 	Email     string `json:"email" binding:"required"`
 	Password  string `json:"password" binding:"required"`
 	EmailCode string `json:"email_code"`
-	service.GeetestParams
+	service.CaptchaParams
 }
 
 type refreshRequest struct {
@@ -66,7 +66,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	if err := h.geetest.Verify("register", req.GeetestParams); err != nil {
+	if err := h.captcha.Verify("register", req.CaptchaParams); err != nil {
 		errorResponse(c, err)
 		return
 	}
@@ -113,7 +113,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	if err := h.geetest.Verify("login", req.GeetestParams); err != nil {
+	if err := h.captcha.Verify("login", req.CaptchaParams); err != nil {
 		errorResponse(c, err)
 		return
 	}
